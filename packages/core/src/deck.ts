@@ -71,7 +71,7 @@ export class Deck<T = any> {
     this.#zonesEl = root.querySelector('.tr-zones')!;
     this.#cardsEl = root.querySelector('.tr-cards')!;
     this.#label('.tr-nothing', t.empty);
-    this.#button('skip', t.skip, 'space');
+    this.#button('skip', t.skip, t.space);
     this.#button('undo', t.undo, '⌫');
     this.#button('expand', t.expand);
     root.querySelector('[data-tr="collapse"]')!.setAttribute('title', t.close);

@@ -77,6 +77,8 @@ export interface DeckText {
   free: string;
   /** label of the multi-zone toggle */
   multi: string;
+  /** name of the space bar, shown as the skip shortcut */
+  space: string;
   count: (n: number) => string;
   /** label of the toggle once zones are picked */
   sortMany: (n: number) => string;

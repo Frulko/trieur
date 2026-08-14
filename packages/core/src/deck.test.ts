@@ -109,7 +109,7 @@ test('the bar button latches the mode, and Shift release does not file it', asyn
   await tick();
   expect(calls).toEqual([]);
 
-  expect(btn.textContent).toContain('2');
+  expect(btn.textContent).toContain('2 zones');
   btn.click(); // the same button confirms
   await tick();
   expect(calls).toEqual([['dev', 'home']]);
