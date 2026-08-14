@@ -9,6 +9,16 @@ import { voronoi } from './voronoi.js';
 
 const TAU = Math.PI * 2;
 
+/**
+ * Tags a layout with the name it should answer to.
+ *
+ * The deck puts `tr-layout-<name>` on the root, and the stylesheet leans on it — a radial menu
+ * draws its tiles as bare labels inside their wedges, a dock stands them on the edge. A layout
+ * built by a factory is a plain function, so without this `radialLayout({ sweep })` arrived as
+ * `custom` and lost every rule written for the shape it actually is.
+ */
+const name = (fn: Layout, layoutName: string): Layout => Object.assign(fn, { layoutName });
+
 /** Radius of an ellipse (rx, ry) at angle `a`. */
 const onEllipse = (rx: number, ry: number, a: number): number => {
   const c = Math.cos(a);
@@ -56,6 +66,9 @@ const circle: Layout = (n, { w, h, clearX, clearY }) => {
  */
 const RING_MAX = 8;
 
+/** Width of the gutter between two wedges, in px — a distance, so it reads the same everywhere. */
+const GUTTER = 6;
+
 export interface RadialOptions {
   /** where the arc begins, in radians. `-π/2` is the top; angles run clockwise. */
   start?: number;
@@ -86,7 +99,7 @@ export function radialLayout(opts: RadialOptions = {}): Layout {
   const ringGap = Math.max(0, opts.ringGap ?? 3);
   const maxFirst = Math.max(2, opts.maxPerRing ?? RING_MAX);
 
-  return (n, box): Placement => {
+  const place: Layout = (n, box): Placement => {
     const { w, h, cardW, cardH, tile } = box;
     const rIn = Math.hypot(cardW / 2, cardH / 2) + 12;
     // An arc does not need the stage centred on it: a half menu against the left edge has the
@@ -130,13 +143,19 @@ export function radialLayout(opts: RadialOptions = {}): Layout {
     // other. So the band decides how many rings there is room for, and when that is not enough
     // to hold every zone at the ideal wedge width, the wedges get narrower rather than the
     // menu growing a ring it cannot draw.
-    const maxRings = Math.max(1, Math.min(4, n, Math.floor((rOut - rIn) / (tile * 0.85))));
+    // A ring must be thick enough to draw a tile in — but a crowded tile shrinks (the deck
+    // scales it down rather than let two overlap), so the floor is the smallest one, not the
+    // roomiest. Otherwise sixteen zones are squeezed onto a single ring that cannot hold them.
+    const maxRings = Math.max(1, Math.min(4, n, Math.floor((rOut - rIn) / Math.max(56, tile * 0.5))));
     const capsFor = (rings: number) => {
       const t = (rOut - rIn) / rings;
       return Array.from({ length: rings }, (_, k) =>
         Math.max(2, Math.round((maxFirst * (sweep / TAU) * (rIn + (k + 0.5) * t)) / (rIn + 0.5 * t))),
       );
     };
+    // The smallest number of rings that can hold them at an aimable width. A wedge much
+    // narrower than a ring's share stops being a Fitts's-law target, and the tiles themselves
+    // give up their keycap and shrink their glyph rather than force another ring.
     let counts = share2(capsFor(maxRings));
     for (let rings = 1; rings <= maxRings; rings++) {
       const caps = capsFor(rings);
@@ -155,18 +174,24 @@ export function radialLayout(opts: RadialOptions = {}): Layout {
       const r0 = rIn + ring * thickness;
       const r1 = r0 + thickness - (ring < counts.length - 1 ? ringGap : 0);
       const step = sweep / count;
-      const gap = Math.min(step * 0.04, 0.03); // a hairline between wedges, not a slice of pie
+      /* The gutter between two wedges is a **distance**, not an angle. A constant angle looks
+         like a hairline at the hole and a wide slot at the rim, because the sides of adjacent
+         wedges diverge; taking `gutter / r` as the angular inset at each radius keeps the two
+         facing sides the same distance apart all the way along — parallel, which is what the
+         eye was expecting from a menu drawn out of rings. */
+      const gutter = Math.min(GUTTER, step * r0 * 0.5);
+      const inset = (r: number) => Math.min(gutter / (2 * r), step / 3);
       for (let i = 0; i < count; i++) {
         const mid = start + (i + 0.5) * step;
-        const a0 = mid - step / 2 + gap;
-        const a1 = mid + step / 2 - gap;
+        const outer = [mid - step / 2 + inset(r1), mid + step / 2 - inset(r1)];
+        const inner = [mid - step / 2 + inset(r0), mid + step / 2 - inset(r0)];
         const poly: Polygon = [];
         for (let s2 = 0; s2 <= SAMPLES; s2++) {
-          const a = a0 + ((a1 - a0) * s2) / SAMPLES;
+          const a = outer[0]! + ((outer[1]! - outer[0]!) * s2) / SAMPLES;
           poly.push([centre.x + Math.cos(a) * r1, centre.y + Math.sin(a) * r1]);
         }
         for (let s2 = SAMPLES; s2 >= 0; s2--) {
-          const a = a0 + ((a1 - a0) * s2) / SAMPLES;
+          const a = inner[0]! + ((inner[1]! - inner[0]!) * s2) / SAMPLES;
           poly.push([centre.x + Math.cos(a) * r0, centre.y + Math.sin(a) * r0]);
         }
         cells.push(poly);
@@ -185,6 +210,7 @@ export function radialLayout(opts: RadialOptions = {}): Layout {
     });
     return { points, cells, centre };
   };
+  return name(place, 'radial');
 }
 
 const radial = radialLayout();
@@ -287,7 +313,7 @@ export interface DockOptions {
  * and the regions become a top half and a bottom half rather than full-height columns.
  */
 export function dockLayout(opts: DockOptions = {}): Layout {
-  return (n, { w, h, tile }): Placement => {
+  const place: Layout = (n, { w, h, tile }): Placement => {
     const points: Point[] = [];
     const cells: Polygon[] = [];
     const perRow = Math.max(1, Math.floor(w / (tile + 6)));
@@ -332,6 +358,7 @@ export function dockLayout(opts: DockOptions = {}): Layout {
     }
     return { points, cells };
   };
+  return name(place, 'dock');
 }
 
 const dock = dockLayout();

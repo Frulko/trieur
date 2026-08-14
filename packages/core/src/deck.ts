@@ -56,6 +56,8 @@ export class Deck<T = any> {
   /** what the model suggests for the top card, or null */
   prediction: Prediction | null = null;
   expanded = false;
+  /** touch only: whether the deck has taken the gesture from the page. See `touchPreview`. */
+  live = false;
 
   #opts: DeckOptions<T>;
   #text: DeckText;
@@ -116,6 +118,10 @@ export class Deck<T = any> {
         <div class="tr-zones"></div>
         <div class="tr-cards"></div>
         <p class="tr-nothing" hidden></p>
+        <button type="button" class="tr-play" data-tr="play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5Z" fill="currentColor"/></svg>
+          <span>${t.play}</span>
+        </button>
         <button type="button" class="tr-pad" data-tr="pad" aria-label="${t.hold}" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 5 11h4v9h6v-9h4Z" fill="currentColor"/></svg>
         </button>
@@ -126,7 +132,10 @@ export class Deck<T = any> {
           <button type="button" data-tr="multi" aria-pressed="false" hidden></button>
           <button type="button" data-tr="skip"></button>
           <button type="button" data-tr="undo" disabled></button>
-          <button type="button" data-tr="expand" aria-expanded="false"></button>
+          <span class="tr-live-bar">
+            <button type="button" data-tr="stop"></button>
+            <button type="button" data-tr="expand" aria-expanded="false"></button>
+          </span>
         </span>
       </div>
       <button type="button" class="tr-close" data-tr="collapse" aria-label="${t.close}">
@@ -143,6 +152,7 @@ export class Deck<T = any> {
     this.#button('skip', t.skip, t.space);
     this.#button('undo', t.undo, '⌫');
     this.#button('expand', t.expand);
+    this.#button('stop', t.stop);
     root.querySelector('[data-tr="collapse"]')!.setAttribute('title', t.close);
 
     this.#stage.addEventListener('pointerdown', (e) => this.#stagePress(e));
@@ -157,6 +167,10 @@ export class Deck<T = any> {
           return this.skip();
         case 'undo':
           return void this.undo();
+        case 'play':
+          return this.play(true);
+        case 'stop':
+          return this.play(false);
         case 'expand':
           return this.expand(!this.expanded);
         case 'collapse':
@@ -332,7 +346,12 @@ export class Deck<T = any> {
     // measured, not assumed: a tile with a two-line label and a keycap is half again as tall
     // as it is wide, and margining on the width alone let the top row hang off the stage
     const first = els[0]!;
-    const tile = round(Math.max(first.offsetWidth, first.offsetHeight)) || TILE;
+    for (const el of els) {
+      el.style.removeProperty('--tr-zone-k'); // measure a tile at full size, with all its chrome
+      el.classList.remove('tr-tight', 'tr-tiny');
+    }
+    const [tileW, tileH] = [first.offsetWidth || TILE, first.offsetHeight || TILE];
+    const tile = round(Math.max(tileW, tileH)) || TILE;
     // The card's *declared* size, never the content's. A card with one more line of text is
     // still the same card as far as the zones are concerned, and measuring the content made
     // every new card nudge the whole layout and repaint the carving — a flicker with no cause
@@ -379,6 +398,7 @@ export class Deck<T = any> {
     this.root.style.setProperty('--tr-card-x', `${Math.round(centre?.x ?? 0)}px`);
     this.root.style.setProperty('--tr-card-y', `${Math.round(centre?.y ?? 0)}px`);
 
+    const fits: number[] = [];
     els.forEach((el, i) => {
       const p = points[i] ?? { x: 0, y: 0 };
       const z = this.zones[i]!;
@@ -388,10 +408,46 @@ export class Deck<T = any> {
       z.pos = p; // where the genie animation lands
       el.style.left = `calc(50% + ${p.x}px)`;
       el.style.top = `calc(50% + ${p.y}px)`;
+      // No tile may cover its neighbour: sixteen zones on a ring have 70px of arc each, and a
+      // full-size tile drawn there sits on the two beside it. Crowded tiles shrink instead —
+      // a smaller label you can read is better than three of them on top of each other.
+      let fit = 1;
+      for (let j = 0; j < points.length; j++) {
+        if (j === i) continue;
+        const q = points[j]!;
+        const [dx, dy] = [q.x - p.x, q.y - p.y];
+        const d = Math.hypot(dx, dy);
+        if (d < 1) continue;
+        // how far the tile reaches *towards that neighbour*: a wide tile and a tall one are
+        // crowded by different neighbours, and shrinking for the worst case in every
+        // direction throws away room the layout actually left
+        const reach = (Math.abs(dx) / d) * (tileW / 2) + (Math.abs(dy) / d) * (tileH / 2);
+        fit = Math.min(fit, (d - 6) / (2 * reach));
+      }
+      fits[i] = Math.max(0.5, Math.min(1, fit));
+    });
+    // A layout that draws its own regions is a regular thing — rings, columns, a grid — and a
+    // ring of tiles at five different sizes reads as a mistake. There, everyone takes the
+    // smallest fit. Floating tiles have no such symmetry to keep, so each one takes its own.
+    const shared = cells ? Math.min(...fits) : null;
+    els.forEach((el, i) => {
+      const k = shared ?? fits[i] ?? 1;
+      // Crowded tiles give up their chrome before their words: the keycap goes, the glyph
+      // shrinks, and the label — the only part anyone reads — keeps a legible size. Scaling
+      // the whole tile down was tidier and left sixteen zones labelled in 6px type.
+      const tight = k < 0.86 && k >= 0.62;
+      const tiny = k < 0.62;
+      el.classList.toggle('tr-tight', tight);
+      el.classList.toggle('tr-tiny', tiny);
+      // whatever the chrome could not give back, the transform takes
+      const residual = k / (tiny ? 0.55 : tight ? 0.78 : 1);
+      if (residual < 0.995) el.style.setProperty('--tr-zone-k', Math.max(0.55, residual).toFixed(3));
+      else el.style.removeProperty('--tr-zone-k');
     });
     // a host styles a radial menu differently from floating tiles, and only the deck knows
     // which layout is in play
-    const name = typeof this.#opts.layout === 'string' ? this.#opts.layout : this.#opts.layout ? 'custom' : 'auto';
+    const l = this.#opts.layout;
+    const name = typeof l === 'string' ? l : l ? (l.layoutName ?? 'custom') : 'auto';
     for (const c of [...this.root.classList]) if (c.startsWith('tr-layout-')) this.root.classList.remove(c);
     this.root.classList.add(`tr-layout-${name}`);
     this.#paintSegments(points, cells, box.w, box.h);
@@ -553,6 +609,7 @@ export class Deck<T = any> {
     (this.root.querySelector('[data-tr="undo"]') as HTMLButtonElement).disabled = !this.#history.length;
     (this.root.querySelector('[data-tr="multi"]') as HTMLButtonElement).hidden = !this.#opts.multi;
     this.#syncPad();
+    this.#syncChrome();
     void this.suggest();
     if (top === undefined) {
       this.#emit('empty', {});
@@ -609,24 +666,51 @@ export class Deck<T = any> {
       if (lane !== this.#active) this.active = lane;
       // A phone scrolls the page with the same swipe that would drag a card. Inline the deck
       // stays a preview and lets the page scroll; the gesture is ours alone once expanded.
-      if (this.#tapToExpand()) return;
+      if (this.#idle()) return;
       if (!this.#doubleTap(e)) this.#startDrag(e, el);
     });
     el.addEventListener('click', (e) => {
-      if (!this.#tapToExpand() || (e.target as Element).closest('a, button, input, label')) return;
-      this.expand(true);
+      // a tap on the card is the other way to wake a preview — the play button is only the
+      // one that says so
+      if (!this.#idle() || (e.target as Element).closest('a, button, input, label')) return;
+      this.play(true);
     });
     return el;
   }
 
-  /** On a touch screen, outside fullscreen, a tap opens rather than sorts. */
-  #tapToExpand(): boolean {
+  /**
+   * Whether the deck is a preview right now: on a touch screen, inline, before you press play.
+   * The page keeps the swipe until then.
+   */
+  #idle(): boolean {
     return (
-      this.#opts.touchFullscreen !== false &&
+      this.#opts.touchPreview !== false &&
+      !this.live &&
       !this.expanded &&
       typeof matchMedia === 'function' &&
       matchMedia('(pointer: coarse)').matches
     );
+  }
+
+  /** Wakes an inline deck on a touch screen, or gives the page its swipe back. */
+  play(on = true): void {
+    this.live = Boolean(on);
+    this.root.classList.toggle('tr-live', this.live);
+    this.#syncChrome();
+    if (this.live) this.#stage.focus({ preventScroll: true });
+  }
+
+  /** Which of play / stop / expand are worth showing, given where the deck stands. */
+  #syncChrome(): void {
+    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    const preview = this.#opts.touchPreview !== false && coarse;
+    const btn = (name: string, show: boolean) => {
+      const el = this.root.querySelector<HTMLElement>(`[data-tr="${name}"]`);
+      if (el) el.hidden = !show;
+    };
+    btn('play', preview && !this.live && !this.expanded);
+    btn('stop', preview && this.live && !this.expanded);
+    this.root.classList.toggle('tr-idle', preview && !this.live && !this.expanded);
   }
 
   // --- multi-zone selection --------------------------------------------------
@@ -732,7 +816,7 @@ export class Deck<T = any> {
    * A ring fills during the hold so the wait is visible, and letting go files the stack.
    */
   #stagePress(e: PointerEvent): void {
-    if (this.#padMode() !== 'dynamic' || this.#multi || this.#tapToExpand()) return;
+    if (this.#padMode() !== 'dynamic' || this.#multi || this.#idle()) return;
     if ((e.target as Element).closest('.tr-card, .tr-pad, .tr-bar')) return; // the card has its own gesture
     const r = this.#stage.getBoundingClientRect();
     const pad = this.#padEl;
@@ -802,7 +886,7 @@ export class Deck<T = any> {
           // where a release *now* would land: under the finger, or where the throw carries
           const thrown = this.#throwTo(g, ev);
           const near = thrown
-            ? this.#aim(g.dx + thrown.x - ev.clientX, g.dy + thrown.y - ev.clientY, thrown.x, thrown.y)
+            ? this.#landing(thrown, angleOf(g.vx, g.vy))
             : g.dist > 30
               ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
               : null;
@@ -831,7 +915,7 @@ export class Deck<T = any> {
           const zone = g.cancelled
             ? null
             : thrown
-              ? this.#aim(g.dx + thrown.x - ev.clientX, g.dy + thrown.y - ev.clientY, thrown.x, thrown.y)
+              ? this.#landing(thrown, angleOf(g.vx, g.vy))
               : g.dist > threshold
                 ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
                 : null;
@@ -868,10 +952,49 @@ export class Deck<T = any> {
     const speed = Math.hypot(g.vx, g.vy);
     if (speed < (this.#opts.flickMin ?? 0.25)) return null;
     const r = this.#rect ?? this.#stage.getBoundingClientRect();
+    /* Where the card *would come to rest*, the way a scroll view works it out: velocity decays
+       exponentially at λ per millisecond, and the whole trip integrates to `v · λ/(1 − λ)`.
+       That fraction has units of milliseconds, which is why the knob is one — `flickMs` is
+       λ/(1 − λ), so 170ms is λ ≈ 0.994, between iOS's fast (0.99) and normal (0.998) scrolling.
+       A card is lighter than a scroll view; it should not sail for half a second. */
+    const decay = this.#opts.flickDecay;
+    const ms = decay !== undefined ? decay / Math.max(1 - decay, 1e-4) : (this.#opts.flickMs ?? 170);
     // capped at the stage diagonal: past the edge every extra pixel aims at the same zone,
     // and an uncapped throw off a fast trackpad lands in another postcode
-    const reach = Math.min(speed * (this.#opts.flickMs ?? 170), Math.hypot(r.width, r.height));
+    const reach = Math.min(speed * ms, Math.hypot(r.width, r.height));
     return { x: ev.clientX + (g.vx / speed) * reach, y: ev.clientY + (g.vy / speed) * reach };
+  }
+
+  /**
+   * Which zone a throw lands in.
+   *
+   * Not the region under the landing point, but the **nearest tile** — with the zone the model
+   * suggests pulling harder in proportion to how sure it is. That is the iPhone keyboard's
+   * oldest trick: after "kno", the `w` key's *hit area* grows while the key itself does not
+   * move a pixel. Here the same thing: the tiles stay where they are, and a confident
+   * suggestion quietly catches throws that land up to `flickBias` of a tile wide of it.
+   *
+   * A throw resolves to a tile rather than to a region because the landing point is a
+   * prediction, not a touch: past the edge of the stage there are no regions left, and "the
+   * nearest tile in the direction you threw" is the answer every time.
+   */
+  #landing(at: Point, dir: number): PlacedZone | null {
+    const r = this.#rect ?? this.#stage.getBoundingClientRect();
+    const [x, y] = [at.x - r.left - r.width / 2, at.y - r.top - r.height / 2];
+    const bias = this.#opts.flickBias ?? 0.5;
+    const tile = this.#box?.tile ?? 104;
+    let best: PlacedZone | null = null;
+    let bestCost = Infinity;
+    for (const z of this.zones) {
+      if (angleGap(dir, angleOf(z.pos.x - this.#origin.x, z.pos.y - this.#origin.y)) >= AWAY) continue;
+      const pull = this.prediction?.id === z.id ? bias * this.prediction.score * tile : 0;
+      const cost = Math.hypot(z.pos.x - x, z.pos.y - y) - pull;
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = z;
+      }
+    }
+    return best;
   }
 
   /** The debug view of the throw: the vector, and the point it is aimed at. */
@@ -885,9 +1008,15 @@ export class Deck<T = any> {
     const [x1, y1] = [from.clientX - r.left, from.clientY - r.top];
     const [x2, y2] = [to.x - r.left, to.y - r.top];
     svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+    // the suggestion's gravity well, drawn where it actually applies
+    const guess = this.prediction ? this.zones.find((z) => z.id === this.prediction!.id) : null;
+    const pull = guess ? (this.#opts.flickBias ?? 0.5) * (this.prediction?.score ?? 0) * (this.#box?.tile ?? 104) : 0;
     svg.innerHTML =
       `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="tr-vec-line"/>` +
-      `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="9" class="tr-vec-dot"/>`;
+      `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="9" class="tr-vec-dot"/>` +
+      (pull > 4
+        ? `<circle cx="${(r.width / 2 + guess!.pos.x).toFixed(1)}" cy="${(r.height / 2 + guess!.pos.y).toFixed(1)}" r="${pull.toFixed(1)}" class="tr-vec-well"/>`
+        : '');
     svg.toggleAttribute('hidden', false);
   }
 
@@ -1143,6 +1272,7 @@ export class Deck<T = any> {
     document.documentElement.classList.toggle('tr-locked', this.expanded);
     this.root.querySelector('[data-tr="expand"]')?.setAttribute('aria-expanded', String(this.expanded));
     this.#emit('expand', { expanded: this.expanded });
+    this.#syncChrome();
     // the stage changed size, so the zones and their regions must follow
     requestAnimationFrame(() => {
       this.layout(true);

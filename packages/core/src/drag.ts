@@ -29,7 +29,7 @@ export interface GestureState {
   interactive: boolean;
   /** the system took the touch back — this is not a drop */
   cancelled: boolean;
-  /** pointer velocity, px/ms, smoothed over the last samples. A throw reads this. */
+  /** pointer velocity at lift-off, px/ms, fitted over the last samples. A throw reads this. */
   vx: number;
   vy: number;
 }
@@ -48,6 +48,62 @@ export interface GestureOptions {
 
 /** Distance, in px, past which a press on a link becomes a drag. */
 const ENGAGE = 6;
+
+/** How far back a velocity estimate looks. Android uses the same 100ms. */
+const HORIZON = 100;
+/** And no more samples than that, so a slow drag cannot fill the window with stale points. */
+const SAMPLES = 20;
+
+/**
+ * Velocity at the last sample, from a weighted quadratic fit of position against time.
+ *
+ * Degree two, not one: a fling is usually still accelerating when the finger lifts, and a
+ * straight line through the window reports the speed of its middle. The fit is centred on the
+ * newest sample, so the slope at zero *is* the lift-off velocity. Weights fall off with age so
+ * a stale sample cannot drag the answer back. Falls back to the plain two-point estimate when
+ * there is not enough to fit — three samples do not determine a parabola.
+ */
+function velocity(samples: Array<{ t: number; x: number; y: number }>, key: 'x' | 'y'): number {
+  const n = samples.length;
+  const last = samples[n - 1]!;
+  if (n < 2) return 0;
+  if (n < 4) {
+    const first = samples[0]!;
+    const dt = last.t - first.t;
+    return dt > 0 ? (last[key] - first[key]) / dt : 0;
+  }
+  // normal equations for w·(a + b·t + c·t²), t relative to the last sample (so t ≤ 0)
+  let s0 = 0;
+  let s1 = 0;
+  let s2 = 0;
+  let s3 = 0;
+  let s4 = 0;
+  let y0 = 0;
+  let y1 = 0;
+  let y2 = 0;
+  for (const s of samples) {
+    const t = s.t - last.t;
+    const w = 1 + t / HORIZON; // 1 at the newest sample, 0 at the edge of the window
+    const v = s[key] - last[key];
+    const t2 = t * t;
+    s0 += w;
+    s1 += w * t;
+    s2 += w * t2;
+    s3 += w * t2 * t;
+    s4 += w * t2 * t2;
+    y0 += w * v;
+    y1 += w * t * v;
+    y2 += w * t2 * v;
+  }
+  // solve the 3×3 system by Cramer's rule; b is the slope at t = 0
+  const det =
+    s0 * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2);
+  if (Math.abs(det) < 1e-9) return 0;
+  const detB =
+    s0 * (y1 * s4 - y2 * s3) - y0 * (s1 * s4 - s3 * s2) + s2 * (s1 * y2 - y1 * s2);
+  const b = detB / det;
+  return Number.isFinite(b) ? b : 0;
+}
 
 /** Everything that can finish a gesture. `lostpointercapture` catches the cases where iOS
  *  hands the pointer back without ever sending `pointerup`. */
@@ -96,11 +152,24 @@ export function startGesture(
   let frame = 0;
   let last = e;
   let done = false;
+
   /* Velocity is sampled on the raw move, not on the throttled one: a flick is over in three
      frames, and averaging it across a frame boundary flattens exactly the peak that makes it
-     a flick. Smoothed, because one 2ms sample between two identical positions reads as zero
-     and would swallow a throw that was actually fast. */
-  let prev = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+     a flick. The estimate is a weighted least-squares fit over the last HORIZON ms rather than
+     a running average — the trick Android's VelocityTracker uses. A fling is usually still
+     *accelerating* when the finger leaves, and an average of the whole gesture reports the
+     speed of its middle, not of its end. */
+  const samples: Array<{ t: number; x: number; y: number }> = [{ t: e.timeStamp, x: e.clientX, y: e.clientY }];
+
+  /** Records a sample and re-fits. A finger that rests clears the window: it threw nothing. */
+  const push = (t: number, x: number, y: number) => {
+    const last = samples[samples.length - 1];
+    if (last && t - last.t > HORIZON) samples.length = 0; // a pause ends the throw
+    samples.push({ t, x, y });
+    while (samples.length > SAMPLES || (samples.length > 2 && t - samples[0]!.t > HORIZON)) samples.shift();
+    g.vx = velocity(samples, 'x');
+    g.vy = velocity(samples, 'y');
+  };
 
   const hold =
     opts.holdDelay && handlers.onHold
@@ -117,14 +186,7 @@ export function startGesture(
   const move = (ev: PointerEvent) => {
     if (done || ev.pointerId !== id) return;
     last = ev;
-    const dt = ev.timeStamp - prev.t;
-    if (dt > 0) {
-      // a finger that stopped moving has thrown nothing, however fast it arrived
-      const decay = dt > 90 ? 0 : Math.exp(-dt / 40);
-      g.vx = g.vx * decay + ((ev.clientX - prev.x) / dt) * (1 - decay);
-      g.vy = g.vy * decay + ((ev.clientY - prev.y) / dt) * (1 - decay);
-      prev = { x: ev.clientX, y: ev.clientY, t: ev.timeStamp };
-    }
+    push(ev.timeStamp, ev.clientX, ev.clientY);
     g.dx = ev.clientX - x0;
     g.dy = ev.clientY - y0;
     g.dist = Math.hypot(g.dx, g.dy);
@@ -143,8 +205,8 @@ export function startGesture(
     if (hold) clearTimeout(hold);
     if (frame) cancelAnimationFrame(frame);
     g.cancelled = ev.type === 'pointercancel';
-    // the release itself is a sample: a finger that rested before letting go threw nothing
-    if (ev.timeStamp - prev.t > 90) g.vx = g.vy = 0;
+    // the release is a sample like any other, and the one that matters most
+    if (typeof ev.clientX === 'number') push(ev.timeStamp, ev.clientX, ev.clientY);
     el.removeEventListener('pointermove', move as EventListener);
     for (const type of ENDERS) {
       el.removeEventListener(type, end);

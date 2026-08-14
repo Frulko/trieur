@@ -44,12 +44,21 @@ A bare tap on Shift is a mode toggle; a Shift *used* as a modifier is not. The d
 apart by remembering whether any key was pressed while it was down, which is the only way a
 single physical key can be both without one meaning stealing the other.
 
-## Focus
+## Focus, and doing without it
 
 The stage is a `role="application"` with `tabindex="0"`: it takes focus, and the keys work
-while it has it. `deck.focus()` puts it there. The deck listens on the stage rather than on the
-document, so a page with two decks, or a deck beside a search field, does not fight over the
-letters — typing `d` in an input types a `d`.
+while it has it. `deck.focus()` puts it there.
+
+But a sorter you must click before the keyboard works hides its fastest path behind a step
+nobody is told about — so when **exactly one deck is on screen** (half of it visible, no other
+deck alongside), it also answers keys pressed anywhere on the page. Two decks fall back to
+focus, because the page cannot know which one you meant, and typing in a field always wins:
+
+```js
+new Deck(el, { keyboard: 'auto' });   // the default
+new Deck(el, { keyboard: 'focus' });  // only when the stage has focus
+new Deck(el, { keyboard: false });    // no shortcuts at all
+```
 
 Fullscreen (<kbd>esc</kbd> to leave) also locks the page scroll behind the modal, which is why
 it is a modal and not the Fullscreen API: the API cannot be opened without a user gesture, and
@@ -72,12 +81,14 @@ an approximate angle — what you see is what you hit. Where there is no carving
 ## On a phone
 
 A sorting swipe and a page scroll are the same gesture. Rather than fight the page for it, an
-inline deck lets the page win: vertical swipes scroll, and a **tap on the card opens the deck
-fullscreen**, where the gesture is its own. Set `touchFullscreen: false` where the deck already
-is the screen — an app view, a phone-sized popup — and it takes the gesture inline.
+inline deck lets the page win: vertical swipes scroll, and the deck shows a **play button**.
+Press it — or the card, or Expand — and the deck takes the gesture; **Stop**, beside Expand,
+hands the swipe back. Set `touchPreview: false` where the deck already is the screen (an app
+view, a phone-sized popup) and it takes the gesture inline from the start.
 
 ```js
-new Deck(el, { touchFullscreen: false });
+new Deck(el, { touchPreview: false });
+deck.play(true);   // or take it yourself, whenever you like
 ```
 
 ## Showing them

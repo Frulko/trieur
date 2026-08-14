@@ -166,6 +166,7 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
           { key: 'flick', label: 'throw', type: 'toggle', value: Boolean(o.flick) },
           { key: 'flickMs', label: 'throw reach', type: 'range', value: o.flickMs ?? 170, min: 0, max: 500, step: 10, unit: 'ms' },
           { key: 'flickMin', label: 'throw floor', type: 'range', value: o.flickMin ?? 0.25, min: 0.05, max: 1.5, step: 0.05 },
+          { key: 'flickBias', label: 'model pull', type: 'range', value: o.flickBias ?? 0.5, min: 0, max: 1.5, step: 0.05 },
           { key: 'flickDebug', label: 'show vector', type: 'toggle', value: o.flickDebug !== false },
         ] as Control[])
       : []),
@@ -216,6 +217,7 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
               flick: Boolean(v.flick),
               flickMs: Number(v.flickMs),
               flickMin: Number(v.flickMin),
+              flickBias: Number(v.flickBias),
               flickDebug: Boolean(v.flickDebug),
             }
           : {}),

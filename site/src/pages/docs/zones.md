@@ -136,6 +136,13 @@ stage should be on a phone (56dvh) — and that stayed a media query.
 Fullscreen flips it: the deck *is* the screen now, so `.tr-full.tr-sm` gives the card back the
 room it gave up as a preview — up to 300px wide and half the height, with the same small tiles.
 
+Crowded tiles give up their **chrome** before their words: past a certain density the keycap
+goes and the glyph shrinks, and only then does the tile itself scale down. Sixteen zones on a
+stage meant for six is a real case — a folder list does not stop growing because a ring is
+full — and a label set in 6px type is a tile that may as well be blank. Regular layouts (a
+ring, a grid, a dock) take the same size for every tile, since one tile out of sixteen at a
+different size reads as a mistake; floating tiles each take what their own neighbours leave.
+
 **Scrolling wins over sorting until the deck owns the screen.** A sorting swipe and a page
 scroll are the same gesture; a widget that takes it turns the page into a trap. So an inline
 deck keeps `touch-action: pan-y`, a tap on the card opens it fullscreen, and there — nothing

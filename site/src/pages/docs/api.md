@@ -22,10 +22,16 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `multi` | `false` | allow a card to be filed into several zones ([details](../multi/)) |
 | `multiPad` | `'auto'` | the held pad: `'auto'` (dynamic on touch), `'dynamic'`, `'left'`, `'right'`, `false` |
 | `holdDelay` | `420` | ms a finger must rest on a card to open the stack; `0` disables it |
-| `touchFullscreen` | `true` | on touch, a tap opens the deck fullscreen instead of dragging ([why](../keyboard/#on-a-phone)) |
+| `touchPreview` | `true` | on touch, an inline deck waits for **play** before taking the gesture ([why](../keyboard/#on-a-phone)) |
+| `keyboard` | `'auto'` | `'auto'` also answers keys when it is the only deck on screen; `'focus'`; `false` |
+| `deadZone` | `0` | grows the dead zone around the pile, in px |
+| `zonePadding` | `12` | safe margin between a tile and the edge of the stage |
+| `zonePull` | `0.18` | how far floating tiles gather back in towards the pile |
 | `piles` | `1` | **experimental** — deal several piles side by side, sharing the zones |
 | `flick` | `false` | **experimental** — throw instead of drop: the release's velocity picks the zone |
 | `flickMs` | `170` | how far ahead a throw is projected, in ms of travel |
+| `flickDecay` | — | the same projection as a deceleration rate per ms (`0.99` = iOS fast) |
+| `flickBias` | `0.5` | how much wider the model's suggestion catches a throw, in tiles |
 | `flickMin` | `0.25` | px/ms below which a release is an ordinary drop |
 | `flickDebug` | `false` | draw the throw vector and where it lands |
 | `text` | `en` | labels (`fr` provided, or your own) |
@@ -49,6 +55,7 @@ deck.skip()                 // pushes the card to the back of the pile
 deck.undo()                 // undoes the last filing
 deck.suggest()              // recomputes the suggestion
 deck.expand(on)             // fullscreen
+deck.play(on)               // touch: take the gesture, or give the page its swipe back
 deck.layout(force?)         // re-places the zones (skipped when nothing moved; force to insist)
 deck.zoneAt(x, y)           // zone under a screen point
 deck.destroy()              // removes everything from the DOM, and the listeners
@@ -60,6 +67,7 @@ deck.prediction             // { id, score, why } or null
 deck.picking                // the multi-zone stack, in pick order
 deck.multi                  // whether multi-zone mode is on
 deck.expanded               // fullscreen state
+deck.live                   // touch: whether it has taken the gesture
 ```
 
 ## `<trieur-deck>` and `<trieur-zone>`

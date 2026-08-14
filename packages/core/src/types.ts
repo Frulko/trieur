@@ -65,8 +65,13 @@ export interface Placement {
   centre?: Point;
 }
 
-/** A layout places N zones around the centre, in pixels. */
-export type Layout = (n: number, box: LayoutBox) => Point[] | Placement;
+/**
+ * A layout places N zones around the centre, in pixels.
+ *
+ * `layoutName` is what the deck writes as `tr-layout-<name>` on the root; the built-in
+ * factories set it, and your own may, so the stylesheet can tell what it is looking at.
+ */
+export type Layout = ((n: number, box: LayoutBox) => Point[] | Placement) & { layoutName?: string };
 
 /** A zone the model suggests, with the features that carried the decision. */
 export interface Prediction {
@@ -103,6 +108,10 @@ export interface DeckText {
   undo: string;
   expand: string;
   close: string;
+  /** the big button that wakes an inline deck on a touch screen */
+  play: string;
+  /** …and the one that gives the scroll back */
+  stop: string;
   free: string;
   /** label of the multi-zone toggle */
   multi: string;
@@ -182,16 +191,16 @@ export interface DeckOptions<T = any> {
    */
   holdDelay?: number;
   /**
-   * On a touch screen, outside fullscreen, a tap on the card opens the deck fullscreen instead
-   * of starting a drag (default `true`).
+   * On a touch screen, an inline deck starts as a **preview** (default `true`).
    *
-   * On a phone a sorting swipe and a page scroll are the same gesture: taking one takes the
-   * other, and the page turns into a trap you cannot scroll past. So inline the deck is a
-   * preview — the page scrolls straight through it — and the gesture is ours only once the
-   * deck owns the screen, the way an embedded map waits to be opened before it eats drags.
-   * Set it to `false` where the deck already *is* the screen: an app view, a phone-sized popup.
+   * A sorting swipe and a page scroll are the same gesture: taking one takes the other, and the
+   * page turns into a trap you cannot scroll past. So until you say otherwise the page keeps
+   * the swipe, and the deck shows a play button — press it (or the card, or Expand) and the
+   * deck takes the gesture; Stop hands the scroll back. The same bargain an embedded map
+   * makes. Set it to `false` where the deck already *is* the screen: an app view, a
+   * phone-sized popup.
    */
-  touchFullscreen?: boolean;
+  touchPreview?: boolean;
   /**
    * Where the keyboard shortcuts are listened for (default `'auto'`).
    *
@@ -228,8 +237,23 @@ export interface DeckOptions<T = any> {
   flick?: boolean;
   /** how far ahead a throw is projected, in ms of travel at the release speed (default 170) */
   flickMs?: number;
+  /**
+   * The same projection expressed as a scroll view's deceleration rate, per millisecond —
+   * `0.99` is iOS "fast", `0.998` its normal scrolling. Overrides `flickMs`, which is simply
+   * `decay / (1 − decay)`.
+   */
+  flickDecay?: number;
   /** below this speed, in px/ms, a release is a drop and not a throw (default 0.25) */
   flickMin?: number;
+  /**
+   * How much wider the model's suggestion catches a throw, in tiles (default 0.5).
+   *
+   * The iPhone keyboard's oldest trick: after "kno", the `w` key's hit area grows while the
+   * key itself does not move a pixel. Here the tiles stay where they are, and a confident
+   * suggestion quietly catches throws landing up to `flickBias × score` of a tile wide of it.
+   * `0` turns the magic off and leaves plain nearest-tile.
+   */
+  flickBias?: number;
   /** draw the throw vector and where it lands — for tuning `flickMs`, and for the demo */
   flickDebug?: boolean;
   text?: Partial<DeckText>;

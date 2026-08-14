@@ -19,24 +19,27 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 
     <div class="grid" style="margin-bottom:26px">
       <div class="card">
-        <h3>Reach</h3>
+        <h3>Where it comes to rest</h3>
         <p>
-          How many milliseconds of travel the release is worth. At 170&nbsp;ms a flick of 2&nbsp;px/ms carries the card
-          340&nbsp;px past your finger — the far side of the stage, from a gesture that never left the middle.
+          The same arithmetic a scroll view uses: velocity decays exponentially at λ per millisecond, and the trip
+          integrates to <code>v · λ/(1−λ)</code>. That fraction is a duration, which is why the knob is one — 170&nbsp;ms
+          is λ ≈ 0.994, between iOS's fast scrolling and its normal one. A card is lighter than a scroll view.
         </p>
       </div>
       <div class="card">
-        <h3>Floor</h3>
+        <h3>The speed at lift-off</h3>
         <p>
-          Below this speed a release is still an ordinary drop. It is what keeps a careful, slow drag meaning exactly
-          what it looks like: the zone under the card, not the one it was heading towards.
+          Not an average of the drag — a weighted quadratic fit of the last 100&nbsp;ms, which is what Android's
+          <code>VelocityTracker</code> does. A fling is usually still accelerating when the finger leaves, and an
+          average reports the speed of the gesture's middle instead of its end.
         </p>
       </div>
       <div class="card">
-        <h3>The vector</h3>
+        <h3>The model pulls</h3>
         <p>
-          The dashed line is the throw and the disc is where it lands; the region under the disc is the one that lights
-          up. Turn it off in the settings once the numbers feel right — it is a tuning instrument, not a feature.
+          The iPhone keyboard's oldest trick: after <em>kno</em>, the <code>w</code> key's hit area grows while the key
+          itself does not move a pixel. Here the tiles stay put and a confident suggestion quietly catches throws
+          landing up to <b>bias × score</b> of a tile wide of it. The dashed circle in the debug view is that pull.
         </p>
       </div>
     </div>
@@ -71,19 +74,28 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
   layout: 'voronoi',
   flick: true,        // throw instead of drop
   flickMs: 170,       // how far ahead the release is projected
+  flickDecay: 0.994,  // the same thing as a deceleration rate, if you prefer
   flickMin: 0.25,     // px/ms below which it is an ordinary drop
+  flickBias: 0.5,     // how much wider the suggestion catches, in tiles
   flickDebug: false,  // draw the vector while tuning
 });`}</code></pre>
       <p>
-        It is marked experimental because the right <code>flickMs</code> depends on your zones: a dock of six columns
-        wants little of it, a mosaic of twenty cells wants a lot. Velocity is sampled on the raw pointer moves rather
-        than the throttled ones — a flick is over in three frames, and averaging it across a frame boundary flattens
-        precisely the peak that made it a flick — then smoothed, and zeroed when the finger rests before letting go: a
-        gesture that stopped has thrown nothing, however fast it arrived.
+        A throw resolves to the <b>nearest tile</b>, not to the region under the landing point: the landing point is a
+        prediction, not a touch, and past the edge of the stage there are no regions left to be in. "The nearest tile in
+        the direction you threw" always has an answer — and a zone the drag was heading <em>away</em> from is never one
+        of the candidates, whatever the arithmetic says.
       </p>
       <p>
         The projection is capped at the stage diagonal. Past the edge, every extra pixel of reach aims at the same zone
-        anyway, and an uncapped throw off a fast trackpad lands in another postcode.
+        anyway, and an uncapped throw off a fast trackpad lands in another postcode. Velocity is sampled on the raw
+        pointer moves rather than the throttled ones — a flick is over in three frames, and averaging across a frame
+        boundary flattens precisely the peak that made it a flick — and a finger that rests before letting go clears the
+        window: a gesture that stopped has thrown nothing, however fast it arrived.
+      </p>
+      <p>
+        It is marked experimental because the right numbers depend on your zones: a dock of six columns wants little
+        reach, a mosaic of twenty cells wants a lot. The settings panel has all four on sliders, and the debug view
+        draws what they do.
       </p>
     </div>
   </section>

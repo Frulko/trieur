@@ -89,7 +89,8 @@ trieur-deck { display: block; }
 /* --- zones: a folder tile, not a label --- */
 .tr-zone {
   position: absolute;
-  transform: translate(-50%, -50%);
+  /* `--tr-zone-k` is written by the deck when tiles are packed tightly enough to overlap */
+  transform: translate(-50%, -50%) scale(var(--tr-zone-k, 1));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -135,6 +136,18 @@ trieur-deck { display: block; }
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
+/* Crowded: the tile keeps its label and gives up the rest. Sixteen zones on a stage meant for
+   six is a real case — a folder list does not stop growing because a ring is full — and a
+   label in 6px type is a tile that may as well be blank. */
+.tr-zone.tr-tight { width: 84px; padding: 6px 5px 5px; font-size: 11px; }
+.tr-zone.tr-tight .tr-glyph { width: 30px; height: 30px; font-size: 17px; border-radius: 8px; }
+.tr-zone.tr-tight .tr-glyph svg { width: 18px; height: 18px; }
+.tr-zone.tr-tiny { width: 68px; padding: 4px 3px; gap: 2px; font-size: 10.5px; }
+.tr-zone.tr-tiny .tr-glyph { width: 22px; height: 22px; font-size: 13px; border-radius: 6px; }
+.tr-zone.tr-tiny .tr-glyph svg { width: 14px; height: 14px; }
+.tr-zone.tr-tiny .tr-label { -webkit-line-clamp: 1; }
+.tr-zone.tr-tight kbd, .tr-zone.tr-tiny kbd { display: none; }
+
 /* keycaps, everywhere: a shortcut is easier to read as a key than as a word. The heavier
    bottom border is what makes a flat rectangle read as something you press. */
 .tr kbd {
@@ -180,7 +193,7 @@ trieur-deck { display: block; }
   opacity: 0.6;
 }
 .tr-zone.tr-armed {
-  transform: translate(-50%, -50%) scale(1.12);
+  transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.12));
   background: rgba(74, 84, 242, 0.14);
   background: color-mix(in srgb, var(--tr-accent) 14%, var(--tr-card-bg));
 }
@@ -219,7 +232,7 @@ trieur-deck { display: block; }
 }
 .tr-layout-radial .tr-zone .tr-glyph { width: 38px; height: 38px; font-size: 20px; }
 .tr-layout-radial .tr-zone .tr-glyph svg { width: 22px; height: 22px; }
-.tr-layout-radial .tr-zone.tr-armed { transform: translate(-50%, -50%) scale(1.1); background: none; }
+.tr-layout-radial .tr-zone.tr-armed { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.1)); background: none; }
 .tr-layout-radial .tr-zone.tr-picked { box-shadow: none; }
 .tr-layout-radial .tr-seg {
   fill: rgba(74, 84, 242, 0.07);
@@ -251,6 +264,13 @@ trieur-deck { display: block; }
   stroke-width: 2;
   stroke-dasharray: 6 5;
   stroke-linecap: round;
+}
+.tr-vec-well {
+  fill: none;
+  stroke: var(--tr-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
 }
 .tr-vec-dot {
   fill: rgba(245, 158, 11, 0.28);
@@ -412,9 +432,9 @@ trieur-deck { display: block; }
 /* the tile acknowledges receipt */
 .tr-zone.tr-catch { animation: tr-catch 300ms cubic-bezier(0.2, 0.9, 0.3, 1); }
 @keyframes tr-catch {
-  35% { transform: translate(-50%, -50%) scale(1.14); }
-  60% { transform: translate(-50%, -50%) scale(0.97); }
-  to { transform: translate(-50%, -50%) scale(1); }
+  35% { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.14)); }
+  60% { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 0.97)); }
+  to { transform: translate(-50%, -50%) scale(var(--tr-zone-k, 1)); }
 }
 
 /* --- fullscreen (a modal, not the Fullscreen API) --- */
@@ -556,6 +576,61 @@ html.tr-locked, html.tr-locked body { overflow: hidden; }
   .tr-full .tr-close { top: 10px; right: 10px; height: 30px; }
 }
 
+/* --- the play button: an inline deck on a phone is a preview until you say otherwise ------
+   Big, centred, and casting a shadow onto the stage below it — the affordance of something
+   that starts. `Stop` then lives next to Expand in the bar and hands the swipe back to the
+   page. Both are pure chrome: the deck decides when they exist, the stylesheet how they look. */
+.tr-play { display: none; }
+.tr-idle .tr-play {
+  display: grid;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  place-items: center;
+  gap: 2px;
+  width: 108px;
+  height: 108px;
+  padding: 0 0 4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tr-card-bg);
+  color: var(--tr-accent);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  /* a ring as well as the shadow: a white disc on a white card has no edge otherwise */
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18), 0 0 0 1px var(--tr-line);
+  -webkit-tap-highlight-color: transparent;
+  animation: tr-wake 260ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.tr-idle .tr-play svg { width: 40px; height: 40px; margin-left: 4px; }
+.tr-idle .tr-play::after {
+  /* the shadow it sits on: an ellipse, not a blur of the button, so it stays cheap */
+  content: '';
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  width: 76px;
+  height: 14px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.9);
+  opacity: 0.14;
+  filter: blur(4px);
+}
+.tr-idle .tr-play:active { transform: translate(-50%, -50%) scale(0.96); }
+@keyframes tr-wake {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.86); }
+}
+/* asleep, the stage says so: the cards and zones step back behind the button */
+.tr-idle .tr-cards, .tr-idle .tr-zones, .tr-idle .tr-segments { opacity: 0.72; }
+.tr-play[hidden] { display: none; } /* display:grid would beat [hidden] */
+.tr-live-bar { display: contents; } /* just a handle for the floating pair on touch */
+
 /* --- touch, before it owns the screen ---------------------------------------------------
    Inline on a phone the deck is a preview: the page scrolls straight through it, and a tap
    opens it fullscreen (see `touchFullscreen`). The Expand button leaves the bar for the top
@@ -565,11 +640,17 @@ html.tr-locked, html.tr-locked body { overflow: hidden; }
    `position: fixed` that makes fullscreen fullscreen. */
 @media (pointer: coarse) {
   .tr:not(.tr-full) { position: relative; }
-  .tr:not(.tr-full) .tr-bar [data-tr='expand'] {
+  /* Stop sits beside Expand — the two of them float together, so neither has to guess how
+     wide the other's label is in whatever language it is wearing */
+  .tr:not(.tr-full) .tr-live-bar {
     position: absolute;
     top: 10px;
     right: 10px;
     z-index: 5;
+    display: flex;
+    gap: 8px;
+  }
+  .tr:not(.tr-full) .tr-live-bar button {
     padding: 6px 12px;
     border-radius: 99px;
     background: var(--tr-card-bg);
