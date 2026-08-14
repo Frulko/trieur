@@ -21,8 +21,34 @@ const press = (deck: DeckType, key: string, shift = false) =>
 const release = (key: string) =>
   root.querySelector('.tr-stage')!.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
 
-const tick = () => new Promise((r) => setTimeout(r, 0));
+/** Press and release, with nothing in between — what "tapping Shift" means. */
+const tap = (key: string) => {
+  root.querySelector('.tr-stage')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  release(key);
+};
+
+const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 const badges = () => [...root.querySelectorAll('.tr-zone.tr-picked')].map((el) => (el as HTMLElement).dataset.pick);
+
+/** Pointer events, minus the parts happy-dom does not implement. */
+const pointer = (type: string, x = 0, y = 0, id = 1) => {
+  const e = new Event(type, { bubbles: true, cancelable: true }) as Event & Record<string, unknown>;
+  Object.assign(e, { pointerId: id, clientX: x, clientY: y, button: 0 });
+  return e as never;
+};
+const card = () => root.querySelector<HTMLElement>('.tr-card:not(.tr-behind)')!;
+/** One drag, in as many steps as there are points. Each move waits a frame, like the real one. */
+const drag = async (steps: Array<[number, number]>, end: 'pointerup' | 'pointercancel' = 'pointerup') => {
+  const el = card();
+  el.dispatchEvent(pointer('pointerdown', 0, 0));
+  for (const [x, y] of steps) {
+    el.dispatchEvent(pointer('pointermove', x, y));
+    await tick(24);
+  }
+  const last = steps[steps.length - 1] ?? [0, 0];
+  el.dispatchEvent(pointer(end, last[0], last[1]));
+  await tick();
+};
 
 test('a zone key files the top card', async () => {
   const filed: string[] = [];
@@ -172,6 +198,137 @@ test('a rejected filing keeps the card and the stack', async () => {
   release('Shift');
   await tick();
   expect(d.items.length).toBe(3); // nothing was filed
+});
+
+test('a bare Shift tap latches the mode, and taps again to leave it', () => {
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, multi: true, onSortMany: () => {} });
+  tap('Shift');
+  expect(d.multi).toBe(true);
+  tap('Shift');
+  expect(d.multi).toBe(false);
+});
+
+test('Shift held over a zone key is not a tap', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, multi: true, onSort: (_i, z) => void filed.push(z.id) });
+  root.querySelector('.tr-stage')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
+  press(d, 'A', true);
+  release('Shift');
+  await tick();
+  expect(filed).toEqual(['dev']); // the stack was filed, the mode did not stay latched
+  expect(d.multi).toBe(false);
+  expect(d.picking).toEqual([]);
+});
+
+test('a Shift tap over a pending stack files it', async () => {
+  const calls: string[][] = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: ZONES,
+    multi: true,
+    onSortMany: (_i, zones) => void calls.push(zones.map((z) => z.id)),
+  });
+  root.querySelector<HTMLButtonElement>('[data-tr="multi"]')!.click();
+  press(d, 'a');
+  press(d, 's');
+  tap('Shift'); // a tap, so: down then up, with nothing pressed in between
+  await tick();
+  expect(calls).toEqual([['dev', 'ia']]);
+});
+
+test('a drag past the threshold files, and a cancelled pointer does not', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, onSort: (_i, z) => void filed.push(z.id) });
+  await drag([
+    [40, 0],
+    [220, 0],
+  ]);
+  expect(filed.length).toBe(1);
+  expect(d.items.length).toBe(2);
+
+  // the system takes the touch back mid-drag: the card comes home, nothing is filed
+  await drag(
+    [
+      [40, 0],
+      [220, 0],
+    ],
+    'pointercancel',
+  );
+  expect(filed.length).toBe(1);
+  expect(d.items.length).toBe(2);
+  expect(card().style.transform).toBe('');
+});
+
+test('in multi mode a sweep stacks every region it reaches', async () => {
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, multi: true, onSortMany: () => {} });
+  root.querySelector<HTMLButtonElement>('[data-tr="multi"]')!.click();
+  await drag([
+    [220, 0], // one direction
+    [-220, 160], // another
+    [0, 0], // back to the middle
+  ]);
+  expect(d.picking.length).toBe(2);
+  expect(d.items.length).toBe(3); // latched: the sweep stacks, it does not file
+  expect(card().style.transform).toBe(''); // and the card came back to the centre
+});
+
+test('holding the card opens the stack, and letting go files it', async () => {
+  const calls: string[][] = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: ZONES,
+    multi: true,
+    holdDelay: 20,
+    onSortMany: (_i, zones) => void calls.push(zones.map((z) => z.id)),
+  });
+  const el = card();
+  el.dispatchEvent(pointer('pointerdown', 0, 0));
+  await tick(60); // the finger rests
+  expect(d.multi).toBe(true);
+  // the same finger sweeps two regions, then lets go
+  for (const [x, y] of [
+    [220, 0],
+    [-220, 160],
+  ] as const) {
+    el.dispatchEvent(pointer('pointermove', x, y));
+    await tick(24);
+  }
+  expect(d.picking.length).toBe(2);
+  el.dispatchEvent(pointer('pointerup', -220, 160));
+  await tick();
+  expect(calls.length).toBe(1);
+  expect(calls[0]!.length).toBe(2);
+  expect(d.multi).toBe(false);
+});
+
+test('the pad holds the mode, and its release files the stack', async () => {
+  const calls: string[][] = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: ZONES,
+    multi: true,
+    multiPad: 'right',
+    onSortMany: (_i, zones) => void calls.push(zones.map((z) => z.id)),
+  });
+  const pad = root.querySelector<HTMLElement>('.tr-pad')!;
+  expect(pad.hidden).toBe(false);
+
+  pad.dispatchEvent(pointer('pointerdown', 0, 0, 2));
+  expect(d.multi).toBe(true);
+  press(d, 'a');
+  press(d, 's');
+  expect(d.picking.length).toBe(2);
+  pad.dispatchEvent(pointer('pointerup', 0, 0, 2));
+  await tick();
+  expect(calls).toEqual([['dev', 'ia']]);
+  expect(d.multi).toBe(false);
+});
+
+test('the pad stays away unless multi is on', () => {
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, multiPad: 'right' });
+  expect(root.querySelector<HTMLElement>('.tr-pad')!.hidden).toBe(true);
+  d.setOptions({ multi: true });
+  expect(root.querySelector<HTMLElement>('.tr-pad')!.hidden).toBe(false);
 });
 
 test('removing a zone drops it from the stack instead of filing into nowhere', () => {

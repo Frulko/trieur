@@ -77,6 +77,7 @@ import { url } from '../../lib/url';
   import { crossed, evaluate, synth } from '@trieur/learn/bench';
   import { meta, shuffled, zones, type Link } from '../../data/links';
   import { renderCard } from '../../scripts/card';
+  import { deckGui } from '../../scripts/gui';
 
   const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   const KEY = 'demo-model';
@@ -113,6 +114,7 @@ import { url } from '../../lib/url';
     }
   }
   for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, () => void refresh());
+  deckGui(deck);
   void refresh();
 
   // --- automatic replay: every card goes where it "should" ---------------------

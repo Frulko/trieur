@@ -167,3 +167,57 @@ td code { white-space: nowrap; }
 .doc aside a:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 .doc aside a[aria-current='page'] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .doc aside strong { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin: 22px 0 6px 10px; }
+
+/* --- demo settings panel (dat.GUI shaped, ours) --- */
+.gui {
+  position: fixed;
+  top: 74px;
+  right: 16px;
+  z-index: 40;
+  width: 232px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  overflow: hidden;
+}
+.gui-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.gui-head b { font-size: 14px; line-height: 1; }
+.gui[data-open='false'] .gui-body { display: none; }
+.gui-body { padding: 4px 12px 12px; display: grid; gap: 7px; }
+/* label | control | readout — the readout column collapses when there is nothing to read */
+.gui-row { display: grid; grid-template-columns: 78px 1fr auto; align-items: center; gap: 8px; }
+.gui-row span { color: var(--dim); }
+.gui-row output { text-align: right; min-width: 34px; color: var(--ink); }
+.gui-row select,
+.gui-row input[type='color'] {
+  grid-column: 2 / -1;
+  width: 100%;
+  font: inherit;
+  padding: 3px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.gui-row input[type='color'] { height: 24px; padding: 2px; }
+.gui-row input[type='range'] { width: 100%; accent-color: var(--accent); }
+.gui-row input[type='checkbox'] { grid-column: 2 / -1; justify-self: end; accent-color: var(--accent); width: 15px; height: 15px; }
+@media (max-width: 720px) {
+  .gui { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; }
+}

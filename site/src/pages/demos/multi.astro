@@ -18,22 +18,22 @@ import Base from '../../layouts/Base.astro';
       <div class="card">
         <h3>With a keyboard</h3>
         <p>
-          Hold <kbd>⇧</kbd> and press several zone letters. Releasing <kbd>⇧</kbd> files the card into all of them. The
-          hold is the mode — nothing to turn on, nothing to turn off.
+          Hold <kbd>⇧</kbd> and press several zone letters; releasing <kbd>⇧</kbd> files them all. Or <b>tap</b>
+          <kbd>⇧</kbd> on its own — the shortcut — to latch the mode, and tap again to leave or to file.
         </p>
       </div>
       <div class="card">
         <h3>With a thumb</h3>
         <p>
-          Tap <b>Multiple zones</b> in the bar: the mode latches. Then tap the tiles, or flick the card at them — it
-          comes back to the centre each time. The same button confirms.
+          Hold the round pad, or rest a finger on the card. Then sweep the card across the zones — each region it
+          reaches joins the stack — and let go. Between zones the card comes back to the centre.
         </p>
       </div>
       <div class="card">
         <h3>How it reads</h3>
         <p>
-          The card gets a dashed amber outline that breathes, and every stacked zone is numbered. Amber, not red: red
-          means error or destruction, and this is neither.
+          The card gets a dashed amber outline with a breathing ring, and every stacked zone is numbered. Amber, not
+          red: red means error or destruction, and this is neither.
         </p>
       </div>
     </div>
@@ -96,6 +96,7 @@ el.addEventListener('trieur:pick', (e) => {
   import { createRecommender } from '@trieur/learn';
   import { meta, shuffled, zones, type Link } from '../../data/links';
   import { renderCard } from '../../scripts/card';
+  import { deckGui } from '../../scripts/gui';
 
   const $ = (s: string) => document.querySelector(s)!;
 
@@ -127,5 +128,6 @@ el.addEventListener('trieur:pick', (e) => {
         : 'Nothing stacked. Hold <kbd>⇧</kbd> and press <kbd>a</kbd>, <kbd>s</kbd>, <kbd>d</kbd>…';
   });
 
+  deckGui(deck);
   deck.focus();
 </script>

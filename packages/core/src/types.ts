@@ -77,6 +77,8 @@ export interface DeckText {
   free: string;
   /** label of the multi-zone toggle */
   multi: string;
+  /** accessible name of the held pad */
+  hold: string;
   /** name of the space bar, shown as the skip shortcut */
   space: string;
   count: (n: number) => string;
@@ -111,6 +113,17 @@ export interface DeckOptions<T = any> {
    * one who knows that.
    */
   multi?: boolean;
+  /**
+   * The held pad that turns multi-zone mode on with a thumb, like a virtual gamepad button.
+   * `'auto'` (default) shows it only on coarse pointers, on the right; `'left'` / `'right'`
+   * force it; `false` removes it. Ignored unless `multi` is on.
+   */
+  multiPad?: 'auto' | 'left' | 'right' | false;
+  /**
+   * How long a finger must rest on a card before it turns multi-zone mode on, in ms. The same
+   * finger then sweeps across zones, and releasing files them. `0` disables it.
+   */
+  holdDelay?: number;
   text?: Partial<DeckText>;
   onSort?: (item: T, zone: PlacedZone) => unknown;
   /** files one card into several zones at once; see `multi` */

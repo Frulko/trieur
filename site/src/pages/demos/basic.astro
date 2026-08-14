@@ -42,6 +42,7 @@ new Deck(document.querySelector('#sorter'), {
   import { Deck } from '@trieur/core';
   import { shuffled } from '../../data/links';
   import { renderCard } from '../../scripts/card';
+  import { deckGui } from '../../scripts/gui';
 
   const log = document.querySelector<HTMLElement>('#log')!;
 
@@ -69,5 +70,6 @@ new Deck(document.querySelector('#sorter'), {
     },
   });
 
+  deckGui(deck);
   deck.focus();
 </script>

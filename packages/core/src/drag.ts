@@ -7,6 +7,17 @@
 // clickable**: only form fields are excluded outright; on an `a` or a `button` we wait for a
 // few pixels of movement before deciding, and cancel the click that would have followed.
 // Without this, a card whose link covers half its surface becomes impossible to sort.
+//
+// Three things here exist because of real tablets rather than theory:
+//
+// - **One callback per frame.** `pointermove` can fire faster than the display refreshes, and
+//   coalesced events arrive in bursts. Every extra call meant another style write and another
+//   hit-test; on a 2015 iPad that is the difference between gliding and stuttering.
+// - **A safety net on `window`.** iOS Safari sometimes never delivers `pointerup` to the
+//   element that captured the pointer. Without the net the card freezes mid-air — neither
+//   filed nor returned — which is exactly the bug this replaced.
+// - **A cancelled pointer is not a drop.** `pointercancel` fires when the system takes the
+//   touch back; filing on it would file cards the user never let go of.
 
 export interface GestureState {
   dx: number;
@@ -16,33 +27,74 @@ export interface GestureState {
   engaged: boolean;
   /** the gesture started on a link or a button */
   interactive: boolean;
+  /** the system took the touch back — this is not a drop */
+  cancelled: boolean;
 }
 
 export interface GestureHandlers {
   onMove(g: GestureState, e: PointerEvent): void;
   onEnd(g: GestureState, e: PointerEvent): void;
+  /** the finger stayed down without moving — the touch way into a held mode */
+  onHold?(g: GestureState, e: PointerEvent): void;
+}
+
+export interface GestureOptions {
+  /** ms before `onHold` fires; 0 or absent disables it */
+  holdDelay?: number | undefined;
 }
 
 /** Distance, in px, past which a press on a link becomes a drag. */
 const ENGAGE = 6;
 
+/** Everything that can finish a gesture. `lostpointercapture` catches the cases where iOS
+ *  hands the pointer back without ever sending `pointerup`. */
+const ENDERS = ['pointerup', 'pointercancel', 'lostpointercapture'] as const;
+
 /**
  * Starts a gesture on `el`. Returns `null` when the event should not be captured
  * (secondary button, form field).
  */
-export function startGesture(el: HTMLElement, e: PointerEvent, handlers: GestureHandlers): GestureState | null {
+export function startGesture(
+  el: HTMLElement,
+  e: PointerEvent,
+  handlers: GestureHandlers,
+  opts: GestureOptions = {},
+): GestureState | null {
   const target = e.target as Element | null;
   if (e.button > 0 || target?.closest('input, select, textarea, [contenteditable]')) return null;
 
   const interactive = Boolean(target?.closest('a, button'));
-  const g: GestureState = { dx: 0, dy: 0, dist: 0, engaged: !interactive, interactive };
+  const g: GestureState = { dx: 0, dy: 0, dist: 0, engaged: !interactive, interactive, cancelled: false };
   const x0 = e.clientX;
   const y0 = e.clientY;
+  const id = e.pointerId;
 
-  el.setPointerCapture(e.pointerId);
+  try {
+    el.setPointerCapture(id);
+  } catch {
+    // capture is a nicety; the window-level listeners below do the real work
+  }
   if (g.engaged) el.classList.add('tr-dragging');
 
+  let frame = 0;
+  let last = e;
+  let done = false;
+
+  const hold =
+    opts.holdDelay && handlers.onHold
+      ? setTimeout(() => {
+          if (!done && g.dist < ENGAGE) handlers.onHold!(g, last);
+        }, opts.holdDelay)
+      : null;
+
+  const flush = () => {
+    frame = 0;
+    if (!done) handlers.onMove(g, last);
+  };
+
   const move = (ev: PointerEvent) => {
+    if (done || ev.pointerId !== id) return;
+    last = ev;
     g.dx = ev.clientX - x0;
     g.dy = ev.clientY - y0;
     g.dist = Math.hypot(g.dx, g.dy);
@@ -52,13 +104,21 @@ export function startGesture(el: HTMLElement, e: PointerEvent, handlers: Gesture
       g.engaged = true;
       el.classList.add('tr-dragging');
     }
-    handlers.onMove(g, ev);
+    if (!frame) frame = requestAnimationFrame(flush);
   };
 
-  const end = (ev: PointerEvent) => {
-    el.removeEventListener('pointermove', move);
-    el.removeEventListener('pointerup', end);
-    el.removeEventListener('pointercancel', end);
+  const end = (raw: Event) => {
+    const ev = raw as PointerEvent;
+    if (done || ev.pointerId !== id) return;
+    done = true;
+    if (hold) clearTimeout(hold);
+    if (frame) cancelAnimationFrame(frame);
+    g.cancelled = ev.type === 'pointercancel';
+    el.removeEventListener('pointermove', move as EventListener);
+    for (const type of ENDERS) {
+      el.removeEventListener(type, end);
+      window.removeEventListener(type, end);
+    }
     el.classList.remove('tr-dragging');
     // the drag started on a link: cancel the click that would follow
     if (g.interactive && g.engaged) {
@@ -74,8 +134,12 @@ export function startGesture(el: HTMLElement, e: PointerEvent, handlers: Gesture
     handlers.onEnd(g, ev);
   };
 
-  el.addEventListener('pointermove', move);
-  el.addEventListener('pointerup', end);
-  el.addEventListener('pointercancel', end);
+  el.addEventListener('pointermove', move as EventListener);
+  for (const type of ENDERS) {
+    el.addEventListener(type, end);
+    // the net: only for the events that finish a gesture, never for `pointermove` — doubling
+    // the move handler would double the work this file exists to avoid
+    if (type !== 'lostpointercapture') window.addEventListener(type, end);
+  }
   return g;
 }

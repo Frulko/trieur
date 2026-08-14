@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { inPolygon, voronoi } from './voronoi.js';
-import { layouts } from './layouts.js';
+import { layouts, resolveLayout } from './layouts.js';
 
 const area = (poly: Array<[number, number]>) => {
   let a = 0;
@@ -45,5 +45,22 @@ test('layouts : les zones restent dans la scène', () => {
       expect(Math.abs(p.x)).toBeLessThanOrEqual(box.w / 2);
       expect(Math.abs(p.y)).toBeLessThanOrEqual(box.h / 2);
     }
+  }
+});
+
+test('layouts: no zone lands under the card', () => {
+  const box = { w: 760, h: 560, clear: 190 };
+  // through resolveLayout, which is what the deck uses — the clearance is enforced there,
+  // so a custom layout gets the same guarantee as the built-in ones
+  for (const name of ['circle', 'grid', 'voronoi'] as const) {
+    for (const n of [3, 6, 7, 9, 12]) {
+      for (const p of resolveLayout(name)(n, box)) {
+        expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(box.clear - 1);
+      }
+    }
+  }
+  // including one that does not think about it at all
+  for (const p of resolveLayout(() => [{ x: 0, y: 0 }, { x: 10, y: 5 }])(2, box)) {
+    expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(box.clear - 1);
   }
 });

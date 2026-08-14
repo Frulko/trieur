@@ -20,6 +20,8 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `keys` | `'asdfghjkl…'` | keys handed to zones, in order |
 | `threshold` | `90` | drag distance past which the drop is armed, in px |
 | `multi` | `false` | allow a card to be filed into several zones ([details](../multi/)) |
+| `multiPad` | `'auto'` | the held pad: `'auto'` (coarse pointers only), `'left'`, `'right'`, `false` |
+| `holdDelay` | `420` | ms a finger must rest on a card to open the stack; `0` disables it |
 | `text` | `en` | labels (`fr` provided, or your own) |
 | `onSort(item, zone)` | — | performs the filing; may be `async`, a rejection cancels |
 | `onSortMany(item, zones)` | — | files into several zones at once |
@@ -41,7 +43,7 @@ deck.skip()                 // pushes the card to the back of the pile
 deck.undo()                 // undoes the last filing
 deck.suggest()              // recomputes the suggestion
 deck.expand(on)             // fullscreen
-deck.layout()               // re-places the zones (after a manual resize)
+deck.layout(force?)         // re-places the zones (skipped when nothing moved; force to insist)
 deck.zoneAt(x, y)           // zone under a screen point
 deck.destroy()              // removes everything from the DOM, and the listeners
 
@@ -129,3 +131,19 @@ evaluate(name, model, extractor, cards); // → { top1, top3, silent, vocab, ms,
 
 `voronoi(points, w, h)` returns the polygons, `inPolygon(poly, x, y)` tests membership, and
 `layouts.circle | voronoi | grid` are the built-in layouts.
+
+`clearCentre(points, clear)` pushes any seed inside the card's clearance out to its edge —
+`resolveLayout()` applies it to every layout, including yours, so no tile can end up under the
+card.
+
+## Keyboard
+
+| Key | Effect |
+|---|---|
+| a zone letter | files the card there |
+| `⇧` + letters | stacks zones; releasing `⇧` files them |
+| `⇧` tapped alone | latches multi-zone mode, or files a pending stack |
+| `↵` | files a pending stack, otherwise accepts the suggestion |
+| `space` | skip |
+| `⌫` | undo, and unlearn |
+| `Esc` | drops the stack, then leaves fullscreen |

@@ -95,11 +95,37 @@ bun run dev              # site + demos
 
 - **`multi` is off by default.** Stacking only makes sense when zones are not mutually exclusive,
   and only the host knows that.
-- **Two ways in, one state.** `#multi` records *how* the mode was opened: a `⇧` release only files
-  a stack that `⇧` itself opened, so a stray release cannot fire a latched stack.
+- **Four ways in, one state.** `#multi` records *how* the mode was opened (`shift`, `latch`,
+  `hold`, `pad`), because that decides how it closes: a `⇧` release only files a stack that `⇧`
+  itself opened, and the pad's release only files a stack the pad opened.
+- **A bare `⇧` tap is the shortcut.** `#shiftUsed` is set by any key pressed while `⇧` is down, so
+  "tap" means what it says. Do not set it on the `⇧` keydown itself, and do not reset it on
+  key-repeat.
+- **Sweeping adds, never removes.** `#stack()` is add-only; toggling belongs to taps and keys. An
+  accidental second pass over a zone must not undo a deliberate first one.
 - **One example per zone** for the model, and undo unlearns every one of them.
 - **Without `onSortMany`**, several zones fall back to sequential `onSort` calls — documented, with
-  its partial-failure ceiling stated.
+  its partial-failure ceiling stated. A stack of one still goes through `onSort`.
+
+### On the feel (a 2015 iPad is the judge)
+
+- **One `onMove` per frame.** `pointermove` outruns the display and arrives coalesced; the
+  handler is `requestAnimationFrame`-throttled. Never add `pointermove` to the window net — that
+  doubles the very work this avoids.
+- **No `getBoundingClientRect()` during a drag.** The stage rect is cached at `pointerdown`
+  (`#rect`) and cleared at the end. Hit-testing against a fresh rect is a forced layout per frame.
+- **`#lit` guards highlighting**, `#layoutKey` guards re-layout. `render()` runs while a card is
+  in flight; rebuilding the region SVG at that moment is the hitch you feel.
+- **Transform and opacity only** on anything that moves. No filter on the genie, no animated
+  box-shadow for the multi ring — both repaint every frame. `will-change` only on `.tr-dragging`
+  and `.tr-genie`, never on `.tr-card`.
+- **Every `color-mix()` has a plain fallback in front of it.** Safari only shipped it in 16.2 and
+  these tablets stop around there; without the fallback every border renders as nothing.
+- **A release always resolves.** `pointercancel` returns the card instead of filing it, `window`
+  carries the `pointerup` net for iOS, and `lostpointercapture` closes the last gap.
+- **The clearance is an invariant, not a suggestion.** `resolveLayout()` runs `clearCentre()` over
+  every layout, custom ones included — a grid with an odd cell count puts a tile under the card
+  every time.
 
 ## Deliberately absent
 

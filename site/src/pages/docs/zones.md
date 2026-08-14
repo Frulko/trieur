@@ -46,6 +46,12 @@ layout: (n, { w, h, clear }) => Array.from({ length: n }, (_, i) => ({ x: …, y
 `clear` is the radius to keep free at the centre so zones do not sit under the card. Margins
 are worth half a tile: a zone spilling off the stage is unreachable by thumb.
 
+**The clearance is enforced, not merely requested.** Whatever a layout returns — including
+yours — any seed that landed inside `clear` is pushed out to its edge before the zones are
+placed. A tile under the card cannot be seen, cannot be tapped, and owns a region nobody can
+reach; a grid with an odd number of cells produces one every single time. `clearCentre(points,
+clear)` is exported if you want the same guarantee elsewhere.
+
 The `'voronoi'` layout places seeds along a phyllotactic spiral — golden angle, so never
 collinear. The resulting cells form an irregular mosaic rather than a pie chart. It is
 deterministic: same number of zones, same drawing.
@@ -65,6 +71,35 @@ drag, text does not get selected, a long press does not open the context menu.
 movement beyond six pixels takes over for the drag and cancels the click that would have
 followed. Form fields keep priority immediately. Without this, a card whose link covers half
 its surface would become impossible to sort.
+
+**A release always resolves.** Either the card flies into the zone it was aimed at, all the way
+through the genie animation, or it comes back to the centre. There is no third outcome, and
+three things make sure of it:
+
+- a `pointercancel` — the system taking the touch back — returns the card rather than filing
+  it, because the user never let go;
+- `pointerup` is also watched on `window`, since iOS Safari sometimes never delivers it to the
+  element that captured the pointer, which used to leave the card frozen mid-air;
+- `lostpointercapture` closes the same gap from the other side.
+
+## What keeps it smooth
+
+The gesture loop was written against a 2015 iPad, which is a better judge than a desktop:
+
+- **One callback per frame.** `pointermove` fires faster than the display refreshes and
+  arrives in coalesced bursts; the handler is throttled to `requestAnimationFrame`, so a
+  frame costs one style write, not five.
+- **No measuring during a drag.** The stage rectangle is read once at `pointerdown` and reused.
+  Hit-testing against a fresh `getBoundingClientRect()` on every move is a forced layout per
+  frame — the single most expensive thing a drag can do.
+- **A move that lights nothing new touches no DOM.** Highlighting is compared against what is
+  already lit before anything is written.
+- **The stage is not rebuilt when nothing changed.** `render()` runs while a card is in flight;
+  recomputing the region SVG at that exact moment is the hitch you feel. The layout is skipped
+  unless the stage size, the card clearance or the zone count actually moved.
+- **Transform and opacity only.** The flying card animates nothing that repaints — no filter,
+  no box-shadow — and gets `will-change` only while it is moving, so no layer is kept alive
+  for a card sitting still.
 
 ## The animations say something
 

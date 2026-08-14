@@ -93,13 +93,35 @@ just a drawing: **the drop aims at the region under the finger**. What you see i
 
 ## One card, several zones
 
-Folders are not mutually exclusive. With `multi: true`, hold `⇧` and press several zone letters —
-releasing `⇧` files the card into all of them. On a phone, the bar button latches the same mode,
-and the tiles become tappable.
+Folders are not mutually exclusive. With `multi: true`, a card can be **stacked** into several
+zones before it leaves — four ways in, one state:
 
-The card takes a dashed amber outline whose halo breathes, and each stacked zone gets a numbered
-badge — badge `1` is the primary zone. Amber rather than red: red reads as error or destruction,
-and this is neither. The model learns one example per zone, and undoing unlearns all of them.
+- **hold `⇧`** and press several zone letters; releasing `⇧` files them all;
+- **tap `⇧`** on its own to latch the mode — the shortcut — and tap again to leave or to file;
+- **hold the pad**, a translucent gamepad-style button that appears on touch screens;
+- **hold the card** itself, then sweep it across the zones and let go.
+
+Sweeping is the tablet gesture: rest a finger, feel the outline light up, drag the card across
+two or three regions — each one joins the stack — then let go. Between zones the card returns to
+the centre, because it is pointing, not leaving.
+
+The card takes a dashed amber outline with a breathing ring, and each stacked zone gets a
+numbered badge — badge `1` is the primary zone. Amber rather than red: red reads as error or
+destruction, and this is neither. The model learns one example per zone, and undoing unlearns
+all of them.
+
+## What keeps it smooth
+
+The gesture loop was tuned against a 2015 iPad, which is a better judge than a desktop. One
+callback per frame instead of one per event; the stage rectangle measured once per drag instead
+of once per move; a highlight that writes nothing when nothing changed; no region rebuild while
+a card is in flight; transform and opacity only, with `will-change` granted just for the moment
+something moves.
+
+And a release always resolves: the card either flies all the way into its zone or comes back to
+the centre. A cancelled pointer returns it rather than filing it, and `pointerup` is watched on
+`window` too — iOS Safari sometimes never delivers it to the element that captured the pointer,
+which used to leave the card frozen mid-air.
 
 ## The model ladder
 

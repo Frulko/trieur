@@ -14,8 +14,14 @@ import { inPolygon, pathOf, voronoi } from './voronoi.js';
 // home-row keys first, in the order the eye travels around the circle
 const DEFAULT_KEYS = 'asdfghjklqwertyuiopzxcvbnm';
 
-/** How the multi-zone selection was started — it decides how it ends. */
-type MultiSource = 'shift' | 'latch';
+/**
+ * How the multi-zone stack was opened — which decides how it closes.
+ *
+ * `shift` and `hold` and `pad` are *held*: letting go files the stack. `latch` is sticky and
+ * waits for an explicit confirmation. Keeping the source is what stops a stray Shift release
+ * from firing a stack the user latched from the bar.
+ */
+type MultiSource = 'shift' | 'latch' | 'hold' | 'pad';
 
 export class Deck<T = any> {
   readonly root: HTMLElement;
@@ -31,19 +37,28 @@ export class Deck<T = any> {
   #segsEl: SVGSVGElement;
   #zonesEl: HTMLElement;
   #cardsEl: HTMLElement;
+  #padEl: HTMLElement;
   #history: Array<{ item: T; zones: PlacedZone[] }> = [];
   #busy = false;
   /** zones stacked up for the current card, in the order they were picked */
   #picks: PlacedZone[] = [];
   #multi: MultiSource | null = null;
+  /** a key was pressed while Shift was down — so a bare Shift tap stays unambiguous */
+  #shiftUsed = false;
   /** suggestion token: a late answer must not apply to the next card */
   #ask = 0;
+  /** stage rect, read once per drag instead of once per move */
+  #rect: DOMRect | null = null;
+  /** what is currently lit, so a move that changes nothing touches no DOM */
+  #lit = '';
+  /** signature of the last layout, so an unchanged stage is not rebuilt */
+  #layoutKey = '';
   #onResize: () => void;
   #onEsc: (e: KeyboardEvent) => void;
 
   constructor(root: HTMLElement, opts: DeckOptions<T> = {}) {
     this.root = root;
-    this.#opts = { threshold: 90, ...opts };
+    this.#opts = { threshold: 90, holdDelay: 420, ...opts };
     this.#text = { ...en, ...opts.text };
     this.items = [...(opts.items ?? [])];
 
@@ -55,6 +70,9 @@ export class Deck<T = any> {
         <div class="tr-zones"></div>
         <div class="tr-cards"></div>
         <p class="tr-nothing" hidden></p>
+        <button type="button" class="tr-pad" data-tr="pad" aria-label="${t.hold}" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 5 11h4v9h6v-9h4Z" fill="currentColor"/></svg>
+        </button>
       </div>
       <div class="tr-bar">
         <span class="tr-count" aria-live="polite"></span>
@@ -70,6 +88,7 @@ export class Deck<T = any> {
     this.#segsEl = root.querySelector('.tr-segments')!;
     this.#zonesEl = root.querySelector('.tr-zones')!;
     this.#cardsEl = root.querySelector('.tr-cards')!;
+    this.#padEl = root.querySelector('.tr-pad')!;
     this.#label('.tr-nothing', t.empty);
     this.#button('skip', t.skip, t.space);
     this.#button('undo', t.undo, '⌫');
@@ -77,12 +96,8 @@ export class Deck<T = any> {
     root.querySelector('[data-tr="collapse"]')!.setAttribute('title', t.close);
 
     this.#stage.addEventListener('keydown', (e) => this.#onKey(e));
-    // Holding Shift is a transient mode: releasing it files the card into everything picked.
-    this.#stage.addEventListener('keyup', (e) => {
-      if (e.key !== 'Shift' || this.#multi !== 'shift') return;
-      if (this.#picks.length) void this.commitMany();
-      else this.#clearPicks();
-    });
+    this.#stage.addEventListener('keyup', (e) => this.#onKeyUp(e));
+    this.#bindPad();
     root.addEventListener('click', (e) => {
       const target = e.target as Element;
       const b = target.closest<HTMLElement>('[data-tr]');
@@ -121,7 +136,7 @@ export class Deck<T = any> {
     };
     document.addEventListener('keydown', this.#onEsc);
     // a resize moves the zones, hence the drop regions
-    this.#onResize = () => this.layout();
+    this.#onResize = () => this.layout(true);
     window.addEventListener('resize', this.#onResize);
 
     this.setZones(opts.zones ?? []);
@@ -170,6 +185,8 @@ export class Deck<T = any> {
   setOptions(patch: Partial<DeckOptions<T>>): void {
     this.#opts = { ...this.#opts, ...patch };
     if (patch.text) this.#text = { ...this.#text, ...patch.text };
+    if (patch.zones) return this.setZones(patch.zones);
+    this.layout(true);
     this.render();
   }
 
@@ -205,19 +222,31 @@ export class Deck<T = any> {
       else el.append(defaultTile(z, this.#text));
       this.#zonesEl.append(el);
     }
-    this.layout();
+    this.#lit = '';
+    this.layout(true);
     this.#paintPicks();
   }
 
-  /** Places the zones and remembers each one's direction (used for aiming while dragging). */
-  layout(): void {
+  /**
+   * Places the zones and remembers each one's direction (used for aiming while dragging).
+   *
+   * Nothing is written when the stage, the card size and the zone count are unchanged. That
+   * matters more than it looks: `render()` runs while a card is in flight, and rebuilding the
+   * region SVG mid-flight is exactly the hitch you feel on an older tablet.
+   */
+  layout(force = false): void {
     const els = [...this.#zonesEl.children] as HTMLElement[];
     if (!els.length) return;
     const card = this.#cardsEl.firstElementChild as HTMLElement | null;
-    // zones must clear the card, or they end up underneath it (+ half a tile)
-    const clear = Math.hypot((card?.offsetWidth ?? 260) / 2, (card?.offsetHeight ?? 300) / 2) + 60;
+    // zones must clear the card, or they end up underneath it (+ half a tile). Rounded to
+    // 8px steps so a card one pixel taller does not shift every zone.
+    const clear = Math.round((Math.hypot((card?.offsetWidth ?? 260) / 2, (card?.offsetHeight ?? 300) / 2) + 60) / 8) * 8;
     const w = this.#stage.clientWidth;
     const h = this.#stage.clientHeight;
+    const key = `${w}×${h}:${clear}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}`;
+    if (!force && key === this.#layoutKey) return;
+    this.#layoutKey = key;
+
     const pts = resolveLayout(this.#opts.layout)(els.length, { w, h, clear });
     els.forEach((el, i) => {
       const p = pts[i] ?? { x: 0, y: 0 };
@@ -255,12 +284,15 @@ export class Deck<T = any> {
         return path;
       }),
     );
+    this.#lit = '';
     this.#paintPicks();
   }
 
   /** Zone under a point of the stage (screen coordinates). */
   zoneAt(clientX: number, clientY: number): PlacedZone | null {
-    const r = this.#stage.getBoundingClientRect();
+    // during a drag the rect is the one cached at pointerdown: measuring it on every move is
+    // a forced layout per frame, and it is the single most expensive thing a drag can do
+    const r = this.#rect ?? this.#stage.getBoundingClientRect();
     const [x, y] = [clientX - r.left, clientY - r.top];
     return this.zones.find((z) => z.cell && inPolygon(z.cell, x, y)) ?? null;
   }
@@ -281,10 +313,11 @@ export class Deck<T = any> {
       this.#cardsEl.append(el);
       if (enter) enterTop(el, enter);
     }
-    this.layout(); // the card's size depends on its content
+    this.layout(); // the card's size can change the clearance
     this.#label('.tr-count', this.items.length ? this.#text.count(this.items.length) : '');
     (this.root.querySelector('[data-tr="undo"]') as HTMLButtonElement).disabled = !this.#history.length;
     (this.root.querySelector('[data-tr="multi"]') as HTMLButtonElement).hidden = !this.#opts.multi;
+    this.#syncPad();
     void this.suggest();
     if (top === undefined) {
       this.#emit('empty', {});
@@ -338,8 +371,12 @@ export class Deck<T = any> {
   // --- multi-zone selection --------------------------------------------------
 
   #setMulti(source: MultiSource | null): void {
+    if (this.#multi === source) return;
     this.#multi = source;
     this.root.classList.toggle('tr-multi', source !== null);
+    this.#padEl.classList.toggle('tr-on', source === 'pad' || source === 'hold');
+    // a short buzz makes a held mode feel like a button, where a phone has no Shift key
+    if (source && typeof navigator !== 'undefined') navigator.vibrate?.(8);
     this.#paintPicks();
     this.#emit('pick', { item: this.current, zones: this.picking, multi: this.multi });
   }
@@ -355,9 +392,16 @@ export class Deck<T = any> {
     this.#emit('pick', { item: this.current, zones: this.picking, multi: this.multi });
   }
 
+  /** Adds a zone, never removes it — sweeping back over a zone must not undo it. */
+  #stack(zone: PlacedZone): void {
+    if (zone.empty || this.#picks.some((z) => z.index === zone.index)) return;
+    this.#togglePick(zone);
+  }
+
   #clearPicks(): void {
     this.#picks = [];
     this.#setMulti(null);
+    this.#paintPicks();
   }
 
   #paintPicks(): void {
@@ -377,27 +421,80 @@ export class Deck<T = any> {
     }
   }
 
+  /** The held pad: a virtual gamepad button for the hand that has no Shift key. */
+  #bindPad(): void {
+    this.#padEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (!this.#opts.multi) return;
+      try {
+        this.#padEl.setPointerCapture(e.pointerId);
+      } catch {}
+      this.#setMulti('pad');
+    });
+    const release = () => {
+      if (this.#multi !== 'pad') return;
+      if (this.#picks.length) void this.commitMany();
+      else this.#clearPicks();
+    };
+    this.#padEl.addEventListener('pointerup', release);
+    this.#padEl.addEventListener('pointercancel', release);
+  }
+
+  #syncPad(): void {
+    const want = this.#opts.multiPad ?? 'auto';
+    // 'auto' means "where it earns its place": a thumb has no Shift key, a mouse does
+    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    const on = Boolean(this.#opts.multi) && want !== false && (want !== 'auto' || coarse);
+    this.#padEl.hidden = !on;
+    this.#padEl.classList.toggle('tr-pad-left', want === 'left');
+  }
+
   // --- gesture ---------------------------------------------------------------
 
   #startDrag(e: PointerEvent, el: HTMLElement): void {
     if (this.#busy) return;
     const threshold = this.#opts.threshold!;
-    startGesture(el, e, {
-      onMove: (g, ev) => {
-        // the closer to a zone, the smaller the card: it "enters" the zone before release
-        const k = Math.min(g.dist / (threshold * 2), 1);
-        el.style.transform = `translate(${g.dx}px, ${g.dy}px) rotate(${g.dx / 22}deg) scale(${(1 - 0.42 * k).toFixed(3)})`;
-        const near = g.dist > 30 ? this.#aim(g.dx, g.dy, ev) : null;
-        this.#highlight(near, g.dist > threshold);
+    this.#rect = this.#stage.getBoundingClientRect(); // read once, then never during the drag
+    startGesture(
+      el,
+      e,
+      {
+        // a finger resting on the card opens the stack, and the same finger then sweeps
+        onHold: () => {
+          if (this.#opts.multi && !this.#multi) this.#setMulti('hold');
+        },
+        onMove: (g, ev) => {
+          // the closer to a zone, the smaller the card: it "enters" the zone before release.
+          // translate3d keeps the card on its own compositor layer instead of repainting it.
+          const k = Math.min(g.dist / (threshold * 2), 1);
+          el.style.transform = `translate3d(${g.dx}px, ${g.dy}px, 0) rotate(${(g.dx / 22).toFixed(2)}deg) scale(${(1 - 0.42 * k).toFixed(3)})`;
+          const near = g.dist > 30 ? this.#aim(g.dx, g.dy, ev) : null;
+          const armed = g.dist > threshold;
+          this.#highlight(near, armed);
+          // in multi mode the finger stays down and sweeps: every region it reaches joins the
+          // stack, and letting go files them
+          if (this.#multi && near && armed) this.#stack(near);
+        },
+        onEnd: (g, ev) => {
+          this.#highlight(null, false);
+          this.#rect = null;
+          if (this.#multi) {
+            el.style.transform = ''; // the card was pointing at zones, not leaving
+            // the pad decides when a pad-held stack goes; this finger only pointed
+            if (this.#multi === 'hold') {
+              if (this.#picks.length) void this.commitMany();
+              else this.#clearPicks();
+            }
+            return;
+          }
+          // a cancelled pointer is not a drop: the system took the touch back
+          const zone = !g.cancelled && g.dist > threshold ? this.#aim(g.dx, g.dy, ev) : null;
+          if (zone) void this.commit(zone, g.dx);
+          else el.style.transform = ''; // nothing aimed at: back to the centre
+        },
       },
-      onEnd: (g, ev) => {
-        const zone = g.dist > threshold ? this.#aim(g.dx, g.dy, ev) : null;
-        this.#highlight(null, false);
-        if (zone) void this.commit(zone, g.dx);
-        // in multi mode the card is only being pointed at zones, so it comes back to centre
-        if (!zone || this.#multi) el.style.transform = '';
-      },
-    });
+      { holdDelay: this.#opts.multi ? this.#opts.holdDelay : 0 },
+    );
   }
 
   /** Zone being aimed at: the region under the finger; failing a carving, the drag direction. */
@@ -414,6 +511,10 @@ export class Deck<T = any> {
   }
 
   #highlight(zone: PlacedZone | null, armed: boolean): void {
+    // a move that lights nothing new must touch no DOM at all
+    const key = zone ? `${zone.index}:${armed}` : '';
+    if (key === this.#lit) return;
+    this.#lit = key;
     const mark = (el: Element) => {
       const on = zone !== null && Number((el as HTMLElement).dataset.index) === zone.index;
       el.classList.toggle('tr-near', on);
@@ -426,7 +527,13 @@ export class Deck<T = any> {
   // --- keyboard --------------------------------------------------------------
 
   #onKey(e: KeyboardEvent): void {
+    if (e.key === 'Shift') {
+      // a repeat must not clear the flag a zone key has just set
+      if (!e.repeat) this.#shiftUsed = false;
+      return;
+    }
     if (this.#busy || e.metaKey || e.ctrlKey || e.altKey) return;
+    this.#shiftUsed = true; // whatever it was, this Shift press was not a bare tap
     if (e.key === ' ' || e.key === 'Spacebar') {
       e.preventDefault();
       return this.skip();
@@ -457,6 +564,25 @@ export class Deck<T = any> {
       if (this.#opts.multi && e.shiftKey && !this.#multi) this.#setMulti('shift');
       void this.commit(z);
     }
+  }
+
+  /**
+   * Shift released. Three cases, and the source is what tells them apart:
+   *
+   * - it opened the stack (`shift`) → letting go files it;
+   * - it was a **bare tap** → the shortcut: latch the mode, or file what is already stacked;
+   * - anything else → not ours.
+   */
+  #onKeyUp(e: KeyboardEvent): void {
+    if (e.key !== 'Shift' || this.#busy) return;
+    if (this.#multi === 'shift') {
+      if (this.#picks.length) void this.commitMany();
+      else this.#clearPicks();
+      return;
+    }
+    if (this.#shiftUsed || !this.#opts.multi) return;
+    if (this.#picks.length) return void this.commitMany();
+    this.#setMulti(this.#multi ? null : 'latch');
   }
 
   // --- actions ---------------------------------------------------------------
@@ -561,7 +687,7 @@ export class Deck<T = any> {
     this.#emit('expand', { expanded: this.expanded });
     // the stage changed size, so the zones and their regions must follow
     requestAnimationFrame(() => {
-      this.layout();
+      this.layout(true);
       this.#stage.focus({ preventScroll: true });
     });
   }
