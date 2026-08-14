@@ -409,3 +409,19 @@ test('two piles share the zones, and filing one leaves the other alone', async (
   expect(piles[0]!.querySelector('.tr-card:not(.tr-behind)')!.textContent).toBe('a');
   expect(d.items).toHaveLength(2);
 });
+
+test('the small scale follows the stage, not the window', () => {
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES });
+  const stage = root.querySelector('.tr-stage')!;
+  const width = (v: number) => Object.defineProperty(stage, 'clientWidth', { value: v, configurable: true });
+
+  width(380); // a phone, or a 380px panel on a 1440px screen — the same problem
+  d.layout(true);
+  expect(root.classList.contains('tr-sm')).toBe(true);
+  expect(root.classList.contains('tr-xs')).toBe(true);
+
+  width(900);
+  d.layout(true);
+  expect(root.classList.contains('tr-sm')).toBe(false);
+  expect(root.classList.contains('tr-xs')).toBe(false);
+});

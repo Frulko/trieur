@@ -101,11 +101,19 @@ stage. It stays deterministic: same number of zones, same drawing.
 
 ## On a small screen
 
-A phone is not a narrow desktop, so nothing here is merely reflowed: below 640px the card comes
-down to 216px wide (196 below 400) and a third of the screen height, tiles to 72px then 66,
-keycaps disappear — a phone has no keyboard, so the row of pixels was spent on nothing — and
-the stage takes 56dvh. At that scale six zones fit *on* the stage instead of half off it, which
-is the actual failure a smaller card fixes.
+A phone is not a narrow desktop, so nothing here is merely reflowed. The deck measures **its own
+stage** and adds `.tr-sm` below 560px and `.tr-xs` below 400px: the card comes down to 216px wide
+(196 in `xs`), tiles to 72px then 66, keycaps disappear — a thumb has no keyboard, so the row of
+pixels was spent on nothing. At that scale six zones fit *on* the stage instead of half off it,
+which is the actual failure a smaller card fixes.
+
+The stage, not the window, is what is measured: a deck in a 420px side panel on a 1440px screen
+has exactly the problem a deck on a phone has, and a viewport media query answers the wrong
+question in both directions. Only one thing is genuinely viewport-sized — how tall an inline
+stage should be on a phone (56dvh) — and that stayed a media query.
+
+Fullscreen flips it: the deck *is* the screen now, so `.tr-full.tr-sm` gives the card back the
+room it gave up as a preview — up to 300px wide and half the height, with the same small tiles.
 
 **Scrolling wins over sorting until the deck owns the screen.** A sorting swipe and a page
 scroll are the same gesture; a widget that takes it turns the page into a trap. So an inline

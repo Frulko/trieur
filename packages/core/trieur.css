@@ -488,58 +488,70 @@ html.tr-locked, html.tr-locked body { overflow: hidden; }
 .tr-nothing { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: 0.6; font-size: 13px; }
 .tr-nothing[hidden] { display: none; } /* display:grid would beat [hidden] */
 
-/* --- small screens: the card gives up room, and everything else shrinks to match ---------
-   A phone is not a narrow desktop. The card that reads well at 260px on a laptop leaves a
-   6-zone ring nowhere to stand on a 390px screen, so the whole scale comes down: the card,
-   the tiles, the type, the bar. The stage is then wide enough for the zones to sit *on* it
-   rather than half off it. */
+/* --- a narrow stage: the card gives up room, and everything else shrinks to match --------
+   Measured, not guessed. `.tr-sm` / `.tr-xs` are written by the deck from the width of its
+   own stage, so a deck in a 420px side panel on a 1440px screen is treated exactly like one
+   on a phone — which a viewport media query gets wrong in both directions. The card that
+   reads well at 260px leaves a 6-zone ring nowhere to stand on a 390px stage, so the whole
+   scale comes down: the card, the tiles, the type, the bar. */
+.tr-sm {
+  --tr-card-w: 216px;
+  --tr-card-h: 262px;
+  --tr-radius: 12px;
+  gap: 8px;
+}
+.tr-sm .tr-card {
+  /* percentages of the card layer, which is the stage: the cap follows the room there is */
+  width: min(var(--tr-card-w), 62%);
+  /* the old 46dvh floor left a third of the card empty under the text */
+  min-height: min(var(--tr-card-h), 46%);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+.tr-sm .tr-zone {
+  width: 72px;
+  padding: 6px 4px 5px;
+  gap: 2px;
+  font-size: 10.5px;
+  border-radius: 10px;
+}
+.tr-sm .tr-zone .tr-glyph { width: 30px; height: 30px; font-size: 16px; border-radius: 8px; }
+.tr-sm .tr-zone .tr-glyph svg { width: 18px; height: 18px; }
+/* a stage this narrow is a thumb's, and a thumb has no keyboard: the keycap is a row of
+   pixels spent on nothing */
+.tr-sm .tr-zone kbd { display: none; }
+.tr-sm .tr-zone.tr-picked::before { top: -6px; right: -6px; min-width: 17px; height: 17px; font-size: 10px; }
+.tr-sm.tr-layout-radial .tr-zone { width: 66px; }
+.tr-sm.tr-layout-dock .tr-zone { width: 72px; }
+.tr-sm .tr-pad { width: 58px; height: 58px; }
+.tr-sm .tr-pad svg { width: 24px; height: 24px; }
+.tr-sm .tr-bar { font-size: 11px; gap: 6px; flex-wrap: wrap; }
+.tr-sm .tr-bar button { padding: 4px 8px; }
+.tr-sm .tr-bar kbd { display: none; }
+/* Fullscreen on a narrow screen is the opposite problem: the deck *is* the screen, so the
+   card takes back the room it gave up as an inline preview. Same tiles, bigger card — the
+   only thing a phone has plenty of is height. */
+.tr-full.tr-sm { --tr-card-w: 300px; --tr-card-h: 420px; }
+.tr-full.tr-sm .tr-card { width: min(var(--tr-card-w), 80%); min-height: min(var(--tr-card-h), 52%); }
+.tr-xs { --tr-card-w: 196px; --tr-card-h: 240px; }
+.tr-xs .tr-zone { width: 66px; font-size: 10px; }
+.tr-xs.tr-layout-radial .tr-zone { width: 62px; }
+
+/* the one genuinely viewport-sized thing: how tall an inline stage should be on a phone */
 @media (max-width: 640px) {
-  .tr {
-    --tr-card-w: 216px;
-    --tr-card-h: 262px;
-    --tr-radius: 12px;
-    gap: 8px;
-  }
-  .tr-stage { min-height: 56vh; min-height: 56dvh; }
-  .tr-card {
-    width: min(var(--tr-card-w), 60vw);
-    /* the old 46dvh floor left a third of the card empty under the text */
-    min-height: min(var(--tr-card-h), 32dvh);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-  }
-  .tr-zone {
-    width: 72px;
-    padding: 6px 4px 5px;
-    gap: 2px;
-    font-size: 10.5px;
-    border-radius: 10px;
-  }
-  .tr-zone .tr-glyph { width: 30px; height: 30px; font-size: 16px; border-radius: 8px; }
-  .tr-zone .tr-glyph svg { width: 18px; height: 18px; }
-  /* a phone has no keyboard, so the keycap is a row of pixels spent on nothing */
-  .tr-zone kbd { display: none; }
-  .tr-zone.tr-picked::before { top: -6px; right: -6px; min-width: 17px; height: 17px; font-size: 10px; }
-  .tr-layout-radial .tr-zone { width: 66px; }
-  .tr-layout-dock .tr-zone { width: 72px; }
-  .tr-pad { width: 58px; height: 58px; }
-  .tr-pad svg { width: 24px; height: 24px; }
-  .tr-bar { font-size: 11px; gap: 6px; flex-wrap: wrap; }
-  .tr-bar button { padding: 4px 8px; }
-  .tr-bar kbd { display: none; }
+  .tr:not(.tr-full) .tr-stage { min-height: 56vh; min-height: 56dvh; }
   .tr-full { padding: 12px 12px 10px; }
   .tr-full .tr-close { top: 10px; right: 10px; height: 30px; }
-}
-@media (max-width: 400px) {
-  .tr { --tr-card-w: 196px; --tr-card-h: 240px; }
-  .tr-zone { width: 66px; font-size: 10px; }
 }
 
 /* --- touch, before it owns the screen ---------------------------------------------------
    Inline on a phone the deck is a preview: the page scrolls straight through it, and a tap
    opens it fullscreen (see `touchFullscreen`). The Expand button leaves the bar for the top
-   of the stage, because it is now the thing to press, not an afterthought beside Undo. */
+   of the stage, because it is now the thing to press, not an afterthought beside Undo.
+   `:not(.tr-full)` on the positioning is not cosmetic: `.tr-full` *is* `.tr`, and a bare
+   `.tr { position: relative }` here would come later in the file and quietly beat the
+   `position: fixed` that makes fullscreen fullscreen. */
 @media (pointer: coarse) {
-  .tr { position: relative; }
+  .tr:not(.tr-full) { position: relative; }
   .tr:not(.tr-full) .tr-bar [data-tr='expand'] {
     position: absolute;
     top: 10px;

@@ -139,6 +139,14 @@ bun run dev              # site + demos
 - **The card is not always at the centre of the stage.** A layout may return a `centre` (arc
   menus do), and the deck writes `--tr-card-x/y`; zone angles and the genie target are measured
   from *that* point, not from the stage centre.
+- **`.tr-full` *is* `.tr`.** Any later rule on the bare `.tr` selector — `@media (pointer:
+  coarse) { .tr { position: relative } }`, for one — beats `.tr-full { position: fixed }` at
+  equal specificity and silently kills fullscreen on exactly the devices that need it. Write
+  `.tr:not(.tr-full)`.
+- **The responsive scale is measured, not guessed.** `.tr-sm` / `.tr-xs` come from the stage's
+  own width, set at the top of `layout()` before anything else is measured. A viewport media
+  query is wrong twice over: a deck in a narrow panel on a wide screen never gets the small
+  scale, and a full-width deck on a phone gets it even in fullscreen where the room is there.
 - **An absolutely positioned card ignores its container's padding.** The zone tray shortens
   `.tr-cards` with `bottom: var(--tr-tray)`, never with padding — padding is exactly what the
   card's own layout skips.

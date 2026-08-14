@@ -185,6 +185,14 @@ own wedges.
 
 The full reference, gestures included, is [Keyboard and gestures](../keyboard/).
 
+## Classes the deck writes
+
+`.tr-layout-<name>` for the layout in play, `.tr-multi` while a stack is open, `.tr-full` in
+fullscreen, `.tr-piles` with more than one pile, and `.tr-sm` / `.tr-xs` when the **stage**
+measures under 560 / 400px — the responsive scale keys off those, not off the viewport. The
+deck also writes `--tr-tray` (the depth of a zone tray along the bottom edge) and
+`--tr-card-x` / `--tr-card-y` (where a layout asked for the card to sit).
+
 On a touch screen, **double-tapping a card accepts the suggestion** — the equivalent of `↵`,
 which a thumb cannot press. The browser's own double-tap zoom is turned off across the sorter,
 so the two never fight.

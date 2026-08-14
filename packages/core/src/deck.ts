@@ -280,6 +280,13 @@ export class Deck<T = any> {
   layout(force = false): void {
     const els = [...this.#zonesEl.children] as HTMLElement[];
     if (!els.length) return;
+    // The scale follows the stage, not the window: a deck in a 420px panel on a wide screen
+    // has exactly the problem a deck on a phone has, and a viewport media query answers the
+    // wrong question in both directions. Set before anything is measured, so the measurements
+    // are the ones that count.
+    const stageW = this.#stage.clientWidth;
+    this.root.classList.toggle('tr-sm', stageW > 0 && stageW < 560);
+    this.root.classList.toggle('tr-xs', stageW > 0 && stageW < 400);
     const card = this.#cardsEl.querySelector('.tr-card') as HTMLElement | null;
     // Zones clear the card along an **ellipse**, not a circle: a zone directly above only has
     // to clear the card's height, and using the circumscribed radius everywhere pushed the top
