@@ -32,9 +32,12 @@ export interface PlacedZone extends Zone {
 export interface LayoutBox {
   w: number;
   h: number;
-  /** half-width of the ellipse to keep clear at the centre — the card, plus a tile */
+  /** the card's own size, for a layout that wants to hug it rather than clear it */
+  cardW: number;
+  cardH: number;
+  /** half-width of the box to keep clear at the centre — the card, plus half a tile */
   clearX: number;
-  /** half-height of that ellipse */
+  /** half-height of that box */
   clearY: number;
   /** largest dimension of a zone tile, measured — so a layout can keep one on the stage */
   tile: number;
@@ -114,7 +117,7 @@ export interface DeckOptions<T = any> {
   advisor?: Advisor<T>;
   /** minimum score for a zone to be suggested */
   minConfidence?: number;
-  layout?: Layout | 'circle' | 'voronoi' | 'grid';
+  layout?: Layout | 'auto' | 'circle' | 'radial' | 'voronoi' | 'grid' | 'dock';
   /** carve the stage into regions and aim at the region rather than at an angle */
   segments?: boolean;
   /** keys handed to zones, in order */

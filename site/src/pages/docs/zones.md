@@ -37,7 +37,7 @@ is exported if you want the polygons.
 
 ## Layouts
 
-`layout` accepts `'circle'` (default), `'radial'`, `'voronoi'`, `'grid'`, or your own function:
+`layout` accepts `'auto'` (default), `'circle'`, `'radial'`, `'voronoi'`, `'grid'`, `'dock'`, or your own function:
 
 ```js
 layout: (n, { w, h, clearX, clearY, tile }) => Array.from({ length: n }, (_, i) => ({ x: …, y: … }))
@@ -67,11 +67,34 @@ a wedge is not something a set of points can describe. Equal wedges are the poin
 is one flick, and every flick is the same length. The price is the four corners of a wide
 stage, which is why it is a circle and not an ellipse.
 
+Past eight zones, `'radial'` **grows a second ring**, then a third. A wedge much narrower than
+that stops being aimable — a pie menu is a Fitts's-law device, and the target you cannot miss is
+one with a wide angle. Each ring is longer than the last, so it holds proportionally more: the
+capacity of ring *k* is the capacity of ring 0 scaled by its radius. The geometry decides, not
+a magic number.
+
+`'dock'` is the phone layout: the zones line the bottom edge and each owns a full-height
+column. A ring of tiles around a card spends most of a tall screen on empty corners; a dock
+spends all of it on the card, and turns the gesture into a horizontal flick — the one a thumb
+makes best. `'auto'`, the default, picks the dock on a narrow stage that can hold one and the
+circle everywhere else.
+
 `'voronoi'` places seeds along a phyllotactic spiral — golden angle, so never collinear — and
 then **relaxes them with Lloyd's algorithm**: compute the cells, move each seed to its cell's
 centroid, repeat four times. Without that pass the spiral crowds the middle and the mosaic is
 pretty and unusable, with the first zones getting postage stamps and the last ones half the
 stage. It stays deterministic: same number of zones, same drawing.
+
+## On a small screen
+
+Everything shrinks rather than scrolling: the card is capped at `78vw` and `46dvh`, tiles drop
+to 78px, keycaps disappear (a phone has no keyboard, so the row of pixels was spent on
+nothing), and the stage takes `62dvh`. That is enough for `'auto'` to fall back to the dock and
+still leave the card the room it needs.
+
+The whole sorter also opts out of the browser's own touch behaviour — no text selection, no
+double-tap zoom, no long-press callout, no tap highlight — because every one of them fights a
+gesture the deck already uses.
 
 ## A tile, not a label
 

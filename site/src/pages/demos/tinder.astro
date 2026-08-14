@@ -44,14 +44,80 @@ import Base from '../../layouts/Base.astro';
 </Base>
 
 <style is:global>
-  .demo.tinder { --tr-card-w: 300px; --tr-card-h: 440px; }
-  .demo.tinder .tr-zone { width: 92px; }
+  /* Tinder's own palette, scoped to this demo: white ground, the brand gradient, a green
+     heart and a red cross. Nothing here touches the library — it is all variables and the
+     stable class names. */
+  .demo.tinder {
+    --tr-card-w: 300px;
+    --tr-card-h: 440px;
+    --tr-card-bg: #fff;
+    --tr-accent: #fd5068;
+    --tr-line: #e8e8ec;
+    --tinder-no: #fd5068;
+    --tinder-yes: #42c767;
+    background: #fafafa;
+    border-color: #ececf0;
+  }
+  .demo.tinder .tr-card { box-shadow: 0 10px 30px rgba(20, 20, 30, 0.14); border-radius: 12px; }
+  .demo.tinder .tr-seg { fill: none; stroke: none; }
+  .demo.tinder .tr-nothing { color: #8b8b96; }
+  .demo.tinder .tr-bar { color: #6b6b76; }
+
+  /* the two zones become the round action buttons everyone recognises */
+  .demo.tinder .tr-zone {
+    width: 76px;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    gap: 6px;
+  }
+  .demo.tinder .tr-zone .tr-glyph {
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(20, 20, 30, 0.16);
+    font-size: 30px;
+    line-height: 1;
+  }
+  .demo.tinder .tr-zone .tr-label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9aa4; }
+  .demo.tinder .tr-zone[data-id='nope'] .tr-glyph { color: var(--tinder-no); }
+  .demo.tinder .tr-zone[data-id='yes'] .tr-glyph { color: var(--tinder-yes); }
+  .demo.tinder .tr-zone.tr-armed { transform: translate(-50%, -50%) scale(1.16); background: none; }
+  .demo.tinder .tr-zone.tr-armed .tr-glyph { box-shadow: 0 6px 20px rgba(20, 20, 30, 0.24); }
+  .demo.tinder .tr-zone kbd { border-color: #e4e4ea; background: #fff; color: #9a9aa4; }
+
   .face { position: relative; height: 100%; display: flex; flex-direction: column; }
-  .face img { width: 100%; flex: 1; object-fit: cover; background: color-mix(in srgb, currentColor 8%, transparent); }
-  .face footer { padding: 14px 16px 16px; display: grid; gap: 4px; }
-  .face h4 { margin: 0; font-size: 19px; letter-spacing: -0.01em; }
-  .face h4 em { font-style: normal; font-weight: 400; color: var(--dim); }
-  .face p { margin: 0; font-size: 13px; color: var(--dim); }
+  .face img { width: 100%; flex: 1; object-fit: cover; background: #ececed; }
+  .face footer { padding: 14px 16px 16px; display: grid; gap: 4px; background: #fff; }
+  .face h4 { margin: 0; font-size: 19px; letter-spacing: -0.01em; color: #17171c; }
+  .face h4 em { font-style: normal; font-weight: 400; color: #9a9aa4; }
+  .face p { margin: 0; font-size: 13px; color: #77777f; }
+
+  /* the stamp, the way the app does it: rotated, outlined, revealed by the aim. `:has()`
+     means the card reacts to which zone is lit without a line of JavaScript. */
+  .face .stamp {
+    position: absolute;
+    top: 22px;
+    padding: 4px 12px;
+    border: 4px solid currentColor;
+    border-radius: 8px;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  .face .yes { left: 18px; color: var(--tinder-yes); transform: rotate(-16deg); }
+  .face .no { right: 18px; color: var(--tinder-no); transform: rotate(16deg); }
+  .demo.tinder:has(.tr-zone[data-id='yes'].tr-near) .tr-card:not(.tr-behind) .face .yes { opacity: 1; }
+  .demo.tinder:has(.tr-zone[data-id='nope'].tr-near) .tr-card:not(.tr-behind) .face .no { opacity: 1; }
+
+  @media (prefers-color-scheme: dark) {
+    .demo.tinder { background: #17171b; border-color: #26262c; }
+    .demo.tinder .tr-nothing, .demo.tinder .tr-bar { color: #9a9aa4; }
+  }
 </style>
 
 <script>
@@ -93,8 +159,8 @@ import Base from '../../layouts/Base.astro';
   const deck = new Deck<Face>($('#sorter'), {
     items,
     zones: [
-      { id: 'nope', label: 'nope', icon: '✕', color: '#ec4899', key: 'j' },
-      { id: 'yes', label: 'yes', icon: '♥', color: '#10b981', key: 'k' },
+      { id: 'nope', label: 'nope', icon: '✕', color: '#fd5068', key: 'j' },
+      { id: 'yes', label: 'yes', icon: '♥', color: '#42c767', key: 'k' },
     ],
     // two zones, left and right — that is the whole difference from the link demo
     layout: (_n, { w, clearX }) => [
@@ -105,6 +171,8 @@ import Base from '../../layouts/Base.astro';
       el.innerHTML = `
         <div class="face">
           <img src="${f.src}" alt="" loading="lazy" decoding="async" />
+          <span class="stamp yes">LIKE</span>
+          <span class="stamp no">NOPE</span>
           <footer>
             <h4>${f.name} <em>${f.age}</em></h4>
             <p>${f.line}</p>

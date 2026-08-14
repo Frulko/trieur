@@ -25,7 +25,8 @@ export function createGui(controls: Control[], onChange: (values: Gui['values'],
   const el = document.createElement('aside');
   el.className = 'gui';
   // collapsed where the panel would cover the thing it configures
-  el.dataset.open = String(window.innerWidth > 900);
+  const roomy = () => window.innerWidth > 900;
+  el.dataset.open = String(roomy());
   el.innerHTML = `
     <button type="button" class="gui-head" aria-expanded="${el.dataset.open}">
       <span>settings</span><b>${el.dataset.open === 'true' ? '–' : '+'}</b>
@@ -73,6 +74,11 @@ export function createGui(controls: Control[], onChange: (values: Gui['values'],
     onChange(values, key);
   });
 
+  // a narrow window turns the panel into a sheet over the deck: fold it away
+  addEventListener('resize', () => {
+    if (!roomy() && el.dataset.open === 'true') el.querySelector<HTMLElement>('.gui-head')!.click();
+  });
+
   document.body.append(el);
   return { el, values };
 }
@@ -91,11 +97,14 @@ export function deckGui(deck: Deck): Gui {
         key: 'layout',
         label: 'layout',
         type: 'select',
-        value: String(opts.layout ?? 'circle'),
+        value: typeof opts.layout === 'string' ? opts.layout : 'auto',
         options: [
+          ['auto', 'auto'],
           ['circle', 'circle'],
-          ['voronoi', 'voronoi'],
+          ['radial', 'radial'],
+          ['voronoi', 'mosaic'],
           ['grid', 'grid'],
+          ['dock', 'dock'],
         ],
       },
       { key: 'segments', label: 'regions', type: 'toggle', value: opts.segments !== false },
@@ -107,6 +116,7 @@ export function deckGui(deck: Deck): Gui {
         value: String(opts.multiPad ?? 'auto'),
         options: [
           ['auto', 'auto (touch)'],
+          ['dynamic', 'dynamic'],
           ['right', 'right'],
           ['left', 'left'],
           ['off', 'off'],

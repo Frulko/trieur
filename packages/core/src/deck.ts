@@ -266,14 +266,18 @@ export class Deck<T = any> {
     // as it is wide, and margining on the width alone let the top row hang off the stage
     const first = els[0]!;
     const tile = round(Math.max(first.offsetWidth, first.offsetHeight)) || TILE;
+    const cardW = card?.offsetWidth ?? 260;
+    const cardH = card?.offsetHeight ?? 300;
     const box: LayoutBox = {
       w: this.#stage.clientWidth,
       h: this.#stage.clientHeight,
-      clearX: round((card?.offsetWidth ?? 260) / 2 + tile * 0.5),
-      clearY: round((card?.offsetHeight ?? 300) / 2 + tile * 0.5),
+      cardW,
+      cardH,
+      clearX: round(cardW / 2 + tile * 0.5),
+      clearY: round(cardH / 2 + tile * 0.5),
       tile,
     };
-    const key = `${box.w}×${box.h}:${box.clearX}:${box.clearY}:${tile}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}`;
+    const key = `${box.w}×${box.h}:${cardW}×${cardH}:${tile}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}`;
     if (!force && key === this.#layoutKey) return;
     this.#layoutKey = key;
 
@@ -288,7 +292,7 @@ export class Deck<T = any> {
     });
     // a host styles a radial menu differently from floating tiles, and only the deck knows
     // which layout is in play
-    const name = typeof this.#opts.layout === 'string' ? this.#opts.layout : 'custom';
+    const name = typeof this.#opts.layout === 'string' ? this.#opts.layout : this.#opts.layout ? 'custom' : 'auto';
     for (const c of [...this.root.classList]) if (c.startsWith('tr-layout-')) this.root.classList.remove(c);
     this.root.classList.add(`tr-layout-${name}`);
     this.#paintSegments(points, cells, box.w, box.h);
@@ -604,8 +608,13 @@ export class Deck<T = any> {
           }
           // a cancelled pointer is not a drop: the system took the touch back
           const zone = !g.cancelled && g.dist > threshold ? this.#aim(g.dx, g.dy, ev) : null;
-          if (zone) void this.commit(zone, g.dx);
-          else el.style.transform = ''; // nothing aimed at: back to the centre
+          if (!zone) return void (el.style.transform = ''); // nothing aimed at: back to the centre
+          // A release always resolves. The card only stays out there if a zone actually took
+          // it — a free zone, a busy deck or a refused filing all mean it comes home. Without
+          // this it froze between where it started and where it was dropped.
+          void this.commit(zone, g.dx).then((taken) => {
+            if (!taken) el.style.transform = '';
+          });
         },
       },
       { holdDelay: this.#opts.multi ? this.#opts.holdDelay : 0 },
@@ -705,31 +714,37 @@ export class Deck<T = any> {
   /**
    * Files the top card into `zone`. In multi-zone mode, stacks it instead — the filing
    * happens on confirmation.
+   *
+   * Resolves to whether the card **left**: a free zone, a stack and a busy deck all answer
+   * `false`, which is what tells the gesture to bring the card home.
    */
-  async commit(zone: PlacedZone, fling?: number): Promise<void> {
-    if (this.#multi && !zone.empty) return this.#togglePick(zone);
+  async commit(zone: PlacedZone, fling?: number): Promise<boolean> {
+    if (this.#multi && !zone.empty) {
+      this.#togglePick(zone);
+      return false;
+    }
     // free zone: the host decides what goes there, the card does not move
     if (zone.empty) {
       const item = this.current;
-      if (item === undefined) return;
+      if (item === undefined) return false;
       this.#emit('assign', { index: zone.index, item });
       this.#opts.onAssign?.(zone.index, item);
-      return;
+      return false;
     }
     return this.#run([zone], fling);
   }
 
   /** Files the top card into every stacked zone at once. */
-  async commitMany(zones: PlacedZone[] = this.picking): Promise<void> {
-    if (!zones.length) return;
+  async commitMany(zones: PlacedZone[] = this.picking): Promise<boolean> {
+    if (!zones.length) return false;
     return this.#run(zones);
   }
 
-  async #run(zones: PlacedZone[], fling?: number): Promise<void> {
+  async #run(zones: PlacedZone[], fling?: number): Promise<boolean> {
     const item = this.current;
     const el = this.#cardsEl.lastElementChild as HTMLElement | null;
     const primary = zones[0];
-    if (item === undefined || !el || !primary || this.#busy) return;
+    if (item === undefined || !el || !primary || this.#busy) return false;
     this.#busy = true;
     const predicted = this.prediction?.id ?? null;
     // the card lands in the primary zone; the others acknowledge without stealing the trip
@@ -756,6 +771,8 @@ export class Deck<T = any> {
       this.render(done ? 'sort' : undefined);
       this.#stage.focus({ preventScroll: true });
     }
+    // the genie took over the card's transform either way: on failure the catch put it back
+    return true;
   }
 
   skip(): void {

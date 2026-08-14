@@ -24,7 +24,7 @@ test('voronoi : les cellules pavent exactement le rectangle', () => {
 });
 
 test('voronoi: every seed sits in its own cell', () => {
-  const placed = resolveLayout('circle')(6, { w: 600, h: 480, clearX: 150, clearY: 160, tile: 104 });
+  const placed = resolveLayout('circle')(6, { w: 600, h: 480, cardW: 200, cardH: 220, clearX: 152, clearY: 162, tile: 104 });
   const pts = placed.points.map((p) => ({ x: 300 + p.x, y: 240 + p.y }));
   const cells = voronoi(pts, 600, 480);
   pts.forEach((p, i) => {
@@ -39,8 +39,8 @@ test('voronoi : un seul germe possède toute la scène', () => {
   expect(area(cell!)).toBeCloseTo(5000, 3);
 });
 
-const BOX = { w: 760, h: 560, clearX: 192, clearY: 208, tile: 104 };
-const NAMES = ['circle', 'radial', 'voronoi', 'grid'] as const;
+const BOX = { w: 760, h: 560, cardW: 260, cardH: 300, clearX: 182, clearY: 202, tile: 104 };
+const NAMES = ['auto', 'circle', 'radial', 'voronoi', 'grid', 'dock'] as const;
 /** How far the clearance rectangle reaches in the direction of a point. */
 const clearAt = (p: { x: number; y: number }, box = BOX) => {
   const a = Math.atan2(p.y, p.x);
@@ -64,7 +64,8 @@ test('layouts: no zone lands under the card', () => {
   // through resolveLayout, which is what the deck uses — the clearance is enforced there,
   // so a custom layout gets the same guarantee as the built-in ones
   for (const name of NAMES) {
-    if (name === 'radial') continue; // it draws its own wedges, so it places its own labels
+    // these draw their own regions, so they place their own labels
+    if (name === 'radial' || name === 'grid' || name === 'dock' || name === 'auto') continue;
     for (const n of [3, 6, 7, 9, 12]) {
       for (const p of resolveLayout(name)(n, BOX).points) {
         expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(clearAt(p) - 1);
@@ -92,6 +93,44 @@ test('radial: the wedges are the regions, and they tile the ring', () => {
   // and the wedges are of comparable size — a radial menu with one giant slice is a bug
   const areas = cells!.map(area);
   expect(Math.max(...areas) / Math.min(...areas)).toBeLessThan(1.6);
+});
+
+test('radial: past eight zones it grows a second ring', () => {
+  const one = resolveLayout('radial')(6, BOX);
+  const many = resolveLayout('radial')(14, BOX);
+  const radii = (p: { points: Array<{ x: number; y: number }> }) =>
+    new Set(p.points.map((q) => Math.round(Math.hypot(q.x, q.y) / 10)));
+  expect(radii(one).size).toBe(1); // six zones live on one ring
+  expect(radii(many).size).toBeGreaterThan(1); // fourteen do not
+  expect(many.cells!.length).toBe(14);
+  // and no wedge is a sliver: that is the point of spilling into a second ring
+  const areas = many.cells!.map(area);
+  expect(Math.min(...areas)).toBeGreaterThan(1200);
+});
+
+test('radial: the hole hugs the card, whatever the tiles do', () => {
+  const small = resolveLayout('radial')(6, { ...BOX, cardW: 160, cardH: 180 });
+  const big = resolveLayout('radial')(6, { ...BOX, cardW: 300, cardH: 340 });
+  const inner = (p: { cells?: Array<Array<[number, number]>> }) =>
+    Math.min(...p.cells![0]!.map(([x, y]) => Math.hypot(x, y)));
+  // the hole is the circle that just contains the card, so a bigger card means a bigger hole
+  expect(inner(small)).toBeCloseTo(Math.hypot(80, 90) + 12, 0);
+  expect(inner(big)).toBeCloseTo(Math.hypot(150, 170) + 12, 0);
+});
+
+test('grid: the regions are rectangles that tile the stage', () => {
+  const { cells } = resolveLayout('grid')(5, BOX);
+  expect(cells!.length).toBe(5);
+  for (const cell of cells!) expect(cell.length).toBe(4); // rectangles, not scatter
+  const total = cells!.reduce((s2, c) => s2 + area(c), 0);
+  expect(total).toBeCloseTo(BOX.w * BOX.h, 3); // no gap, no overlap, no leftover cell
+});
+
+test('dock: full-height columns, tiles on the bottom edge', () => {
+  const { points, cells } = resolveLayout('dock')(4, BOX);
+  expect(cells!.length).toBe(4);
+  expect(cells!.reduce((s2, c) => s2 + area(c), 0)).toBeCloseTo(BOX.w * BOX.h, 3);
+  for (const p of points) expect(p.y).toBeGreaterThan(BOX.h / 2 - BOX.tile - 10);
 });
 
 test('voronoi: relaxing evens the cells out', () => {

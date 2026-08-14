@@ -15,7 +15,7 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `meta(item)` | the item | what the model is allowed to look at |
 | `advisor` | — | a `Recommender`, or anything with `best()` |
 | `minConfidence` | `0.45` | minimum score for a zone to be suggested |
-| `layout` | `'circle'` | `'circle'`, `'radial'`, `'voronoi'`, `'grid'`, or `(n, box) => [{x,y}]` |
+| `layout` | `'auto'` | `'auto'`, `'circle'`, `'radial'`, `'voronoi'`, `'grid'`, `'dock'`, or `(n, box) => …` |
 | `segments` | `true` | carve the stage into regions and aim at the region |
 | `keys` | `'asdfghjkl…'` | keys handed to zones, in order |
 | `threshold` | `90` | drag distance past which the drop is armed, in px |
@@ -141,8 +141,11 @@ both to every layout, including yours. `clearanceAt(angle, box)` is the rule the
 hitting the card's box inflated by half a tile — a rectangle, not an ellipse, because a tile at
 45° sat outside an ellipse and still overlapped the card.
 
-The box a layout receives is `{ w, h, clearX, clearY, tile }`: the stage, the half-extents to
-keep clear, and the measured size of a tile.
+The box a layout receives is `{ w, h, cardW, cardH, clearX, clearY, tile }`: the stage, the
+card, the half-extents to keep clear (the card plus half a tile) and the measured size of a
+tile. `clampToStage(points, box)` pulls points back inside one axis at a time — that is what
+runs on a layout that draws its own regions, since scaling would slide the labels out of their
+own wedges.
 
 ## Keyboard
 
@@ -157,4 +160,5 @@ keep clear, and the measured size of a tile.
 | `Esc` | drops the stack, then leaves fullscreen |
 
 On a touch screen, **double-tapping a card accepts the suggestion** — the equivalent of `↵`,
-which a thumb cannot press.
+which a thumb cannot press. The browser's own double-tap zoom is turned off across the sorter,
+so the two never fight.

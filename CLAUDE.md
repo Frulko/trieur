@@ -35,7 +35,7 @@ bun run dev              # site + demos
 | `packages/core/src/deck.ts` | the `Deck` class: pile, zones, rendering, actions, multi-zone stack |
 | `packages/core/src/drag.ts` | the gesture, kept apart from the sorting (engagement, cancelled clicks) |
 | `packages/core/src/voronoi.ts` | stage carving, `inPolygon` |
-| `packages/core/src/layouts.ts` | `circle`, `voronoi` (golden spiral), `grid` |
+| `packages/core/src/layouts.ts` | `auto`, `circle`, `radial` (multi-ring), `voronoi` (Lloyd), `grid`, `dock` |
 | `packages/core/src/anim.ts` | entrances, genie exit, tile bounce |
 | `packages/core/src/element.ts` | `<trieur-deck>` / `<trieur-zone>` |
 | `packages/learn/src/features.ts` | sparse features, crosses, `pipe` |
@@ -122,7 +122,14 @@ bun run dev              # site + demos
 - **Every `color-mix()` has a plain fallback in front of it.** Safari only shipped it in 16.2 and
   these tablets stop around there; without the fallback every border renders as nothing.
 - **A release always resolves.** `pointercancel` returns the card instead of filing it, `window`
-  carries the `pointerup` net for iOS, and `lostpointercapture` closes the last gap.
+  carries the `pointerup` net for iOS, and `lostpointercapture` closes the last gap. `commit()`
+  reports whether the card *left*: a free zone, a busy deck and a refused filing all answer
+  `false`, and the gesture brings the card home. Without that it froze between origin and zone.
+- **Pointer capture is taken on engagement, never on pointerdown.** A captured pointer retargets
+  its events, so the browser dispatches `click` to the card instead of to the link inside it —
+  capturing early killed every link and button in a card.
+- **`[hidden]` loses to `display`.** Every element the deck hides (`.tr-nothing`, `.tr-pad`,
+  the bar's multi button) needs its own `[hidden] { display: none }` rule.
 - **The clearance is an invariant, not a suggestion.** `resolveLayout()` runs `clearCentre()` over
   every layout, custom ones included — a grid with an odd cell count puts a tile under the card
   every time.

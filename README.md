@@ -87,11 +87,14 @@ The key comes from the **position**, not from the label: changing what a zone ho
 change the gesture, and the gesture stays memorable. A `null` entry is a free zone — dropping a
 card there calls `onAssign(index)` instead of filing.
 
-Each zone owns a **region** of the stage. Four layouts ship: `circle` (tiles on an ellipse),
-`radial` (a true pie menu — equal wedges, the card in the hole), `voronoi` (a golden-angle
-spiral relaxed with Lloyd's algorithm, so the cells come out comparable) and `grid`. The first,
-third and fourth derive their regions from a Voronoi diagram; `radial` describes its own, which
-any custom layout may do too. And a region is not just a drawing: **the drop aims at the region
+Each zone owns a **region** of the stage. Six layouts ship: `circle` (tiles on an ellipse),
+`radial` (a true pie menu — equal wedges, the card in the hole, growing a second ring past
+eight zones), `voronoi` (a golden-angle spiral relaxed with Lloyd's algorithm, so the cells come
+out comparable), `grid` (rectangles tiling the stage, no gaps and no leftover cell), `dock`
+(zones on the bottom edge owning full-height columns — the phone one) and `auto`, the default,
+which picks the dock on a narrow stage and the circle everywhere else. `circle` and `voronoi`
+derive their regions from a Voronoi diagram; the others describe their own, which any custom
+layout may do too. And a region is not just a drawing: **the drop aims at the region
 under the finger**. What you see is what you touch.
 
 Two invariants are enforced on whatever a layout returns, yours included: nothing under the

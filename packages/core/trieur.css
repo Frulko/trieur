@@ -27,6 +27,10 @@ trieur-deck { display: block; }
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* nothing in a sorter is text you select: a drag that starts on a label used to paint the
+     whole stage blue. Inputs get it back below. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 @media (prefers-color-scheme: dark) {
   .tr { --tr-card-bg: #22222c; }
@@ -95,6 +99,12 @@ trieur-deck { display: block; }
   font-size: 12.5px;
   line-height: 1.25;
   text-align: center;
+  /* a zone is a target, never text: no selection, no double-tap zoom, no grey flash */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
   transition: transform 120ms, border-color 120ms, background-color 120ms, box-shadow 120ms;
 }
 /* chip: solid colour, or image, or emoji */
@@ -276,7 +286,8 @@ trieur-deck { display: block; }
   pointer-events: auto;
   position: absolute;
   width: min(var(--tr-card-w), 78vw);
-  min-height: var(--tr-card-h);
+  min-height: min(var(--tr-card-h), 46vh);
+  min-height: min(var(--tr-card-h), 46dvh);
   display: flex;
   flex-direction: column;
   background: var(--tr-card-bg);
@@ -291,6 +302,9 @@ trieur-deck { display: block; }
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+  /* the card is a gesture surface, so the browser keeps none of its own: no double-tap zoom
+     (which would fight the double tap that accepts a suggestion), no pinch, no scroll */
+  touch-action: none;
   /* transform + opacity: dealing down and stacking back share the same transition */
   transition: transform 220ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 220ms ease-out;
 }
@@ -384,7 +398,15 @@ trieur-deck { display: block; }
 html.tr-locked, html.tr-locked body { overflow: hidden; }
 
 /* --- bottom bar --- */
-.tr-bar { display: flex; align-items: center; gap: 12px; font-size: 12px; opacity: 0.85; }
+.tr-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  opacity: 0.85;
+  /* the bar may scroll with the page, but a double tap on a button must not zoom */
+  touch-action: manipulation;
+}
 .tr-actions { margin-left: auto; display: flex; gap: 8px; }
 .tr-bar button {
   font: inherit;
@@ -402,6 +424,7 @@ html.tr-locked, html.tr-locked body { overflow: hidden; }
 }
 .tr-bar button:hover:not(:disabled) { border-color: var(--tr-accent); color: var(--tr-accent); }
 .tr-bar button:disabled { opacity: 0.4; cursor: default; }
+.tr-bar button[hidden] { display: none; } /* display:inline-flex would beat [hidden] */
 .tr-bar button.tr-on {
   border-color: var(--tr-multi);
   color: var(--tr-multi);
@@ -412,6 +435,35 @@ html.tr-locked, html.tr-locked body { overflow: hidden; }
 .tr-bar kbd { font: inherit; font-size: 10px; opacity: 0.7; }
 .tr-nothing { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: 0.6; font-size: 13px; }
 .tr-nothing[hidden] { display: none; } /* display:grid would beat [hidden] */
+
+/* --- small screens: everything shrinks so the card keeps the room --- */
+@media (max-width: 640px) {
+  .tr-stage { min-height: 62vh; min-height: 62dvh; }
+  .tr-zone {
+    width: 78px;
+    padding: 7px 5px 6px;
+    gap: 3px;
+    font-size: 11px;
+    border-radius: 10px;
+  }
+  .tr-zone .tr-glyph { width: 34px; height: 34px; font-size: 18px; border-radius: 8px; }
+  .tr-zone .tr-glyph svg { width: 20px; height: 20px; }
+  /* a phone has no keyboard, so the keycap is a row of pixels spent on nothing */
+  .tr-zone kbd { display: none; }
+  .tr-zone.tr-picked::before { top: -7px; right: -7px; min-width: 18px; height: 18px; }
+  .tr-pad { width: 62px; height: 62px; }
+  .tr-pad svg { width: 26px; height: 26px; }
+  .tr-bar { font-size: 11px; gap: 8px; }
+  .tr-bar button { padding: 4px 8px; }
+  .tr-bar kbd { display: none; }
+}
+
+/* --- a dock puts the zones on the bottom edge, so the tiles sit flat --- */
+.tr-layout-dock .tr-zone { width: 84px; }
+.tr-layout-dock .tr-seg { stroke-dasharray: 4 5; }
+
+/* --- a grid is rectangles: solid edges read as cells, dashes read as scatter --- */
+.tr-layout-grid .tr-seg { stroke-dasharray: none; stroke-width: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .tr-card, .tr-zone, .tr-seg, .tr-pad { transition: none; }

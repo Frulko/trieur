@@ -182,7 +182,9 @@ td code { white-space: nowrap; }
   font-family: var(--mono);
   font-size: 11.5px;
   overflow: hidden;
+  max-height: 76vh;
 }
+.gui-body { overflow: auto; max-height: 66vh; }
 .gui-head {
   width: 100%;
   display: flex;
@@ -219,7 +221,9 @@ td code { white-space: nowrap; }
 .gui-row input[type='range'] { width: 100%; accent-color: var(--accent); }
 .gui-row input[type='checkbox'] { grid-column: 2 / -1; justify-self: end; accent-color: var(--accent); width: 15px; height: 15px; }
 @media (max-width: 720px) {
-  .gui { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; }
+  /* a sheet at the bottom, never taller than half the screen: the deck is what matters */
+  .gui { top: auto; bottom: 10px; right: 10px; left: 10px; width: auto; max-height: 50vh; }
+  .gui-body { max-height: 40vh; }
 }
 
 /* --- keycaps: a shortcut reads faster as a key than as a word --- */

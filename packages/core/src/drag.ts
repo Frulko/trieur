@@ -63,18 +63,32 @@ export function startGesture(
   const target = e.target as Element | null;
   if (e.button > 0 || target?.closest('input, select, textarea, [contenteditable]')) return null;
 
-  const interactive = Boolean(target?.closest('a, button'));
-  const g: GestureState = { dx: 0, dy: 0, dist: 0, engaged: !interactive, interactive, cancelled: false };
+  const interactive = Boolean(target?.closest('a, button, [role="button"], label, summary'));
+  const g: GestureState = { dx: 0, dy: 0, dist: 0, engaged: false, interactive, cancelled: false };
   const x0 = e.clientX;
   const y0 = e.clientY;
   const id = e.pointerId;
 
-  try {
-    el.setPointerCapture(id);
-  } catch {
-    // capture is a nicety; the window-level listeners below do the real work
-  }
-  if (g.engaged) el.classList.add('tr-dragging');
+  /**
+   * Capture is taken **when the drag engages**, never at pointerdown.
+   *
+   * A captured pointer retargets its events to the capturing element, and the browser then
+   * dispatches `click` to the common ancestor of down and up — which is the card. Capturing
+   * straight away therefore killed every link and button inside a card: the click fired on
+   * the card, not on the anchor. Waiting until the finger has actually moved keeps a plain
+   * tap on a link a plain tap on a link.
+   */
+  const engage = () => {
+    if (g.engaged) return;
+    g.engaged = true;
+    try {
+      el.setPointerCapture(id);
+    } catch {
+      // capture is a nicety; the window-level listeners below do the real work
+    }
+    el.classList.add('tr-dragging');
+  };
+  if (!interactive) engage();
 
   let frame = 0;
   let last = e;
@@ -101,8 +115,7 @@ export function startGesture(
     // started on a link: only take over once the intent to drag is established
     if (!g.engaged) {
       if (g.dist < ENGAGE) return;
-      g.engaged = true;
-      el.classList.add('tr-dragging');
+      engage();
     }
     if (!frame) frame = requestAnimationFrame(flush);
   };

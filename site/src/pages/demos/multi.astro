@@ -109,6 +109,9 @@ el.addEventListener('trieur:pick', (e) => {
     meta,
     renderCard,
     multi: true,
+    // 'dynamic' rather than 'auto' so the gesture is reachable with a mouse too:
+    // press and hold anywhere on the stage and the pad appears under the pointer
+    multiPad: 'dynamic',
     advisor: createRecommender({ key: 'demo-multi' }),
     onSortMany: (item, picked) => {
       $('#out').textContent = `onSortMany(\n  "${item.title.slice(0, 34)}…",\n  [${picked.map((z) => `"${z.id}"`).join(', ')}]\n)`;
