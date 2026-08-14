@@ -1,0 +1,128 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Demo — two zones, one thumb">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">Two zones, one thumb</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      The shape everyone knows: a photo, a name, and two ways out. It is the same deck with two zones and a six-line
+      layout that puts them left and right instead of around a circle — no special mode, no separate widget. The card
+      still shrinks as it approaches, still gets sucked into the tile it was aimed at, and <kbd>⌫</kbd> still takes it
+      back.
+    </p>
+
+    <div class="demo demo-side">
+      <div id="sorter"></div>
+      <div>
+        <div class="panel">
+          <h3>Tally</h3>
+          <div class="kv"><span>liked</span><b id="yes">0</b></div>
+          <div class="kv"><span>passed</span><b id="no">0</b></div>
+          <div class="kv"><span>left in the pile</span><b id="left">0</b></div>
+        </div>
+        <div class="panel">
+          <h3>The whole layout</h3>
+          <pre style="font-size:11.5px;padding:12px 14px;margin:0;white-space:pre-wrap">{`layout: (n, { w, clearX }) => [
+  { x: -Math.max(clearX, w / 2 - 90), y: 0 },
+  { x:  Math.max(clearX, w / 2 - 90), y: 0 },
+]`}</pre>
+        </div>
+        <div class="panel">
+          <h3>Why it works</h3>
+          <p style="margin:0;color:var(--dim)">
+            Two zones means the stage is carved in two halves, so anywhere left is “nope” and anywhere right is “yes”.
+            The threshold decides how far is far enough; the settings panel lets you feel it.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style is:global>
+  .demo.tinder { --tr-card-w: 300px; --tr-card-h: 440px; }
+  .demo.tinder .tr-zone { width: 92px; }
+  .face { position: relative; height: 100%; display: flex; flex-direction: column; }
+  .face img { width: 100%; flex: 1; object-fit: cover; background: color-mix(in srgb, currentColor 8%, transparent); }
+  .face footer { padding: 14px 16px 16px; display: grid; gap: 4px; }
+  .face h4 { margin: 0; font-size: 19px; letter-spacing: -0.01em; }
+  .face h4 em { font-style: normal; font-weight: 400; color: var(--dim); }
+  .face p { margin: 0; font-size: 13px; color: var(--dim); }
+</style>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { photos } from '../../data/photos';
+  import { deckGui } from '../../scripts/gui';
+
+  const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  $('#sorter').closest('.demo')!.classList.add('tinder');
+
+  const LINES = [
+    'Will absolutely talk about sourdough.',
+    'Owns four cameras, uses one.',
+    'Runs a Postgres instance for a recipe list.',
+    'Has opinions about kerning.',
+    'Was in a band. Still is, technically.',
+    'Can parallel park on the first try.',
+    'Reads the changelog.',
+    'Makes the good coffee.',
+  ];
+  type Face = { id: number; name: string; age: number; line: string; src: string };
+  const NAMES = ['Alex', 'Robin', 'Sam', 'Chris', 'Jo', 'Max', 'Noa', 'Kim', 'Ari', 'Lou', 'Ren', 'Val'];
+  const items: Face[] = photos.map((p, i) => ({
+    id: p.id,
+    name: NAMES[i % NAMES.length]!,
+    age: 24 + ((p.id * 7) % 16),
+    line: LINES[i % LINES.length]!,
+    src: p.thumb,
+  }));
+
+  let yes = 0;
+  let no = 0;
+  const tally = () => {
+    $('#yes').textContent = String(yes);
+    $('#no').textContent = String(no);
+    $('#left').textContent = String(deck.items.length);
+  };
+
+  const deck = new Deck<Face>($('#sorter'), {
+    items,
+    zones: [
+      { id: 'nope', label: 'nope', icon: '✕', color: '#ec4899', key: 'j' },
+      { id: 'yes', label: 'yes', icon: '♥', color: '#10b981', key: 'k' },
+    ],
+    // two zones, left and right — that is the whole difference from the link demo
+    layout: (_n, { w, clearX }) => [
+      { x: -Math.max(clearX, w / 2 - 90), y: 0 },
+      { x: Math.max(clearX, w / 2 - 90), y: 0 },
+    ],
+    renderCard: (f, el) => {
+      el.innerHTML = `
+        <div class="face">
+          <img src="${f.src}" alt="" loading="lazy" decoding="async" />
+          <footer>
+            <h4>${f.name} <em>${f.age}</em></h4>
+            <p>${f.line}</p>
+          </footer>
+        </div>`;
+    },
+    onSort: (_f, z) => {
+      z.id === 'yes' ? yes++ : no++;
+      tally();
+    },
+    onUndo: (_f, z) => {
+      z.id === 'yes' ? yes-- : no--;
+      tally();
+    },
+    onEmpty: () => tally(),
+  });
+
+  tally();
+  deckGui(deck);
+  deck.focus();
+</script>

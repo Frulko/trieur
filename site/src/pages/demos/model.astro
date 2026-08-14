@@ -2,6 +2,8 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import Kbd from '../../components/Kbd.astro';
+import Shortcuts from '../../components/Shortcuts.astro';
 import { url } from '../../lib/url';
 ---
 
@@ -11,8 +13,8 @@ import { url } from '../../lib/url';
     <h1 style="margin:0 0 8px">The model, live</h1>
     <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
       File a few cards and watch the right-hand column. The model stays silent until it has learned something — a bad
-      suggestion costs more than no suggestion. Once it speaks, <kbd>↵</kbd> accepts. Undoing with <kbd>⌫</kbd> does not
-      merely put the card back: it <em>unlearns</em> the example.
+      suggestion costs more than no suggestion. Once it speaks, <Kbd keys="enter" /> accepts. Undoing with <Kbd keys="backspace" /> does not merely put the
+      card back: it <em>unlearns</em> the example.
     </p>
 
     <p style="margin:0 0 20px">
@@ -35,6 +37,7 @@ import { url } from '../../lib/url';
           <div class="kv"><span>features</span><b id="vocab">0</b></div>
           <div class="kv"><span>accuracy (prequential)</span><b id="acc">—</b></div>
         </div>
+        <Shortcuts title="Gestures" />
         <div class="panel">
           <h3>Member weights</h3>
           <div id="weights"></div>

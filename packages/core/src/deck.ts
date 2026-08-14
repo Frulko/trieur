@@ -8,11 +8,24 @@ import { startGesture } from './drag.js';
 import { angleGap, angleOf, resolveLayout } from './layouts.js';
 import { en } from './text.js';
 import { defaultTile } from './tile.js';
-import type { DeckEventMap, DeckOptions, DeckText, PlacedZone, Point, Prediction, SortRecord, Zone } from './types.js';
+import type {
+  DeckEventMap,
+  DeckOptions,
+  DeckText,
+  LayoutBox,
+  PlacedZone,
+  Point,
+  Polygon,
+  Prediction,
+  SortRecord,
+  Zone,
+} from './types.js';
 import { inPolygon, pathOf, voronoi } from './voronoi.js';
 
 // home-row keys first, in the order the eye travels around the circle
 const DEFAULT_KEYS = 'asdfghjklqwertyuiopzxcvbnm';
+/** Width of a zone tile. Layouts use it to keep one from hanging off the stage. */
+const TILE = 104;
 
 /**
  * How the multi-zone stack was opened — which decides how it closes.
@@ -53,6 +66,8 @@ export class Deck<T = any> {
   #lit = '';
   /** signature of the last layout, so an unchanged stage is not rebuilt */
   #layoutKey = '';
+  /** last tap on a card, to spot the second one */
+  #lastTap = { t: 0, x: 0, y: 0 };
   #onResize: () => void;
   #onEsc: (e: KeyboardEvent) => void;
 
@@ -83,7 +98,10 @@ export class Deck<T = any> {
           <button type="button" data-tr="expand" aria-expanded="false"></button>
         </span>
       </div>
-      <button type="button" class="tr-close" data-tr="collapse" aria-label="${t.close}">✕</button>`;
+      <button type="button" class="tr-close" data-tr="collapse" aria-label="${t.close}">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <kbd>Esc</kbd>
+      </button>`;
     this.#stage = root.querySelector('.tr-stage')!;
     this.#segsEl = root.querySelector('.tr-segments')!;
     this.#zonesEl = root.querySelector('.tr-zones')!;
@@ -95,6 +113,7 @@ export class Deck<T = any> {
     this.#button('expand', t.expand);
     root.querySelector('[data-tr="collapse"]')!.setAttribute('title', t.close);
 
+    this.#stage.addEventListener('pointerdown', (e) => this.#stagePress(e));
     this.#stage.addEventListener('keydown', (e) => this.#onKey(e));
     this.#stage.addEventListener('keyup', (e) => this.#onKeyUp(e));
     this.#bindPad();
@@ -238,39 +257,62 @@ export class Deck<T = any> {
     const els = [...this.#zonesEl.children] as HTMLElement[];
     if (!els.length) return;
     const card = this.#cardsEl.firstElementChild as HTMLElement | null;
-    // zones must clear the card, or they end up underneath it (+ half a tile). Rounded to
-    // 8px steps so a card one pixel taller does not shift every zone.
-    const clear = Math.round((Math.hypot((card?.offsetWidth ?? 260) / 2, (card?.offsetHeight ?? 300) / 2) + 60) / 8) * 8;
-    const w = this.#stage.clientWidth;
-    const h = this.#stage.clientHeight;
-    const key = `${w}×${h}:${clear}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}`;
+    // Zones clear the card along an **ellipse**, not a circle: a zone directly above only has
+    // to clear the card's height, and using the circumscribed radius everywhere pushed the top
+    // tile off a short stage. Rounded to 8px steps so a card one pixel taller does not shift
+    // every zone.
+    const round = (v: number) => Math.round(v / 8) * 8;
+    // measured, not assumed: a tile with a two-line label and a keycap is half again as tall
+    // as it is wide, and margining on the width alone let the top row hang off the stage
+    const first = els[0]!;
+    const tile = round(Math.max(first.offsetWidth, first.offsetHeight)) || TILE;
+    const box: LayoutBox = {
+      w: this.#stage.clientWidth,
+      h: this.#stage.clientHeight,
+      clearX: round((card?.offsetWidth ?? 260) / 2 + tile * 0.5),
+      clearY: round((card?.offsetHeight ?? 300) / 2 + tile * 0.5),
+      tile,
+    };
+    const key = `${box.w}×${box.h}:${box.clearX}:${box.clearY}:${tile}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}`;
     if (!force && key === this.#layoutKey) return;
     this.#layoutKey = key;
 
-    const pts = resolveLayout(this.#opts.layout)(els.length, { w, h, clear });
+    const { points, cells } = resolveLayout(this.#opts.layout)(els.length, box);
     els.forEach((el, i) => {
-      const p = pts[i] ?? { x: 0, y: 0 };
+      const p = points[i] ?? { x: 0, y: 0 };
       const z = this.zones[i]!;
       z.angle = angleOf(p.x, p.y); // the actual visual direction
       z.pos = p; // where the genie animation lands
       el.style.left = `calc(50% + ${p.x}px)`;
       el.style.top = `calc(50% + ${p.y}px)`;
     });
-    this.#paintSegments(pts, w, h);
+    // a host styles a radial menu differently from floating tiles, and only the deck knows
+    // which layout is in play
+    const name = typeof this.#opts.layout === 'string' ? this.#opts.layout : 'custom';
+    for (const c of [...this.root.classList]) if (c.startsWith('tr-layout-')) this.root.classList.remove(c);
+    this.root.classList.add(`tr-layout-${name}`);
+    this.#paintSegments(points, cells, box.w, box.h);
   }
 
   /**
    * Draws the carving. It is not only a drawing: **the drop aims at the region under the
    * finger**, not at an approximate angle. What you see is what you touch.
    */
-  #paintSegments(pts: Point[], w: number, h: number): void {
+  #paintSegments(pts: Point[], given: Polygon[] | undefined, w: number, h: number): void {
     if (this.#opts.segments === false || pts.length < 2) {
       this.#segsEl.replaceChildren();
       for (const z of this.zones) z.cell = null;
       return;
     }
-    const abs = pts.map((p) => ({ x: w / 2 + p.x, y: h / 2 + p.y }));
-    const cells = voronoi(abs, w, h);
+    // a layout that describes its own regions (a radial menu) keeps them; anything else gets
+    // the Voronoi of its points
+    const cells = given
+      ? given.map((cell) => cell.map(([x, y]) => [w / 2 + x, h / 2 + y] as [number, number]))
+      : voronoi(
+          pts.map((p) => ({ x: w / 2 + p.x, y: h / 2 + p.y })),
+          w,
+          h,
+        );
     this.#segsEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
     this.#segsEl.replaceChildren(
       ...cells.map((cell, i) => {
@@ -364,7 +406,11 @@ export class Deck<T = any> {
     this.#opts.renderCard?.(item, el);
     // without this the browser starts its own image drag and steals the gesture
     for (const img of el.querySelectorAll('img')) img.draggable = false;
-    if (!behind) el.addEventListener('pointerdown', (e) => this.#startDrag(e, el));
+    if (!behind) {
+      el.addEventListener('pointerdown', (e) => {
+        if (!this.#doubleTap(e)) this.#startDrag(e, el);
+      });
+    }
     return el;
   }
 
@@ -440,13 +486,82 @@ export class Deck<T = any> {
     this.#padEl.addEventListener('pointercancel', release);
   }
 
-  #syncPad(): void {
+  /** Where the pad lives, or nowhere. `'auto'` means "where it earns its place": a thumb has
+   *  no Shift key, a mouse does. */
+  #padMode(): 'left' | 'right' | 'dynamic' | null {
     const want = this.#opts.multiPad ?? 'auto';
-    // 'auto' means "where it earns its place": a thumb has no Shift key, a mouse does
+    if (!this.#opts.multi || want === false) return null;
+    if (want !== 'auto') return want;
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    const on = Boolean(this.#opts.multi) && want !== false && (want !== 'auto' || coarse);
-    this.#padEl.hidden = !on;
-    this.#padEl.classList.toggle('tr-pad-left', want === 'left');
+    return coarse ? 'dynamic' : null;
+  }
+
+  #syncPad(): void {
+    const mode = this.#padMode();
+    const pad = this.#padEl;
+    pad.classList.toggle('tr-pad-left', mode === 'left');
+    pad.classList.toggle('tr-pad-dynamic', mode === 'dynamic');
+    if (mode === 'dynamic') {
+      // a dynamic pad only exists under the thumb that summoned it
+      if (this.#multi !== 'pad' && !pad.classList.contains('tr-charging')) pad.hidden = true;
+      return;
+    }
+    pad.hidden = mode === null;
+    pad.style.left = '';
+    pad.style.top = '';
+  }
+
+  /**
+   * A thumb pressed and held on the empty part of the stage summons the pad **where it
+   * is** — the way a virtual joystick appears under the thumb instead of waiting in a corner.
+   * A ring fills during the hold so the wait is visible, and letting go files the stack.
+   */
+  #stagePress(e: PointerEvent): void {
+    if (this.#padMode() !== 'dynamic' || this.#multi) return;
+    if ((e.target as Element).closest('.tr-card, .tr-pad, .tr-bar')) return; // the card has its own gesture
+    const r = this.#stage.getBoundingClientRect();
+    const pad = this.#padEl;
+    pad.style.left = `${e.clientX - r.left}px`;
+    pad.style.top = `${e.clientY - r.top}px`;
+    pad.style.setProperty('--tr-hold', `${this.#opts.holdDelay || 420}ms`);
+    pad.hidden = false;
+    pad.classList.add('tr-charging');
+
+    const timer = setTimeout(() => {
+      pad.classList.remove('tr-charging');
+      this.#setMulti('pad');
+    }, this.#opts.holdDelay || 420);
+    const off = (ev: Event) => {
+      if ((ev as PointerEvent).pointerId !== e.pointerId) return;
+      clearTimeout(timer);
+      pad.classList.remove('tr-charging');
+      window.removeEventListener('pointerup', off);
+      window.removeEventListener('pointercancel', off);
+      if (this.#multi === 'pad') {
+        if (this.#picks.length) void this.commitMany();
+        else this.#clearPicks();
+      }
+      this.#syncPad();
+    };
+    window.addEventListener('pointerup', off);
+    window.addEventListener('pointercancel', off);
+  }
+
+  /**
+   * Two taps on the card take the model's word for it — the touch equivalent of `↵`, which a
+   * thumb cannot press. Only when there is something to accept, and never on a link.
+   */
+  #doubleTap(e: PointerEvent): boolean {
+    const now = Date.now();
+    const quick = now - this.#lastTap.t < 320;
+    const near = Math.hypot(e.clientX - this.#lastTap.x, e.clientY - this.#lastTap.y) < 26;
+    this.#lastTap = { t: now, x: e.clientX, y: e.clientY };
+    if (!quick || !near || this.#multi || (e.target as Element).closest('a, button, input')) return false;
+    const z = this.prediction ? this.zones.find((x) => x.id === this.prediction!.id) : null;
+    if (!z) return false;
+    this.#lastTap.t = 0; // a triple tap is not a second acceptance
+    void this.commit(z);
+    return true;
   }
 
   // --- gesture ---------------------------------------------------------------

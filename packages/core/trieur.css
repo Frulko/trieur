@@ -122,14 +122,24 @@ trieur-deck { display: block; }
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
-.tr-zone kbd {
+/* keycaps, everywhere: a shortcut is easier to read as a key than as a word. The heavier
+   bottom border is what makes a flat rectangle read as something you press. */
+.tr kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
   font: inherit;
   font-size: 10px;
+  line-height: 1;
   text-transform: uppercase;
-  padding: 1px 5px;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--tr-line);
+  border-bottom-width: 2px;
   border-radius: 5px;
-  background: rgba(128, 128, 128, 0.16);
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  background: var(--tr-card-bg);
+  opacity: 0.9;
 }
 .tr-zone.tr-near { border-color: var(--tr-seg, var(--tr-accent)); }
 /* free zone: present but not assigned yet */
@@ -173,6 +183,33 @@ trieur-deck { display: block; }
 /* while the mode is on, tiles are tappable — that is the phone path */
 .tr-multi .tr-zone { cursor: pointer; }
 
+/* --- radial menu: the wedge *is* the button, so the tile stops being a box --- */
+.tr-layout-radial .tr-zone {
+  width: 96px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.tr-layout-radial .tr-zone .tr-glyph { width: 38px; height: 38px; font-size: 20px; }
+.tr-layout-radial .tr-zone .tr-glyph svg { width: 22px; height: 22px; }
+.tr-layout-radial .tr-zone.tr-armed { transform: translate(-50%, -50%) scale(1.1); background: none; }
+.tr-layout-radial .tr-zone.tr-picked { box-shadow: none; }
+.tr-layout-radial .tr-seg {
+  fill: rgba(74, 84, 242, 0.07);
+  fill: color-mix(in srgb, var(--tr-seg) 7%, transparent);
+  stroke-dasharray: none;
+  stroke-width: 1.5;
+}
+.tr-layout-radial .tr-seg.tr-near {
+  fill: rgba(74, 84, 242, 0.13);
+  fill: color-mix(in srgb, var(--tr-seg) 13%, transparent);
+}
+.tr-layout-radial .tr-seg.tr-armed {
+  fill: rgba(74, 84, 242, 0.24);
+  fill: color-mix(in srgb, var(--tr-seg) 24%, transparent);
+}
+
 /* --- the held pad: a virtual gamepad button for the hand with no Shift key --- */
 .tr-pad {
   position: absolute;
@@ -203,6 +240,28 @@ trieur-deck { display: block; }
   opacity: 1;
   transform: scale(1.08);
   background: rgba(245, 158, 11, 0.24);
+}
+/* summoned under the thumb, like a virtual joystick — it has no home corner to walk to */
+.tr-pad.tr-pad-dynamic {
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  opacity: 0.85;
+}
+.tr-pad.tr-pad-dynamic.tr-on { transform: translate(-50%, -50%) scale(1.08); }
+/* the wait is visible: a disc fills for exactly as long as the hold takes */
+.tr-pad.tr-charging::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.22;
+  transform: scale(0);
+  animation: tr-charge var(--tr-hold, 420ms) linear forwards;
+}
+@keyframes tr-charge {
+  to { transform: scale(1); }
 }
 
 /* --- card pile --- */
@@ -294,27 +353,29 @@ trieur-deck { display: block; }
   animation: tr-open 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 .tr-full .tr-stage { flex: 1; min-height: 0; } /* the stage takes the remaining height */
+/* a pill, not a bare cross: it says what it does and which key does it too */
 .tr-full .tr-close {
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   position: absolute;
   top: 14px;
   right: 16px;
-  width: 32px;
-  height: 32px;
-  border: 0;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--tr-line);
   border-radius: 99px;
-  background: rgba(128, 128, 128, 0.12);
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  background: var(--tr-card-bg);
   color: inherit;
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: border-color 140ms, transform 140ms;
 }
-.tr-full .tr-close:hover {
-  background: rgba(128, 128, 128, 0.22);
-  background: color-mix(in srgb, currentColor 16%, transparent);
-}
+.tr-full .tr-close svg { width: 15px; height: 15px; }
+.tr-full .tr-close:hover { border-color: var(--tr-accent); color: var(--tr-accent); transform: translateY(-1px); }
+.tr-full .tr-close:focus-visible { outline: 2px solid var(--tr-accent); outline-offset: 2px; }
 .tr-full [data-tr='expand'] { display: none; } /* the cross is enough once expanded */
 @keyframes tr-open {
   from { opacity: 0; transform: scale(0.98); }

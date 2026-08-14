@@ -37,24 +37,41 @@ is exported if you want the polygons.
 
 ## Layouts
 
-`layout` accepts `'circle'` (default), `'voronoi'`, `'grid'`, or your own function:
+`layout` accepts `'circle'` (default), `'radial'`, `'voronoi'`, `'grid'`, or your own function:
 
 ```js
-layout: (n, { w, h, clear }) => Array.from({ length: n }, (_, i) => ({ x: …, y: … }))
+layout: (n, { w, h, clearX, clearY, tile }) => Array.from({ length: n }, (_, i) => ({ x: …, y: … }))
+
+// or hand back the regions too, and the drop targets become exactly those shapes
+layout: (n, box) => ({ points: [...], cells: [[[x, y], …], …] })
 ```
 
-`clear` is the radius to keep free at the centre so zones do not sit under the card. Margins
-are worth half a tile: a zone spilling off the stage is unreachable by thumb.
+`clearX` and `clearY` are the half-extents to keep free at the centre — the card, plus half a
+tile — and `tile` is the measured size of a zone tile. Margins are worth half a tile: a zone
+spilling off the stage is unreachable by thumb.
 
 **The clearance is enforced, not merely requested.** Whatever a layout returns — including
-yours — any seed that landed inside `clear` is pushed out to its edge before the zones are
-placed. A tile under the card cannot be seen, cannot be tapped, and owns a region nobody can
-reach; a grid with an odd number of cells produces one every single time. `clearCentre(points,
-clear)` is exported if you want the same guarantee elsewhere.
+yours — is put through two passes: the set is scaled down until every tile fits the stage, then
+any seed still inside the card is pushed out to its edge. A tile under the card cannot be seen,
+cannot be tapped, and owns a region nobody can reach; a grid with an odd number of cells
+produces one every single time.
 
-The `'voronoi'` layout places seeds along a phyllotactic spiral — golden angle, so never
-collinear. The resulting cells form an irregular mosaic rather than a pie chart. It is
-deterministic: same number of zones, same drawing.
+The clearance is a **rectangle**, not an ellipse: cards are rectangles and so are tiles, and an
+ellipse cuts the corners. When the two rules cannot both hold — a tall card on a short stage —
+the clearance wins, because a tile poking past the edge is untidy while a tile under the card
+is unusable. Give the stage room for the card plus a tile on each side and neither shows.
+
+`'radial'` is a true pie menu: equal wedges around a hole, with the card in the hole. It is the
+one layout that hands back its own **regions** rather than letting the Voronoi derive them —
+a wedge is not something a set of points can describe. Equal wedges are the point: every choice
+is one flick, and every flick is the same length. The price is the four corners of a wide
+stage, which is why it is a circle and not an ellipse.
+
+`'voronoi'` places seeds along a phyllotactic spiral — golden angle, so never collinear — and
+then **relaxes them with Lloyd's algorithm**: compute the cells, move each seed to its cell's
+centroid, repeat four times. Without that pass the spiral crowds the middle and the mosaic is
+pretty and unusable, with the first zones getting postage stamps and the last ones half the
+stage. It stays deterministic: same number of zones, same drawing.
 
 ## A tile, not a label
 

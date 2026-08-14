@@ -87,9 +87,15 @@ The key comes from the **position**, not from the label: changing what a zone ho
 change the gesture, and the gesture stays memorable. A `null` entry is a free zone — dropping a
 card there calls `onAssign(index)` instead of filing.
 
-Each zone owns a **region** of the stage, the Voronoi diagram of the positions: sectors for a
-circle, cells for a grid, the matching tiling for a custom layout — one formula. And it is not
-just a drawing: **the drop aims at the region under the finger**. What you see is what you touch.
+Each zone owns a **region** of the stage. Four layouts ship: `circle` (tiles on an ellipse),
+`radial` (a true pie menu — equal wedges, the card in the hole), `voronoi` (a golden-angle
+spiral relaxed with Lloyd's algorithm, so the cells come out comparable) and `grid`. The first,
+third and fourth derive their regions from a Voronoi diagram; `radial` describes its own, which
+any custom layout may do too. And a region is not just a drawing: **the drop aims at the region
+under the finger**. What you see is what you touch.
+
+Two invariants are enforced on whatever a layout returns, yours included: nothing under the
+card, nothing off the stage.
 
 ## One card, several zones
 
@@ -98,12 +104,16 @@ zones before it leaves — four ways in, one state:
 
 - **hold `⇧`** and press several zone letters; releasing `⇧` files them all;
 - **tap `⇧`** on its own to latch the mode — the shortcut — and tap again to leave or to file;
-- **hold the pad**, a translucent gamepad-style button that appears on touch screens;
+- **hold the pad** — a translucent gamepad-style button that, on touch, appears *where the
+  thumb presses*, the way a virtual joystick does, with a ring that fills while you wait;
 - **hold the card** itself, then sweep it across the zones and let go.
 
 Sweeping is the tablet gesture: rest a finger, feel the outline light up, drag the card across
 two or three regions — each one joins the stack — then let go. Between zones the card returns to
 the centre, because it is pointing, not leaving.
+
+On touch, a **double tap** on a card accepts the model's suggestion — the `↵` a thumb cannot
+press.
 
 The card takes a dashed amber outline with a breathing ring, and each stacked zone gets a
 numbered badge — badge `1` is the primary zone. Amber rather than red: red reads as error or

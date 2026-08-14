@@ -1,0 +1,75 @@
+---
+// The shortcut reference, in the shape people expect one: an icon, what it does, the keys.
+import { icon } from './icons';
+import Kbd from './Kbd.astro';
+
+interface Props {
+  /** include the multi-zone rows */
+  multi?: boolean;
+  title?: string;
+}
+const { multi = false, title = 'Shortcuts' } = Astro.props;
+
+const groups = [
+  {
+    name: 'Sorting',
+    rows: [
+      { icon: 'pointer', label: 'File into a zone', keys: 'a s d …', note: 'or drag the card there' },
+      { icon: 'sparkles', label: "Accept the model's suggestion", keys: 'enter' },
+      { icon: 'space', label: 'Skip — back of the pile', keys: 'space' },
+      { icon: 'undo-2', label: 'Undo, and unlearn it', keys: 'backspace' },
+      { icon: 'maximize', label: 'Fullscreen', keys: '', note: 'the bar button; Esc leaves' },
+    ],
+  },
+  ...(multi
+    ? [
+        {
+          name: 'Several zones at once',
+          rows: [
+            { icon: 'layers', label: 'Stack while held', keys: 'shift a s', note: 'release to file them all' },
+            { icon: 'layers', label: 'Latch the mode', keys: 'shift', note: 'a bare tap; again to leave or file' },
+            { icon: 'corner-down-left', label: 'File the stack', keys: 'enter' },
+            { icon: 'x', label: 'Drop the stack', keys: 'Esc' },
+          ],
+        },
+      ]
+    : []),
+  {
+    name: 'Touch',
+    rows: [
+      { icon: 'mouse-pointer-click', label: "Accept the suggestion", keys: '', note: 'double tap the card' },
+      ...(multi
+        ? [
+            { icon: 'hand', label: 'Open the stack', keys: '', note: 'hold the card, or hold anywhere to summon the pad' },
+            { icon: 'layers', label: 'Stack, then file', keys: '', note: 'sweep across zones, then let go' },
+          ]
+        : []),
+    ],
+  },
+];
+---
+
+<section class="shortcuts">
+  <h3>{title}</h3>
+  {
+    groups.map((g) => (
+      <>
+        <h4>{g.name}</h4>
+        <dl>
+          {g.rows.map((r) => (
+            <div class="sc-row">
+              <dt>
+                <Fragment set:html={icon(r.icon, 16)} />
+                <span>{r.label}</span>
+              </dt>
+              <dd>
+                {r.keys && <Kbd keys={r.keys} />}
+                {r.note && <i>{r.note}</i>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </>
+    ))
+  }
+</section>

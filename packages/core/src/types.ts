@@ -32,12 +32,26 @@ export interface PlacedZone extends Zone {
 export interface LayoutBox {
   w: number;
   h: number;
-  /** radius to keep clear at the centre so zones do not sit under the card */
-  clear: number;
+  /** half-width of the ellipse to keep clear at the centre — the card, plus a tile */
+  clearX: number;
+  /** half-height of that ellipse */
+  clearY: number;
+  /** largest dimension of a zone tile, measured — so a layout can keep one on the stage */
+  tile: number;
+}
+
+/**
+ * What a layout hands back. Points alone are enough for tiles floating over a Voronoi
+ * carving; a radial menu needs to describe its own wedges, so it may return them too.
+ * Cells are in the same coordinates as points: pixels from the centre of the stage.
+ */
+export interface Placement {
+  points: Point[];
+  cells?: Polygon[];
 }
 
 /** A layout places N zones around the centre, in pixels. */
-export type Layout = (n: number, box: LayoutBox) => Point[];
+export type Layout = (n: number, box: LayoutBox) => Point[] | Placement;
 
 /** A zone the model suggests, with the features that carried the decision. */
 export interface Prediction {
@@ -115,10 +129,13 @@ export interface DeckOptions<T = any> {
   multi?: boolean;
   /**
    * The held pad that turns multi-zone mode on with a thumb, like a virtual gamepad button.
-   * `'auto'` (default) shows it only on coarse pointers, on the right; `'left'` / `'right'`
-   * force it; `false` removes it. Ignored unless `multi` is on.
+   *
+   * `'dynamic'` summons it wherever the thumb presses and holds on the stage, the way a
+   * virtual joystick appears under the thumb rather than waiting in a corner. `'left'` /
+   * `'right'` pin it to a corner. `'auto'` (default) means dynamic on coarse pointers and
+   * nothing on a mouse. `false` removes it. Ignored unless `multi` is on.
    */
-  multiPad?: 'auto' | 'left' | 'right' | false;
+  multiPad?: 'auto' | 'dynamic' | 'left' | 'right' | false;
   /**
    * How long a finger must rest on a card before it turns multi-zone mode on, in ms. The same
    * finger then sweeps across zones, and releasing files them. `0` disables it.

@@ -23,8 +23,9 @@ test('voronoi : les cellules pavent exactement le rectangle', () => {
   expect(total).toBeCloseTo(200 * 200, 3); // ni trou ni recouvrement
 });
 
-test('voronoi : chaque germe est dans sa propre cellule', () => {
-  const pts = layouts.circle!(6, { w: 600, h: 480, clear: 150 }).map((p) => ({ x: 300 + p.x, y: 240 + p.y }));
+test('voronoi: every seed sits in its own cell', () => {
+  const placed = resolveLayout('circle')(6, { w: 600, h: 480, clearX: 150, clearY: 160, tile: 104 });
+  const pts = placed.points.map((p) => ({ x: 300 + p.x, y: 240 + p.y }));
   const cells = voronoi(pts, 600, 480);
   pts.forEach((p, i) => {
     expect(inPolygon(cells[i]!, p.x, p.y)).toBe(true);
@@ -38,29 +39,68 @@ test('voronoi : un seul germe possède toute la scène', () => {
   expect(area(cell!)).toBeCloseTo(5000, 3);
 });
 
-test('layouts : les zones restent dans la scène', () => {
-  const box = { w: 700, h: 520, clear: 180 };
-  for (const name of ['circle', 'grid', 'voronoi'] as const) {
-    for (const p of layouts[name]!(9, box)) {
-      expect(Math.abs(p.x)).toBeLessThanOrEqual(box.w / 2);
-      expect(Math.abs(p.y)).toBeLessThanOrEqual(box.h / 2);
+const BOX = { w: 760, h: 560, clearX: 192, clearY: 208, tile: 104 };
+const NAMES = ['circle', 'radial', 'voronoi', 'grid'] as const;
+/** How far the clearance rectangle reaches in the direction of a point. */
+const clearAt = (p: { x: number; y: number }, box = BOX) => {
+  const a = Math.atan2(p.y, p.x);
+  const c = Math.abs(Math.cos(a));
+  const si = Math.abs(Math.sin(a));
+  return Math.min(c < 1e-6 ? Infinity : box.clearX / c, si < 1e-6 ? Infinity : box.clearY / si);
+};
+
+test('layouts: every zone stays on the stage, tile included', () => {
+  for (const name of NAMES) {
+    for (const n of [2, 5, 9, 14]) {
+      for (const p of resolveLayout(name)(n, BOX).points) {
+        expect(Math.abs(p.x)).toBeLessThanOrEqual(BOX.w / 2 - BOX.tile / 2 + 1);
+        expect(Math.abs(p.y)).toBeLessThanOrEqual(BOX.h / 2 - BOX.tile / 2 + 1);
+      }
     }
   }
 });
 
 test('layouts: no zone lands under the card', () => {
-  const box = { w: 760, h: 560, clear: 190 };
   // through resolveLayout, which is what the deck uses — the clearance is enforced there,
   // so a custom layout gets the same guarantee as the built-in ones
-  for (const name of ['circle', 'grid', 'voronoi'] as const) {
+  for (const name of NAMES) {
+    if (name === 'radial') continue; // it draws its own wedges, so it places its own labels
     for (const n of [3, 6, 7, 9, 12]) {
-      for (const p of resolveLayout(name)(n, box)) {
-        expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(box.clear - 1);
+      for (const p of resolveLayout(name)(n, BOX).points) {
+        expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(clearAt(p) - 1);
       }
     }
   }
   // including one that does not think about it at all
-  for (const p of resolveLayout(() => [{ x: 0, y: 0 }, { x: 10, y: 5 }])(2, box)) {
-    expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(box.clear - 1);
+  for (const p of resolveLayout(() => [
+    { x: 0, y: 0 },
+    { x: 10, y: 5 },
+  ])(2, BOX).points) {
+    expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(clearAt(p) - 1);
   }
+});
+
+test('radial: the wedges are the regions, and they tile the ring', () => {
+  const { points, cells } = resolveLayout('radial')(6, BOX);
+  expect(cells).toBeDefined();
+  expect(cells!.length).toBe(6);
+  // each label sits inside its own wedge and no other
+  points.forEach((p, i) => {
+    expect(inPolygon(cells![i]!, p.x, p.y)).toBe(true);
+    for (let j = 0; j < cells!.length; j++) if (j !== i) expect(inPolygon(cells![j]!, p.x, p.y)).toBe(false);
+  });
+  // and the wedges are of comparable size — a radial menu with one giant slice is a bug
+  const areas = cells!.map(area);
+  expect(Math.max(...areas) / Math.min(...areas)).toBeLessThan(1.6);
+});
+
+test('voronoi: relaxing evens the cells out', () => {
+  const spread = (name: 'voronoi', n: number) => {
+    const { points } = resolveLayout(name)(n, BOX);
+    const abs = points.map((p) => ({ x: BOX.w / 2 + p.x, y: BOX.h / 2 + p.y }));
+    const areas = voronoi(abs, BOX.w, BOX.h).map(area);
+    return Math.max(...areas) / Math.min(...areas);
+  };
+  // before Lloyd, the golden-angle spiral gave ratios past 4×; a usable mosaic stays close
+  expect(spread('voronoi', 8)).toBeLessThan(2.6);
 });

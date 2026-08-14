@@ -1,0 +1,274 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+import { url } from '../../lib/url';
+
+const layouts = [
+  ['circle', 'circle', 'Tiles on an ellipse that hugs the stage. The default, and the one that survives any number of zones.'],
+  ['radial', 'radial', 'A true pie menu: equal wedges, the card in the hole. Every choice is one flick, and every flick is the same length.'],
+  ['voronoi', 'mosaic', 'A golden-angle spiral, then Lloyd relaxation — an irregular tiling with cells of comparable size.'],
+  ['grid', 'grid', 'Rows and columns, for when the zones are many and the shape does not matter.'],
+];
+---
+
+<Base title="Demo — zones and layouts">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">Zones, your way</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      A zone is an id, a label, a key, and whatever you want it to look like. Click any tile below to rename it, recolour
+      it, give it an icon or change its key — then switch layouts and watch the regions follow. Nothing here is a
+      special case: it is the same <code>zones</code> array and the same <code>layout</code> option you would pass.
+    </p>
+
+    <div class="layout-picker">
+      {
+        layouts.map(([id, name, blurb]) => (
+          <button type="button" class="layout-opt" data-layout={id}>
+            <b>{name}</b>
+            <span>{blurb}</span>
+          </button>
+        ))
+      }
+    </div>
+
+    <div class="demo demo-side" style="margin-top:22px">
+      <div id="sorter"></div>
+      <div>
+        <div class="panel">
+          <h3>Zones</h3>
+          <p style="margin:0 0 10px;color:var(--dim)">Click a tile on the stage, or a row here, to edit it.</p>
+          <ol id="zone-list" class="zone-list"></ol>
+          <button class="btn" id="add-zone" style="margin-top:10px;font-size:13px">Add a zone</button>
+        </div>
+        <div class="panel">
+          <h3>Chrome</h3>
+          <label class="opt"><input type="checkbox" id="opt-segments" checked /> <span>regions</span></label>
+          <label class="opt"><input type="checkbox" id="opt-keys" checked /> <span>key caps</span></label>
+          <label class="opt"><input type="checkbox" id="opt-tiles" checked /> <span>tile boxes</span></label>
+        </div>
+        <div class="panel">
+          <h3>What you built</h3>
+          <pre id="config" style="font-size:11.5px;padding:12px 14px;margin:0;white-space:pre-wrap"></pre>
+        </div>
+      </div>
+    </div>
+
+    <dialog id="editor" class="editor">
+      <form method="dialog">
+        <h3>Edit zone</h3>
+        <label class="field"><span>name</span><input name="label" autocomplete="off" /></label>
+        <label class="field"><span>key</span><input name="key" maxlength="1" autocomplete="off" /></label>
+        <label class="field"><span>icon</span><input name="icon" maxlength="2" autocomplete="off" placeholder="emoji" /></label>
+        <label class="field"><span>colour</span><input name="color" type="color" /></label>
+        <menu>
+          <button value="remove" class="btn" formnovalidate>Remove</button>
+          <span style="flex:1"></span>
+          <button value="cancel" class="btn" formnovalidate>Cancel</button>
+          <button value="save" class="btn primary">Save</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <div class="prose" style="margin-top:60px">
+      <h2>Drawing a zone yourself</h2>
+      <p>
+        The default tile is a Finder-style folder: a chip filled with the zone's colour, or its emoji, or its image; a
+        two-line label; the key at the foot. <code>renderZone</code> replaces it entirely — you get the zone and an
+        empty element, and whatever you put in it is the tile.
+      </p>
+      <pre><code>{`new Deck(el, {
+  zones,
+  layout: 'radial',
+  renderZone: (zone, el) => {
+    // zone: { id, label, key, color, icon, image, index, empty, angle, pos, cell }
+    el.style.setProperty('--tr-seg', zone.color);      // drives the region behind it too
+    el.innerHTML = \`
+      <span class="tr-glyph">\${zone.icon ?? ''}</span>
+      <span class="tr-label">\${zone.label}</span>
+      <kbd>\${zone.key}</kbd>\`;
+  },
+});`}</code></pre>
+      <p>
+        The class names are the library's own, so you inherit its states for free —
+        <code>.tr-near</code>, <code>.tr-armed</code>, <code>.tr-suggest</code>, <code>.tr-picked</code> land on the
+        element you filled. Or ignore them and style your own. See
+        <a href={url('/docs/rendering/')}>rendering cards and zones</a>.
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .layout-picker { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .layout-opt {
+    text-align: left;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .layout-opt b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .layout-opt span { font-size: 12.5px; color: var(--dim); line-height: 1.45; }
+  .layout-opt[aria-pressed='true'] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
+
+  .opt { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13.5px; }
+
+  .editor { border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; background: var(--panel); color: var(--ink); min-width: 300px; }
+  .editor::backdrop { background: rgba(10, 10, 18, 0.34); }
+  .editor h3 { margin: 0 0 14px; font-size: 15px; }
+  .editor .field { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 13px; }
+  .editor .field span { color: var(--dim); }
+  .editor input { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); }
+  .editor input[type='color'] { padding: 2px; height: 30px; }
+  .editor menu { display: flex; gap: 8px; margin: 16px 0 0; padding: 0; }
+</style>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { shuffled, type Link } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+
+  const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+
+  type Z = { id: string; label: string; key?: string; icon?: string; color?: string };
+  let zones: Z[] = [
+    { id: 'dev', label: 'dev', icon: '⌘', color: '#4a54f2' },
+    { id: 'ai', label: 'ai', icon: '◑', color: '#8b5cf6' },
+    { id: 'design', label: 'design', icon: '◈', color: '#ec4899' },
+    { id: 'home', label: 'home', icon: '⌂', color: '#f59e0b' },
+    { id: 'watch', label: 'watch', icon: '◎', color: '#10b981' },
+    { id: 'to read', label: 'to read', icon: '▤', color: '#64748b' },
+  ];
+  let layout = 'circle';
+
+  const deck = new Deck<Link>($('#sorter'), {
+    items: shuffled(4),
+    zones,
+    layout,
+    renderCard,
+    onSort: () => {},
+  });
+
+  // --- layout picker -----------------------------------------------------------
+  const pickLayout = (name: string) => {
+    layout = name;
+    for (const b of document.querySelectorAll<HTMLElement>('.layout-opt')) {
+      b.setAttribute('aria-pressed', String(b.dataset.layout === name));
+    }
+    // a radial menu wants its hole small, or the ring has nothing left to live in
+    deck.root.style.setProperty('--tr-card-w', name === 'radial' ? '190px' : '260px');
+    deck.root.style.setProperty('--tr-card-h', name === 'radial' ? '210px' : '300px');
+    deck.setOptions({ layout: name as 'circle' });
+    sync();
+  };
+  for (const b of document.querySelectorAll<HTMLElement>('.layout-opt')) {
+    b.addEventListener('click', () => pickLayout(b.dataset.layout!));
+  }
+  pickLayout('circle');
+
+  // --- chrome toggles ----------------------------------------------------------
+  $('#opt-segments').addEventListener('change', (e) => {
+    deck.setOptions({ segments: (e.target as HTMLInputElement).checked });
+    sync();
+  });
+  $('#opt-keys').addEventListener('change', (e) => {
+    deck.root.classList.toggle('no-keys', !(e.target as HTMLInputElement).checked);
+  });
+  $('#opt-tiles').addEventListener('change', (e) => {
+    deck.root.classList.toggle('no-tiles', !(e.target as HTMLInputElement).checked);
+  });
+
+  // --- the editor --------------------------------------------------------------
+  const dialog = $<HTMLDialogElement>('#editor');
+  let editing = -1;
+
+  function open(index: number) {
+    editing = index;
+    const z = zones[index]!;
+    const form = dialog.querySelector('form')!;
+    (form.elements.namedItem('label') as HTMLInputElement).value = z.label;
+    (form.elements.namedItem('key') as HTMLInputElement).value = z.key ?? '';
+    (form.elements.namedItem('icon') as HTMLInputElement).value = z.icon ?? '';
+    (form.elements.namedItem('color') as HTMLInputElement).value = z.color ?? '#4a54f2';
+    dialog.showModal();
+  }
+
+  dialog.addEventListener('close', () => {
+    if (editing < 0) return;
+    const form = dialog.querySelector('form')!;
+    const value = dialog.returnValue;
+    if (value === 'remove') zones = zones.filter((_, i) => i !== editing);
+    else if (value === 'save') {
+      const label = (form.elements.namedItem('label') as HTMLInputElement).value.trim() || zones[editing]!.label;
+      zones[editing] = {
+        // the id is what the model learned against, so renaming a zone keeps it
+        id: zones[editing]!.id,
+        label,
+        key: (form.elements.namedItem('key') as HTMLInputElement).value.trim().toLowerCase() || undefined,
+        icon: (form.elements.namedItem('icon') as HTMLInputElement).value.trim() || undefined,
+        color: (form.elements.namedItem('color') as HTMLInputElement).value,
+      };
+    }
+    editing = -1;
+    apply();
+  });
+
+  // a tile click while multi mode is off is the host's to use
+  deck.root.addEventListener('click', (e) => {
+    const tile = (e.target as Element).closest<HTMLElement>('.tr-zone');
+    if (tile && !deck.multi) open(Number(tile.dataset.index));
+  });
+
+  $('#add-zone').addEventListener('click', () => {
+    zones = [...zones, { id: `zone ${zones.length + 1}`, label: `zone ${zones.length + 1}`, color: '#94a3b8' }];
+    apply();
+    open(zones.length - 1);
+  });
+
+  function apply() {
+    deck.setZones(zones);
+    sync();
+  }
+
+  function sync() {
+    $('#zone-list').innerHTML = zones
+      .map(
+        (z, i) =>
+          `<li data-i="${i}"><i style="background:${z.color ?? '#94a3b8'}"></i><b>${z.label}</b>${
+            z.key ? `<kbd style="margin-left:auto">${z.key}</kbd>` : '<span style="margin-left:auto"></span>'
+          }</li>`,
+      )
+      .join('');
+    for (const li of document.querySelectorAll<HTMLElement>('.zone-list li')) {
+      li.addEventListener('click', () => open(Number(li.dataset.i)));
+    }
+    $('#config').textContent =
+      `layout: '${layout}',\nsegments: ${deck.options.segments !== false},\nzones: [\n` +
+      zones
+        .map((z) => `  { id: '${z.id}'${z.key ? `, key: '${z.key}'` : ''}${z.icon ? `, icon: '${z.icon}'` : ''}${z.color ? `, color: '${z.color}'` : ''} },`)
+        .join('\n') +
+      '\n]';
+  }
+
+  sync();
+  deck.focus();
+</script>
+
+<style is:global>
+  /* the two chrome toggles, done the way a host would: plain CSS over stable class names */
+  .no-keys .tr-zone kbd { display: none; }
+  .no-tiles .tr-zone { background: none; border-color: transparent; box-shadow: none; }
+
+  /* global, not scoped: these rows are built at runtime, and Astro's scoping only reaches
+     elements that were in the template at build time */
+  .zone-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .zone-list li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  .zone-list li:hover { border-color: var(--accent); }
+  .zone-list i { width: 16px; height: 16px; border-radius: 5px; flex: none; }
+  .zone-list b { font-weight: 500; font-size: 13.5px; }
+</style>

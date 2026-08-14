@@ -1,0 +1,37 @@
+---
+// A keycap. `<Kbd keys="shift a" />` renders two caps; special names become Lucide glyphs,
+// because a drawn ⇧ reads faster than the character does at 11px.
+import { icon } from './icons';
+
+interface Props {
+  keys: string;
+  /** joins the caps with a word — "or", "then" */
+  join?: string;
+}
+const { keys, join } = Astro.props;
+
+const GLYPH: Record<string, { icon: string; label: string; wide?: boolean }> = {
+  enter: { icon: 'corner-down-left', label: 'Enter' },
+  shift: { icon: 'arrow-big-up', label: 'Shift' },
+  backspace: { icon: 'delete', label: 'Backspace' },
+  space: { icon: 'space', label: 'Space', wide: true },
+};
+
+const caps = keys.trim().split(/\s+/);
+---
+
+<span class="kbds">
+  {
+    caps.map((k, i) => {
+      const g = GLYPH[k.toLowerCase()];
+      return (
+        <>
+          {i > 0 && join && <em>{join}</em>}
+          <kbd class={g?.wide ? 'kbd wide' : 'kbd'} title={g?.label ?? k}>
+            {g ? <Fragment set:html={icon(g.icon, 13)} /> : k}
+          </kbd>
+        </>
+      );
+    })
+  }
+</span>

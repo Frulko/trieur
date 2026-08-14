@@ -1,0 +1,188 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Demo — a kingdom, two answers">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">A kingdom, two answers</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      The same two-zone deck, except the zones are answers and the pile never ends. Every filing moves four resources;
+      let one hit zero or full and the reign is over. It is here to make a point about
+      <code>onSort</code>: the library hands you the card and the zone, and what happens next is entirely yours —
+      including refusing the move.
+    </p>
+
+    <div class="demo demo-side">
+      <div id="sorter"></div>
+      <div>
+        <div class="panel">
+          <h3>The realm</h3>
+          <div id="stats"></div>
+        </div>
+        <div class="panel">
+          <h3>Reign</h3>
+          <div class="kv"><span>years</span><b id="years">0</b></div>
+          <div class="kv"><span>verdict</span><b id="verdict">—</b></div>
+          <button class="btn" id="restart" style="margin-top:12px;font-size:13px">Start again</button>
+        </div>
+        <div class="panel">
+          <h3>Where the game lives</h3>
+          <pre style="font-size:11.5px;padding:12px 14px;margin:0;white-space:pre-wrap">{`onSort: (card, zone) => {
+  const answer = card[zone.id];
+  apply(answer.effects);
+  if (dead()) throw new Error('the reign ends');
+  deck.setItems([...deck.items, next()]);
+}`}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style is:global>
+  .demo.reigns { --tr-card-w: 300px; --tr-card-h: 380px; }
+  .decree { padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; height: 100%; }
+  .decree .who { display: flex; align-items: center; gap: 10px; }
+  .decree .who i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; background: color-mix(in srgb, currentColor 10%, transparent); }
+  .decree .who b { font-size: 14px; }
+  .decree .who span { display: block; font-size: 11.5px; color: var(--dim); }
+  .decree q { font-size: 17px; line-height: 1.35; quotes: '“' '”'; letter-spacing: -0.01em; }
+  .decree footer { margin-top: auto; display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); font-family: var(--mono); }
+  .res { display: grid; gap: 3px; padding: 6px 0; }
+  .res-top { display: flex; justify-content: space-between; font-size: 13px; }
+  .res-top b { font-family: var(--mono); font-weight: 500; font-size: 12px; }
+</style>
+
+<script>
+  import { Deck } from '@trieur/core';
+
+  const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  $('#sorter').closest('.demo')!.classList.add('reigns');
+
+  type Res = 'church' | 'people' | 'army' | 'gold';
+  type Answer = { text: string; effects: Partial<Record<Res, number>> };
+  type Decree = { who: string; title: string; face: string; ask: string; left: Answer; right: Answer };
+
+  const RESOURCES: Array<[Res, string, string]> = [
+    ['church', 'church', '✝'],
+    ['people', 'people', '☺'],
+    ['army', 'army', '⚔'],
+    ['gold', 'gold', '◈'],
+  ];
+
+  const DECK: Decree[] = [
+    { who: 'The Cardinal', title: 'church', face: '✝', ask: 'The cathedral roof leaks over the relics. Shall the crown pay?',
+      left: { text: 'Let it rain', effects: { church: -18, gold: 8 } }, right: { text: 'Pay for it', effects: { church: 16, gold: -16 } } },
+    { who: 'The Quartermaster', title: 'army', face: '⚔', ask: 'The garrison has not been paid in two seasons.',
+      left: { text: 'They can wait', effects: { army: -20, gold: 10 } }, right: { text: 'Pay them today', effects: { army: 18, gold: -18 } } },
+    { who: 'A Farmer', title: 'people', face: '☺', ask: 'The harvest failed. The granary is yours, majesty.',
+      left: { text: 'Keep it sealed', effects: { people: -22, gold: 12 } }, right: { text: 'Open the granary', effects: { people: 20, gold: -12 } } },
+    { who: 'The Treasurer', title: 'gold', face: '◈', ask: 'A new tax on salt would fill the vault nicely.',
+      left: { text: 'No new taxes', effects: { gold: -10, people: 12 } }, right: { text: 'Tax the salt', effects: { gold: 20, people: -16 } } },
+    { who: 'The Inquisitor', title: 'church', face: '✝', ask: 'The astronomer says the earth moves. Shall we correct him?',
+      left: { text: 'Let him look', effects: { church: -16, people: 10 } }, right: { text: 'Correct him', effects: { church: 16, people: -14 } } },
+    { who: 'A Merchant', title: 'gold', face: '◈', ask: 'Foreign ships want the harbour. They pay in silver.',
+      left: { text: 'Close the port', effects: { gold: -14, army: 10 } }, right: { text: 'Open the port', effects: { gold: 18, army: -10 } } },
+    { who: 'The General', title: 'army', face: '⚔', ask: 'The border villages ask for a garrison of their own.',
+      left: { text: 'Hold the centre', effects: { army: 12, people: -14 } }, right: { text: 'Send the men', effects: { army: -12, people: 16 } } },
+    { who: 'Your Cousin', title: 'people', face: '☺', ask: 'A tournament would lift the mood. And my prospects.',
+      left: { text: 'These are lean years', effects: { people: -12, gold: 8 } }, right: { text: 'Hold the tournament', effects: { people: 18, gold: -16 } } },
+  ];
+
+  let state: Record<Res, number>;
+  let years = 0;
+  let over = false;
+  let seed = 1;
+  const next = (): Decree => DECK[(seed = (seed * 1103515245 + 12345) >>> 0) % DECK.length]!;
+
+  const clamp = (v: number) => Math.max(0, Math.min(100, v));
+
+  function paint() {
+    $('#stats').innerHTML = RESOURCES.map(
+      ([k, label, glyph]) => `
+        <div class="res">
+          <div class="res-top"><span>${glyph} ${label}</span><b>${state[k]}</b></div>
+          <div class="bar"><i style="width:${state[k]}%"></i></div>
+        </div>`,
+    ).join('');
+    $('#years').textContent = String(years);
+  }
+
+  function verdict(): string | null {
+    for (const [k, label] of RESOURCES) {
+      if (state[k] <= 0) return `no ${label} left`;
+      if (state[k] >= 100) return `too much ${label}`;
+    }
+    return null;
+  }
+
+  // the zone labels are the answers of the card on top, and renderZone runs *during* the
+  // constructor — reaching for `deck` there would be a reference to a binding that does not
+  // exist yet
+  let top: Decree | undefined;
+
+  const deck = new Deck<Decree>($('#sorter'), {
+    items: Array.from({ length: 3 }, next),
+    zones: [
+      { id: 'left', label: '', icon: '←', color: '#64748b', key: 'j' },
+      { id: 'right', label: '', icon: '→', color: '#4a54f2', key: 'k' },
+    ],
+    layout: (_n, { w, clearX }) => [
+      { x: -Math.max(clearX, w / 2 - 90), y: 0 },
+      { x: Math.max(clearX, w / 2 - 90), y: 0 },
+    ],
+    renderCard: (d, el) => {
+      el.innerHTML = `
+        <div class="decree">
+          <div class="who"><i>${d.face}</i><span><b>${d.who}</b><span>${d.title}</span></span></div>
+          <q>${d.ask}</q>
+          <footer><span>← ${d.left.text}</span><span>${d.right.text} →</span></footer>
+        </div>`;
+    },
+    renderZone: (z, el) => {
+      const a = top ? top[z.id as 'left' | 'right'] : null;
+      el.innerHTML = `<span class="tr-glyph">${z.icon}</span><span class="tr-label">${a ? a.text : ''}</span><kbd>${z.key}</kbd>`;
+    },
+    onSort: (d, z) => {
+      if (over) throw new Error('the reign is over');
+      const answer = d[z.id as 'left' | 'right'];
+      for (const [k, v] of Object.entries(answer.effects)) state[k as Res] = clamp(state[k as Res] + (v as number));
+      years++;
+      const end = verdict();
+      if (end) {
+        over = true;
+        $('#verdict').textContent = end;
+      } else {
+        // the pile never runs out: one card in, one card on
+        queueMicrotask(() => deck.setItems([...deck.items, next()]));
+      }
+      paint();
+    },
+  });
+
+  /** The answers belong to the card on top, so the tiles are redrawn whenever it changes. */
+  function relabel() {
+    top = deck.current;
+    deck.setZones(deck.zones);
+  }
+
+  function restart() {
+    state = { church: 50, people: 50, army: 50, gold: 50 };
+    years = 0;
+    over = false;
+    seed = 1;
+    $('#verdict').textContent = '—';
+    deck.setItems(Array.from({ length: 3 }, next));
+    relabel();
+    paint();
+  }
+  $('#restart').addEventListener('click', restart);
+
+  for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, relabel);
+
+  restart();
+  deck.focus();
+</script>

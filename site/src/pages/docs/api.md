@@ -15,12 +15,12 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `meta(item)` | the item | what the model is allowed to look at |
 | `advisor` | — | a `Recommender`, or anything with `best()` |
 | `minConfidence` | `0.45` | minimum score for a zone to be suggested |
-| `layout` | `'circle'` | `'circle'`, `'voronoi'`, `'grid'`, or `(n, box) => [{x,y}]` |
+| `layout` | `'circle'` | `'circle'`, `'radial'`, `'voronoi'`, `'grid'`, or `(n, box) => [{x,y}]` |
 | `segments` | `true` | carve the stage into regions and aim at the region |
 | `keys` | `'asdfghjkl…'` | keys handed to zones, in order |
 | `threshold` | `90` | drag distance past which the drop is armed, in px |
 | `multi` | `false` | allow a card to be filed into several zones ([details](../multi/)) |
-| `multiPad` | `'auto'` | the held pad: `'auto'` (coarse pointers only), `'left'`, `'right'`, `false` |
+| `multiPad` | `'auto'` | the held pad: `'auto'` (dynamic on touch), `'dynamic'`, `'left'`, `'right'`, `false` |
 | `holdDelay` | `420` | ms a finger must rest on a card to open the stack; `0` disables it |
 | `text` | `en` | labels (`fr` provided, or your own) |
 | `onSort(item, zone)` | — | performs the filing; may be `async`, a rejection cancels |
@@ -132,9 +132,17 @@ evaluate(name, model, extractor, cards); // → { top1, top3, silent, vocab, ms,
 `voronoi(points, w, h)` returns the polygons, `inPolygon(poly, x, y)` tests membership, and
 `layouts.circle | voronoi | grid` are the built-in layouts.
 
-`clearCentre(points, clear)` pushes any seed inside the card's clearance out to its edge —
-`resolveLayout()` applies it to every layout, including yours, so no tile can end up under the
-card.
+A layout returns points, or `{ points, cells }` when it wants to describe its own regions —
+that is how `'radial'` draws wedges instead of letting the Voronoi decide.
+
+`clearCentre(points, box)` pushes any seed inside the card out to its edge, and
+`fitToStage(points, box)` scales the set down until the tiles fit. `resolveLayout()` applies
+both to every layout, including yours. `clearanceAt(angle, box)` is the rule they use: the ray
+hitting the card's box inflated by half a tile — a rectangle, not an ellipse, because a tile at
+45° sat outside an ellipse and still overlapped the card.
+
+The box a layout receives is `{ w, h, clearX, clearY, tile }`: the stage, the half-extents to
+keep clear, and the measured size of a tile.
 
 ## Keyboard
 
@@ -147,3 +155,6 @@ card.
 | `space` | skip |
 | `⌫` | undo, and unlearn |
 | `Esc` | drops the stack, then leaves fullscreen |
+
+On a touch screen, **double-tapping a card accepts the suggestion** — the equivalent of `↵`,
+which a thumb cannot press.

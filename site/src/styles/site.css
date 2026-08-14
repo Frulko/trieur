@@ -136,7 +136,7 @@ td code { white-space: nowrap; }
   --tr-card-bg: var(--bg);
   --tr-accent: var(--accent);
 }
-.demo .tr-stage { min-height: 520px; }
+.demo .tr-stage { min-height: 560px; }
 .demo-side { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
 @media (max-width: 880px) { .demo-side { grid-template-columns: 1fr; } }
 
@@ -221,3 +221,51 @@ td code { white-space: nowrap; }
 @media (max-width: 720px) {
   .gui { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; }
 }
+
+/* --- keycaps: a shortcut reads faster as a key than as a word --- */
+.kbds { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.kbds em { font-style: normal; font-size: 12px; color: var(--dim); margin: 0 2px; }
+kbd, .kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 21px;
+  padding: 0 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  /* the heavier bottom edge is what makes a flat rectangle read as something you press */
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+  vertical-align: middle;
+}
+.kbd.wide { min-width: 46px; }
+.kbd svg { display: block; }
+.prose kbd { margin: 0 1px; }
+
+/* --- the shortcut reference --- */
+.shortcuts {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 18px 20px 20px;
+}
+.shortcuts h3 { margin: 0 0 4px; font-size: 15px; }
+.shortcuts h4 {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--dim);
+  font-weight: 600;
+}
+.shortcuts dl { margin: 0; }
+.sc-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; flex-wrap: wrap; }
+.sc-row dt { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.sc-row dt svg { color: var(--dim); flex: none; }
+.sc-row dd { margin: 0 0 0 auto; display: flex; align-items: center; gap: 8px; }
+.sc-row dd i { font-style: normal; font-size: 12.5px; color: var(--dim); }
