@@ -1,7 +1,7 @@
-// Le paquet serveur en tant que bibliothèque. Le serveur exécutable, lui, est `serve.ts`.
+// The server package as a library. The executable server itself lives in `serve.ts`.
 //
-// `createApi()` rend une fonction `Request → Response` : elle se teste sans ouvrir de port,
-// et se monte dans n'importe quel serveur au lieu d'imposer le sien.
+// `createApi()` returns a `Request → Response` function: it can be tested without opening a
+// port, and mounted in any server instead of imposing its own.
 
 export { createApi, type ApiOptions } from './api.js';
 export { decks, insertEvent, openDb, readEvents, readModel, writeModel, type StoredEvent } from './db.js';

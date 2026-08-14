@@ -1,6 +1,6 @@
 # @trieur/core
 
-La scène, les zones, le geste. Zéro dépendance, module ES, pas de build.
+The stage, the zones, the gesture. No dependencies, ES module, no build step.
 
 ```bash
 npm i @trieur/core
@@ -10,34 +10,35 @@ npm i @trieur/core
 import { Deck } from '@trieur/core';
 import '@trieur/core/trieur.css';
 
-new Deck(document.querySelector('#tri'), {
-  items: [{ titre: 'Une chose' }, { titre: 'Une autre' }],
-  zones: [{ id: 'garder', label: 'Garder' }, { id: 'jeter', label: 'Jeter' }],
-  renderCard: (item, el) => (el.innerHTML = `<h3>${item.titre}</h3>`),
-  onSort: (item, zone) => fetch('/ranger', { method: 'POST', body: JSON.stringify({ item, zone }) }),
+new Deck(document.querySelector('#sorter'), {
+  items: [{ title: 'One thing' }, { title: 'Another' }],
+  zones: [{ id: 'keep', label: 'Keep' }, { id: 'toss', label: 'Toss' }],
+  renderCard: (item, el) => (el.innerHTML = `<h3>${item.title}</h3>`),
+  onSort: (item, zone) => fetch('/file', { method: 'POST', body: JSON.stringify({ item, zone }) }),
 });
 ```
 
-Ou en markup, sans écrire de JS :
+Or in markup, without writing any JS:
 
 ```html
 <script type="module">import '@trieur/core/element';</script>
 
-<trieur-deck layout="voronoi">
-  <trieur-zone value="a-lire" key="a">À lire</trieur-zone>
-  <trieur-zone value="jeter">Jeter</trieur-zone>
-  <trieur-zone></trieur-zone><!-- zone libre -->
-  <template data-card><h3 data-field="titre"></h3></template>
+<trieur-deck layout="voronoi" multi>
+  <trieur-zone value="to-read" key="a">To read</trieur-zone>
+  <trieur-zone value="toss">Toss</trieur-zone>
+  <trieur-zone></trieur-zone><!-- free zone -->
+  <template data-card><h3 data-field="title"></h3></template>
 </trieur-deck>
 ```
 
-- **Souris, doigt et clavier** avec le même code (Pointer Events).
-- **Une zone est un emplacement**, pas une étiquette : la touche vient de la position, donc
-  le geste reste mémorisable quand le contenu change.
-- **La scène est découpée** (Voronoï) et le dépôt vise la région sous le doigt.
-- **Agnostique du domaine** : la lib ne sait rien de ce qu'elle trie.
+- **Mouse, thumb and keyboard** through the same code (Pointer Events).
+- **A zone is a spot**, not a label: the key comes from the position, so the gesture stays
+  memorable when the content changes.
+- **The stage is carved** (Voronoi) and the drop aims at the region under the finger.
+- **Several zones per card** with `multi: true` — hold `⇧`, or latch the mode from the bar.
+- **Domain-agnostic**: the library knows nothing about what it sorts.
 
-Pour l'apprentissage, ajouter [`@trieur/learn`](../learn). Documentation complète et démos :
-[trieur.dev](https://trieur.dev).
+For learning, add [`@trieur/learn`](https://github.com/Frulko/trieur/tree/main/packages/learn).
+Full documentation and live demos: [frulko.github.io/trieur](https://frulko.github.io/trieur/).
 
 MIT.

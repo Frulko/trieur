@@ -1,14 +1,18 @@
-/* trieur — feuille de style par défaut.
+/* trieur — default stylesheet.
 
-   Tout est réglable par variables CSS ; l'hôte peut aussi tout réécrire, les classes sont
-   stables (.tr, .tr-stage, .tr-card, .tr-zone, .tr-bar). */
+   Everything is tunable through CSS variables; the host can also rewrite the whole thing,
+   the class names are stable (.tr, .tr-stage, .tr-card, .tr-zone, .tr-bar). */
 
-/* éléments de configuration : ils ne s'affichent jamais */
+/* configuration elements: they never render */
 trieur-zone { display: none; }
 trieur-deck { display: block; }
 
 .tr {
   --tr-accent: #4a54f2;
+  /* multi-zone mode. Amber rather than red on purpose: red reads as error or destruction,
+     and stacking a card into several folders is neither. Amber reads as "hold on, this is a
+     different mode", which is exactly what it is. */
+  --tr-multi: #f59e0b;
   --tr-ink: currentColor;
   --tr-line: color-mix(in srgb, currentColor 15%, transparent);
   --tr-card-bg: #fff;
@@ -28,17 +32,17 @@ trieur-deck { display: block; }
   min-height: 600px;
   border-radius: var(--tr-radius);
   outline: none;
-  touch-action: none; /* sinon le navigateur défile au lieu de laisser glisser la carte */
+  touch-action: none; /* otherwise the browser scrolls instead of letting the card be dragged */
 }
 .tr-stage:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-accent) 35%, transparent); }
 
-/* --- découpage de la scène : une région par zone, bordure fine --- */
+/* --- stage carving: one region per zone, thin outline --- */
 .tr-segments {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* le glisser passe à travers, la région ne sert qu'à voir */
+  pointer-events: none; /* the drag passes through, the region is only there to be seen */
 }
 .tr-seg {
   --tr-seg: var(--tr-accent);
@@ -50,8 +54,10 @@ trieur-deck { display: block; }
 }
 .tr-seg.tr-near { stroke: color-mix(in srgb, var(--tr-seg) 55%, transparent); stroke-dasharray: none; }
 .tr-seg.tr-armed { fill: color-mix(in srgb, var(--tr-seg) 14%, transparent); stroke: var(--tr-seg); }
+/* a stacked region stays lit: on a phone, that is the whole feedback */
+.tr-seg.tr-picked { fill: color-mix(in srgb, var(--tr-multi) 12%, transparent); stroke: var(--tr-multi); stroke-dasharray: none; }
 
-/* --- zones : une tuile façon dossier, pas une étiquette --- */
+/* --- zones: a folder tile, not a label --- */
 .tr-zone {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -69,7 +75,7 @@ trieur-deck { display: block; }
   text-align: center;
   transition: transform 120ms, border-color 120ms, background-color 120ms, box-shadow 120ms;
 }
-/* pastille : couleur pleine, ou image, ou emoji */
+/* chip: solid colour, or image, or emoji */
 .tr-zone .tr-glyph {
   width: 46px;
   height: 46px;
@@ -102,10 +108,10 @@ trieur-deck { display: block; }
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 .tr-zone.tr-near { border-color: var(--tr-seg, var(--tr-accent)); }
-/* zone libre : présente mais pas encore attribuée */
+/* free zone: present but not assigned yet */
 .tr-zone.tr-free { border-style: dashed; opacity: 0.6; }
 .tr-zone.tr-free .tr-glyph { background: none; border: 1px dashed var(--tr-line); }
-/* proposition du modèle : liseré, sans voler la vedette au survol */
+/* the model's suggestion: an outline, without stealing the show from hover */
 .tr-zone.tr-suggest {
   border-color: color-mix(in srgb, var(--tr-accent) 60%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-accent) 14%, transparent);
@@ -115,14 +121,37 @@ trieur-deck { display: block; }
   transform: translate(-50%, -50%) scale(1.12);
   background: color-mix(in srgb, var(--tr-accent) 14%, var(--tr-card-bg));
 }
+/* in the stack: the badge carries the rank, and rank 1 is the primary zone */
+.tr-zone.tr-picked {
+  border-color: var(--tr-multi);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-multi) 22%, transparent);
+}
+.tr-zone.tr-picked::before {
+  content: attr(data-pick);
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--tr-multi);
+  color: #1b1200;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+/* while the mode is on, tiles are tappable — that is the phone path */
+.tr-multi .tr-zone { cursor: pointer; }
 
-/* --- pile de cartes --- */
+/* --- card pile --- */
 .tr-cards {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  pointer-events: none; /* seules les cartes réagissent */
+  pointer-events: none; /* only the cards react */
 }
 .tr-card {
   pointer-events: auto;
@@ -137,32 +166,43 @@ trieur-deck { display: block; }
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   cursor: grab;
-  /* la carte se glisse d'un bloc : ni sélection de texte, ni glisser natif d'image, ni
-     menu contextuel à l'appui long — sauf sur ce qui est cliquable */
+  /* a card drags as one block: no text selection, no native image drag, no context menu on
+     long press — except on what is clickable */
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  /* transform + opacity : le dépilement et le rempilement passent par la même transition */
+  /* transform + opacity: dealing down and stacking back share the same transition */
   transition: transform 220ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 220ms ease-out;
 }
-/* la carte en vol reste au-dessus de celle qui remonte de la pile */
+/* the card in flight stays above the one rising from the pile */
 .tr-card.tr-genie { z-index: 3; pointer-events: none; }
 .tr-card.tr-dragging { cursor: grabbing; transition: none; }
 .tr-card img { -webkit-user-drag: none; user-select: none; }
-/* seuls les éléments interactifs récupèrent le curseur et la sélection */
+/* only interactive elements get the cursor and text selection back */
 .tr-card a, .tr-card button { cursor: pointer; }
 .tr-card input, .tr-card textarea, .tr-card [contenteditable] { user-select: text; -webkit-user-select: text; cursor: auto; }
 .tr-card.tr-behind { transform: scale(0.94) translateY(14px); opacity: 0.55; filter: saturate(0.8); }
-/* effet « génie » : la carte est aspirée dans la tuile visée. L'opacité ne tombe qu'en fin
-   de course — sinon la carte disparaît avant d'arriver et on ne voit pas le trajet. */
+/* genie effect: the card is sucked into the tile it was aimed at. Opacity only drops at the
+   very end — otherwise the card vanishes before arriving and the trip is invisible. */
 .tr-card.tr-genie {
-  /* même sensation qu'au doigt : ça part tout de suite et ça ralentit en arrivant, au lieu
-     du démarrage mou d'un ease-in-out. Le fondu n'occupe que la fin du trajet. */
+  /* same feel as the thumb gesture: leaves immediately, slows on arrival, instead of the
+     mushy start of an ease-in-out. The fade only occupies the tail of the trip. */
   transition: transform 320ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 110ms ease-in 215ms, filter 320ms;
   opacity: 0;
   filter: blur(1px);
 }
-/* la tuile accuse réception */
+/* multi-zone mode: the card is being pointed at zones, not filed yet. A dashed outline says
+   "selection in progress" and the halo breathes so the mode cannot be mistaken for a state.
+   Dashed rather than marching ants: ants cannot follow a border radius without artefacts. */
+.tr-multi .tr-card:not(.tr-genie) {
+  border: 2px dashed var(--tr-multi);
+  animation: tr-breathe 1.6s ease-in-out infinite;
+}
+@keyframes tr-breathe {
+  0%, 100% { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 0 0 0 color-mix(in srgb, var(--tr-multi) 40%, transparent); }
+  50% { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 0 0 7px color-mix(in srgb, var(--tr-multi) 0%, transparent); }
+}
+/* the tile acknowledges receipt */
 .tr-zone.tr-catch { animation: tr-catch 300ms cubic-bezier(0.2, 0.9, 0.3, 1); }
 @keyframes tr-catch {
   35% { transform: translate(-50%, -50%) scale(1.14); }
@@ -170,7 +210,7 @@ trieur-deck { display: block; }
   to { transform: translate(-50%, -50%) scale(1); }
 }
 
-/* --- plein écran (modale, pas l'API Fullscreen) --- */
+/* --- fullscreen (a modal, not the Fullscreen API) --- */
 .tr-close { display: none; }
 .tr-full {
   position: fixed;
@@ -180,7 +220,7 @@ trieur-deck { display: block; }
   background: var(--tr-page-bg, var(--tr-card-bg));
   animation: tr-open 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-.tr-full .tr-stage { flex: 1; min-height: 0; } /* la scène prend toute la hauteur restante */
+.tr-full .tr-stage { flex: 1; min-height: 0; } /* the stage takes the remaining height */
 .tr-full .tr-close {
   display: grid;
   place-items: center;
@@ -198,14 +238,14 @@ trieur-deck { display: block; }
   cursor: pointer;
 }
 .tr-full .tr-close:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
-.tr-full [data-tr='expand'] { display: none; } /* la croix suffit une fois agrandi */
+.tr-full [data-tr='expand'] { display: none; } /* the cross is enough once expanded */
 @keyframes tr-open {
   from { opacity: 0; transform: scale(0.98); }
 }
-/* la page derrière ne défile plus tant que la modale est ouverte */
+/* the page behind stops scrolling while the modal is open */
 html.tr-locked, html.tr-locked body { overflow: hidden; }
 
-/* --- barre du bas --- */
+/* --- bottom bar --- */
 .tr-bar { display: flex; align-items: center; gap: 12px; font-size: 12px; opacity: 0.85; }
 .tr-actions { margin-left: auto; display: flex; gap: 8px; }
 .tr-bar button {
@@ -223,12 +263,19 @@ html.tr-locked, html.tr-locked body { overflow: hidden; }
 }
 .tr-bar button:hover:not(:disabled) { border-color: var(--tr-accent); color: var(--tr-accent); }
 .tr-bar button:disabled { opacity: 0.4; cursor: default; }
+.tr-bar button.tr-on {
+  border-color: var(--tr-multi);
+  color: var(--tr-multi);
+  background: color-mix(in srgb, var(--tr-multi) 10%, transparent);
+}
+.tr-bar button.tr-on:hover { border-color: var(--tr-multi); color: var(--tr-multi); }
 .tr-bar kbd { font: inherit; font-size: 10px; opacity: 0.7; }
 .tr-nothing { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: 0.6; font-size: 13px; }
-.tr-nothing[hidden] { display: none; } /* display:grid l'emporterait sur [hidden] */
+.tr-nothing[hidden] { display: none; } /* display:grid would beat [hidden] */
 
 @media (prefers-reduced-motion: reduce) {
   .tr-card, .tr-zone, .tr-seg { transition: none; }
   .tr-card.tr-genie { filter: none; }
   .tr-zone.tr-catch { animation: none; }
+  .tr-multi .tr-card:not(.tr-genie) { animation: none; }
 }

@@ -4,7 +4,7 @@ export { voronoi, inPolygon, pathOf } from './voronoi.js';
 export { defaultTile } from './tile.js';
 export { startGesture } from './drag.js';
 export { animateFrom } from './anim.js';
-export { fr, en } from './text.js';
+export { en, fr } from './text.js';
 export type {
   Advisor,
   DeckEventMap,

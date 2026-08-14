@@ -1,19 +1,19 @@
-// <trieur-deck> et <trieur-zone> — l'API déclarative.
+// <trieur-deck> and <trieur-zone> — the declarative API.
 //
-// Light DOM assumé : l'hôte dessine les cartes et doit pouvoir les styler depuis sa propre
-// feuille. Un shadow root encapsulerait le CSS de la lib mais couperait `renderCard` du
-// reste de la page, ce qui coûte plus qu'il ne rapporte ici.
+// Light DOM on purpose: the host draws the cards and must be able to style them from its own
+// stylesheet. A shadow root would encapsulate the library's CSS but cut `renderCard` off from
+// the rest of the page, which costs more than it buys here.
 //
-// Deux façons de s'en servir, mélangeables :
-//   1. en JS      → deck.options = { items, zones, renderCard, onSort }
-//   2. en markup  → <trieur-deck><trieur-zone value="dev">Dev</trieur-zone>…</trieur-deck>
-// Une propriété posée en JS l'emporte toujours sur le markup : c'est le cas d'un hôte qui
-// construit ses zones à partir de données.
+// Two ways to use it, mixable:
+//   1. in JS      → deck.options = { items, zones, renderCard, onSort }
+//   2. in markup  → <trieur-deck><trieur-zone value="dev">Dev</trieur-zone>…</trieur-deck>
+// A property set in JS always wins over markup: that is the case of a host building its zones
+// from data.
 
 import { Deck } from './deck.js';
-import type { DeckOptions, Prediction, Zone } from './types.js';
+import type { DeckOptions, PlacedZone, Prediction, Zone } from './types.js';
 
-/** Une zone déclarée en markup. N'affiche rien : c'est de la configuration. */
+/** A zone declared in markup. Renders nothing: it is configuration, not display. */
 export class TrieurZoneElement extends HTMLElement {
   static observedAttributes = ['value', 'key', 'label', 'color', 'icon', 'image'];
 
@@ -21,7 +21,7 @@ export class TrieurZoneElement extends HTMLElement {
     this.#deck()?.zonesChanged();
   }
   connectedCallback(): void {
-    this.hidden = true; // au cas où la feuille de la lib ne serait pas chargée
+    this.hidden = true; // in case the library stylesheet is not loaded
     this.#deck()?.zonesChanged();
   }
   disconnectedCallback(): void {
@@ -32,14 +32,14 @@ export class TrieurZoneElement extends HTMLElement {
     return this.closest('trieur-deck');
   }
 
-  /** Objet zone passé au deck. `value` absent = zone libre (déclenche `onAssign`). */
+  /** The zone object handed to the deck. No `value` means a free zone (fires `onAssign`). */
   get zone(): Zone | null {
     const id = this.getAttribute('value') ?? '';
     if (!id) return null;
     const attr = (n: string) => this.getAttribute(n) ?? undefined;
     return {
       id,
-      // ?? et || ne se mélangent pas sans parenthèses
+      // ?? and || do not mix without parentheses
       label: attr('label') ?? (this.textContent?.trim() || id),
       key: attr('key'),
       color: attr('color'),
@@ -50,18 +50,18 @@ export class TrieurZoneElement extends HTMLElement {
 }
 
 export class TrieurDeckElement extends HTMLElement {
-  static observedAttributes = ['layout', 'threshold', 'keys', 'min-confidence', 'segments', 'lang'];
+  static observedAttributes = ['layout', 'threshold', 'keys', 'min-confidence', 'segments', 'multi'];
 
   #deck: Deck | null = null;
   #opts: DeckOptions = {};
   #host: HTMLElement | null = null;
   #obs: MutationObserver | null = null;
   #queued = false;
-  /** une pile posée par l'hôte remplace celle en cours, elle ne fusionne pas */
+  /** a pile set by the host replaces the current one, it does not merge */
   #freshPile = false;
 
   connectedCallback(): void {
-    // les <trieur-zone> peuvent arriver après nous (frameworks, innerHTML) : on observe
+    // <trieur-zone> children may arrive after us (frameworks, innerHTML): observe them
     this.#obs = new MutationObserver(() => this.zonesChanged());
     this.#obs.observe(this, { childList: true });
     this.#schedule();
@@ -79,9 +79,8 @@ export class TrieurDeckElement extends HTMLElement {
   }
 
   /**
-   * Appelé par les <trieur-zone> quand elles apparaissent, changent ou disparaissent.
-   * On met à jour les zones **sans remonter** : la pile en cours et l'historique
-   * d'annulation survivent.
+   * Called by the <trieur-zone> children when they appear, change or disappear. Zones are
+   * updated **without remounting**: the current pile and the undo history survive.
    */
   zonesChanged(): void {
     const zones = this.#zonesFromMarkup();
@@ -89,7 +88,7 @@ export class TrieurDeckElement extends HTMLElement {
     this.#schedule();
   }
 
-  /** Configuration complète (mêmes clés que `new Deck(el, opts)`). Remonte la pile. */
+  /** Full configuration (same keys as `new Deck(el, opts)`). Remounts the pile. */
   set options(o: DeckOptions) {
     this.#opts = { ...o };
     this.#freshPile = 'items' in o;
@@ -124,6 +123,9 @@ export class TrieurDeckElement extends HTMLElement {
   get prediction(): Prediction | null {
     return this.#deck?.prediction ?? null;
   }
+  get picking(): PlacedZone[] {
+    return this.#deck?.picking ?? [];
+  }
 
   skip(): void {
     this.#deck?.skip();
@@ -135,9 +137,9 @@ export class TrieurDeckElement extends HTMLElement {
     this.#deck?.focus(o);
   }
 
-  // --- interne ---------------------------------------------------------------
+  // --- internals -------------------------------------------------------------
 
-  /** Un seul remontage par tick : trois <trieur-zone> ajoutées d'affilée ne le font pas trois fois. */
+  /** One remount per tick: three <trieur-zone> added in a row do not cause three. */
   #schedule(): void {
     if (this.#queued || !this.isConnected) return;
     this.#queued = true;
@@ -152,7 +154,7 @@ export class TrieurDeckElement extends HTMLElement {
     return zones.length ? zones.map((el) => el.zone) : null;
   }
 
-  /** Gabarit de carte déclaré en markup : <template data-card> avec des [data-field]. */
+  /** Card template declared in markup: <template data-card> with [data-field] nodes. */
   #renderFromTemplate(tpl: HTMLTemplateElement) {
     return (item: any, el: HTMLElement) => {
       el.append(tpl.content.cloneNode(true));
@@ -166,8 +168,8 @@ export class TrieurDeckElement extends HTMLElement {
   }
 
   #mount(): void {
-    // la scène vit dans un enfant à nous : Deck réécrit son conteneur, et on ne veut pas
-    // qu'il efface les <trieur-zone> et le <template> qui sont notre configuration
+    // the stage lives in a child of ours: Deck rewrites its container, and we do not want it
+    // erasing the <trieur-zone> elements and the <template> that are our configuration
     if (!this.#host || !this.#host.isConnected) {
       this.#host = document.createElement('div');
       this.#host.className = 'tr-host';
@@ -181,13 +183,14 @@ export class TrieurDeckElement extends HTMLElement {
       threshold: num('threshold'),
       minConfidence: num('min-confidence'),
       segments: this.getAttribute('segments') === 'false' ? false : undefined,
+      multi: this.hasAttribute('multi') ? this.getAttribute('multi') !== 'false' : undefined,
       zones: this.#zonesFromMarkup() ?? undefined,
       renderCard: tpl ? this.#renderFromTemplate(tpl) : undefined,
-      // le JS l'emporte sur le markup : un hôte piloté par les données garde la main
+      // JS wins over markup: a data-driven host keeps control
       ...Object.fromEntries(Object.entries(this.#opts).filter(([, v]) => v !== undefined)),
     };
     for (const k of Object.keys(opts) as Array<keyof DeckOptions>) if (opts[k] === undefined) delete opts[k];
-    // remonter en cours de tri ne doit pas faire réapparaître les cartes déjà rangées
+    // remounting mid-sort must not bring already-filed cards back
     const left = this.#deck?.items;
     if (left?.length && !this.#freshPile) opts.items = left;
     this.#freshPile = false;

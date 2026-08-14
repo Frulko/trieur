@@ -1,38 +1,46 @@
 ---
+import { url } from '../lib/url';
 import '../styles/site.css';
 
 interface Props {
   title: string;
   description?: string;
 }
-const { title, description = "Trier une pile de cartes dans des zones, et un modèle qui apprend où elles vont." } =
-  Astro.props;
+const { title, description = 'Sort a pile of cards into zones, and a model that learns where they go.' } = Astro.props;
 
 const here = Astro.url.pathname.replace(/\/$/, '');
 const nav = [
-  { href: '/demos/base', label: 'Démos' },
-  { href: '/docs', label: 'Documentation' },
-  { href: 'https://github.com/gdumoulin/trieur', label: 'GitHub' },
+  { href: url('/demos/basic/'), label: 'Demos' },
+  { href: url('/docs/'), label: 'Docs' },
+  { href: 'https://github.com/Frulko/trieur', label: 'GitHub', external: true },
 ];
 ---
 
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂</text></svg>" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂</text></svg>"
+    />
   </head>
   <body>
     <header class="top">
       <div class="wrap">
-        <a class="brand" href="/">trieur<span>.</span></a>
+        <a class="brand" href={url('/')}>trieur<span>.</span></a>
         <nav>
           {
             nav.map((n) => (
-              <a href={n.href} aria-current={here.startsWith(n.href.replace(/\/$/, '')) && n.href.startsWith('/') ? 'page' : undefined}>
+              <a
+                href={n.href}
+                aria-current={!n.external && here.startsWith(n.href.replace(/\/$/, '')) ? 'page' : undefined}
+              >
                 {n.label}
               </a>
             ))
@@ -46,8 +54,8 @@ const nav = [
     <footer class="bottom">
       <div class="wrap">
         <p>
-          MIT · <code>@trieur/core</code>, <code>@trieur/learn</code>, <code>@trieur/server</code> — aucune dépendance
-          d'exécution.
+          MIT · <code>@trieur/core</code>, <code>@trieur/learn</code>, <code>@trieur/server</code> — no runtime
+          dependencies.
         </p>
       </div>
     </footer>

@@ -1,4 +1,4 @@
-/* Le site. Sobre : c'est de la documentation, la vedette c'est la démo. */
+/* The site. Restrained: this is documentation, the demo is the star. */
 
 :root {
   --bg: #fbfbfd;
@@ -50,7 +50,7 @@ pre {
 }
 pre code { background: none; padding: 0; font-size: inherit; }
 
-/* --- charpente --- */
+/* --- frame --- */
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 .prose { max-width: var(--measure); }
 .prose h2 { margin-top: 2.6em; scroll-margin-top: 90px; }
@@ -81,7 +81,7 @@ footer.bottom {
   font-size: 14px;
 }
 
-/* --- accroche --- */
+/* --- hero --- */
 .hero { padding: 72px 0 40px; }
 .hero h1 { font-size: clamp(38px, 6vw, 58px); line-height: 1.02; letter-spacing: -0.035em; margin: 0 0 18px; }
 .hero p.lead { font-size: 19px; color: var(--dim); max-width: 60ch; margin: 0 0 26px; }
@@ -103,7 +103,7 @@ footer.bottom {
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { color: #fff; filter: brightness(1.08); }
 
-/* --- blocs --- */
+/* --- blocks --- */
 .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .card {
   background: var(--panel);
@@ -126,7 +126,7 @@ td code { white-space: nowrap; }
   margin: 24px 0;
 }
 
-/* --- démos --- */
+/* --- demos --- */
 .demo {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -150,14 +150,14 @@ td code { white-space: nowrap; }
 .why { font-family: var(--mono); font-size: 11.5px; color: var(--dim); word-break: break-all; }
 .tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px dashed var(--line); border-radius: 5px; margin: 2px 3px 0 0; color: var(--dim); }
 
-/* la carte d'un lien, dessinée par le site — la lib n'en sait rien */
-.lien { padding: 18px; display: flex; flex-direction: column; gap: 10px; height: 100%; }
-.lien .host { font-family: var(--mono); font-size: 11.5px; color: var(--accent); letter-spacing: 0.02em; }
-.lien h4 { margin: 0; font-size: 17px; line-height: 1.25; letter-spacing: -0.01em; }
-.lien p { margin: 0; font-size: 13.5px; color: var(--dim); }
-.lien .tags { margin-top: auto; }
+/* a link card, drawn by the site — the library knows nothing about it */
+.link { padding: 18px; display: flex; flex-direction: column; gap: 10px; height: 100%; }
+.link .host { font-family: var(--mono); font-size: 11.5px; color: var(--accent); letter-spacing: 0.02em; }
+.link h4 { margin: 0; font-size: 17px; line-height: 1.25; letter-spacing: -0.01em; }
+.link p { margin: 0; font-size: 13.5px; color: var(--dim); }
+.link .tags { margin-top: auto; }
 
-/* --- documentation --- */
+/* --- docs --- */
 .doc { display: grid; grid-template-columns: 210px 1fr; gap: 48px; padding-top: 44px; }
 @media (max-width: 880px) { .doc { grid-template-columns: 1fr; gap: 20px; } }
 .doc aside { position: sticky; top: 78px; align-self: start; font-size: 14px; }

@@ -1,99 +1,98 @@
 ---
 layout: ../../layouts/Doc.astro
-title: Zones et geste
-description: Pourquoi une zone est un emplacement et pas une étiquette, et comment la scène est découpée.
+title: Zones and gesture
+description: Why a zone is a spot rather than a label, and how the stage is carved.
 ---
 
-## Une zone est un emplacement, pas une étiquette
+## A zone is a spot, not a label
 
-La touche d'une zone vient de sa **position**, pas de son libellé. Changer ce qu'il y a dans
-une zone ne change donc pas le geste, et le geste reste mémorisable. C'est la différence
-entre « appuyer sur <kbd>d</kbd> » et « chercher où est passé *dev* ».
+A zone's key comes from its **position**, not from its label. Changing what sits in a zone
+therefore does not change the gesture, and the gesture stays memorable. That is the difference
+between "press <kbd>d</kbd>" and "find where *dev* went".
 
 ```js
 zones: [
-  { id: 'a-lire', label: 'À lire' },  // touche a
-  null,                                // touche s — zone libre
-  { id: 'jeter', label: 'Jeter' },     // touche d
+  { id: 'to-read', label: 'To read' },  // key a
+  null,                                  // key s — free zone
+  { id: 'toss', label: 'Toss' },         // key d
 ]
 ```
 
-Une entrée `null` est une **zone libre** : y déposer une carte n'exécute rien, ça appelle
-`onAssign(index, item)`. À l'hôte de demander quoi y mettre, puis de reposer ses zones.
+A `null` entry is a **free zone**: dropping a card there performs nothing, it calls
+`onAssign(index, item)`. Up to the host to ask what should go there, then set its zones again.
 
-## La scène est découpée, pas seulement décorée
+## The stage is carved, not just decorated
 
-Chaque zone possède une **région** de la scène, tracée en bordure fine : le diagramme de
-Voronoï des positions. Pour un cercle ça donne les secteurs attendus, pour une grille des
-cases, pour une disposition maison le pavage correspondant — c'est la même formule.
+Each zone owns a **region** of the stage, outlined thinly: the Voronoi diagram of the
+positions. For a circle that gives the expected sectors, for a grid it gives cells, for a
+custom layout the matching tiling — one formula for all three.
 
-Cette région n'est pas qu'un dessin : **le dépôt vise la région sous le doigt**, pas un
-angle approximatif. Ce qu'on voit est ce qu'on touche. (`segments: false` n'affiche que les
-tuiles ; on retombe alors sur un ciblage angulaire.)
+That region is not only a drawing: **the drop aims at the region under the finger**, not at an
+approximate angle. What you see is what you touch. (`segments: false` shows only the tiles;
+aiming then falls back to angles.)
 
-Le calcul tient en quarante lignes — on part du rectangle de la scène et on le coupe par la
-médiatrice de chaque paire de germes. Pas de dépendance géométrique, et `voronoi(points, w, h)`
-est exporté si tu veux les polygones.
+The computation fits in forty lines — start from the stage rectangle and cut along the
+perpendicular bisector of each pair of seeds. No geometry dependency, and `voronoi(points, w, h)`
+is exported if you want the polygons.
 
-## Dispositions
+## Layouts
 
-`layout` accepte `'circle'` (défaut), `'voronoi'`, `'grid'`, ou ta propre fonction :
+`layout` accepts `'circle'` (default), `'voronoi'`, `'grid'`, or your own function:
 
 ```js
 layout: (n, { w, h, clear }) => Array.from({ length: n }, (_, i) => ({ x: …, y: … }))
 ```
 
-`clear` est le rayon à dégager au centre pour que les zones ne passent pas sous la carte.
-Les marges valent une demi-tuile : une zone qui déborde de la scène est inatteignable au
-doigt.
+`clear` is the radius to keep free at the centre so zones do not sit under the card. Margins
+are worth half a tile: a zone spilling off the stage is unreachable by thumb.
 
-La disposition `'voronoi'` place les germes selon une spirale phyllotaxique — angle d'or,
-donc jamais alignés. Les cellules qui en découlent forment une mosaïque irrégulière plutôt
-qu'une part de tarte. C'est déterministe : même nombre de zones, même dessin.
+The `'voronoi'` layout places seeds along a phyllotactic spiral — golden angle, so never
+collinear. The resulting cells form an irregular mosaic rather than a pie chart. It is
+deterministic: same number of zones, same drawing.
 
-## Une tuile, pas une étiquette
+## A tile, not a label
 
-Le rendu par défaut est un dossier façon Finder : pastille de 46 px remplie de la couleur de
-la zone (`color`), ou son emoji (`icon`), ou son image (`image`) ; libellé sur deux lignes ;
-touche en pied. `renderZone(zone, el)` reprend la main si tu veux autre chose.
+The default rendering is a Finder-style folder: a 46px chip filled with the zone's colour
+(`color`), or its emoji (`icon`), or its image (`image`); a two-line label; the key at the
+foot. `renderZone(zone, el)` takes over if you want something else.
 
-## Une carte se glisse d'un bloc
+## A card drags as one block
 
-Image, texte, marges : tout attrape la carte. Le navigateur ne peut plus démarrer son propre
-glisser d'image, le texte ne se sélectionne pas, l'appui long n'ouvre pas le menu contextuel.
+Image, text, padding: everything grabs the card. The browser can no longer start its own image
+drag, text does not get selected, a long press does not open the context menu.
 
-**Les liens et les boutons restent cliquables** : un appui sans mouvement passe le clic, un
-mouvement de plus de six pixels prend la main pour le glisser et annule le clic qui aurait
-suivi. Les champs de saisie gardent la priorité tout de suite. Sans ça, une carte dont le
-lien couvre la moitié de la surface deviendrait impossible à trier.
+**Links and buttons stay clickable**: a press without movement passes the click through, a
+movement beyond six pixels takes over for the drag and cancels the click that would have
+followed. Form fields keep priority immediately. Without this, a card whose link covers half
+its surface would become impossible to sort.
 
-## Les animations disent quelque chose
+## The animations say something
 
-- **Effet « génie »** : la carte rangée est aspirée dans sa tuile, au clavier comme au doigt.
-  Une carte lancée hors écran ne dit pas où elle a atterri ; celle-ci si.
-- **Rétrécissement progressif** pendant le glisser : la carte « rentre » dans la zone visée
-  avant d'être lâchée.
-- **Dépilement** après un rangement, **rempilement par le dessus** après une annulation :
-  l'entrée dit d'où vient la carte.
-- **La tuile accuse réception** d'un petit rebond, à l'aller comme au retour.
+- **Genie effect**: the filed card is sucked into its tile, from the keyboard as from the
+  thumb. A card flung off-screen does not say where it landed; this one does.
+- **Progressive shrink** while dragging: the card "enters" the zone it is aimed at before
+  being released.
+- **Dealing down** after a filing, **stacking back from above** after an undo: the entrance
+  says where the card comes from.
+- **The tile acknowledges receipt** with a small bounce, on the way out and on the way back.
 
-Tout est désactivé sous `prefers-reduced-motion`.
+All of it is disabled under `prefers-reduced-motion`.
 
-## Plein écran
+## Fullscreen
 
-Le bouton *Agrandir* passe la zone de tri en modale plein écran ; `Échap` ou la croix en
-reviennent. Ce n'est volontairement pas l'API Fullscreen : elle rendrait la page inerte,
-couperait les liens des cartes et se comporte mal en iframe.
+The *Expand* button turns the sorting area into a fullscreen modal; `Esc` or the cross come
+back. Deliberately not the Fullscreen API: it would make the page inert, break the links
+inside cards, and behaves badly in an iframe.
 
 ```js
 deck.expand(true);
-deck.expanded; // état courant
+deck.expanded; // current state
 ```
 
-## Style
+## Styling
 
-Tout passe par des variables CSS sur `.tr` : `--tr-accent`, `--tr-card-bg`, `--tr-card-w`,
-`--tr-card-h`, `--tr-radius`, `--tr-line`. Les classes sont stables si tu préfères réécrire
-la feuille : `.tr`, `.tr-stage`, `.tr-zones`, `.tr-zone` (`.tr-near`, `.tr-armed`,
-`.tr-suggest`), `.tr-cards`, `.tr-card` (`.tr-behind`, `.tr-dragging`, `.tr-genie`),
-`.tr-bar`.
+Everything goes through CSS variables on `.tr`: `--tr-accent`, `--tr-multi`, `--tr-card-bg`,
+`--tr-card-w`, `--tr-card-h`, `--tr-radius`, `--tr-line`. The class names are stable if you
+would rather rewrite the stylesheet: `.tr`, `.tr-stage`, `.tr-zones`, `.tr-zone`
+(`.tr-near`, `.tr-armed`, `.tr-suggest`, `.tr-picked`), `.tr-cards`, `.tr-card`
+(`.tr-behind`, `.tr-dragging`, `.tr-genie`), `.tr-bar`.

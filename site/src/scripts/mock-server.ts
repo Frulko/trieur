@@ -1,9 +1,8 @@
-// Un serveur trieur simulé dans l'onglet.
+// A trieur server simulated inside the tab.
 //
-// Il implémente le même protocole que `@trieur/server` — mêmes routes, même déduplication
-// par identifiant d'événement — pour que la démo montre le vrai va-et-vient sans qu'il
-// faille héberger quoi que ce soit. Le vrai serveur, lui, ajoute ce qu'un onglet ne peut
-// pas faire : SQLite, le rejeu de l'historique et les embeddings.
+// It implements the same protocol as `@trieur/server` — same routes, same deduplication by
+// event id — so the demo can show the real back and forth without anything to host. The real
+// server adds what a tab cannot do: SQLite, replaying history, and embeddings.
 
 import { defaultModel, routes, type PushRequest, type SortEvent } from '@trieur/learn';
 
@@ -44,7 +43,7 @@ export function mockServer(): MockServer {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     await new Promise((r) => setTimeout(r, state.latency));
     if (state.offline) {
-      note('✗ réseau injoignable');
+      note('✗ network unreachable');
       throw new TypeError('Failed to fetch');
     }
 
@@ -62,13 +61,13 @@ export function mockServer(): MockServer {
         state.version++;
         accepted++;
       }
-      note(`↑ ${accepted} événement(s) acceptés${duplicates ? `, ${duplicates} doublon(s) ignorés` : ''}`);
+      note(`↑ ${accepted} event(s) accepted${duplicates ? `, ${duplicates} duplicate(s) ignored` : ''}`);
       return json({ accepted, duplicates, version: state.version });
     }
 
     if (url.pathname === routes.model('demo')) {
       const since = Number(url.searchParams.get('since') ?? 0);
-      note(`↓ modèle demandé (depuis v${since}) → v${state.version}`);
+      note(`↓ model requested (since v${since}) → v${state.version}`);
       return json({
         version: state.version,
         model: state.version > since ? model.toJSON() : null,
@@ -78,11 +77,11 @@ export function mockServer(): MockServer {
 
     if (url.pathname === routes.predict('demo')) {
       const body = JSON.parse(String(init?.body ?? '{}'));
-      note('? prédiction demandée au serveur (le local s’est tu)');
-      return json({ ranked: model.predict(body.features ?? [], body.targets ?? []), source: 'creux' });
+      note('? prediction asked of the server (the local model stayed silent)');
+      return json({ ranked: model.predict(body.features ?? [], body.targets ?? []), source: 'sparse' });
     }
 
-    return json({ error: 'route inconnue' });
+    return json({ error: 'unknown route' });
   }) as typeof fetch;
 
   return state;

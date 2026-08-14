@@ -1,21 +1,21 @@
-// Le contrat commun à tous les modèles.
+// The contract every model shares.
 //
-// Un modèle ne voit jamais un objet du domaine : il voit une liste de **traits creux**,
-// des chaînes `clé:valeur`. C'est ce qui permet de changer de modèle sans toucher au reste,
-// et de comparer deux modèles sur le même jeu de traits (cf. `tools/bench.ts`).
+// A model never sees a domain object: it sees a list of **sparse features**, `key:value`
+// strings. That is what lets you swap models without touching anything else, and compare two
+// models on the same features (see `bench.ts`).
 
-/** Un trait : une chaîne `clé:valeur`, par exemple `domain:github.com`. */
+/** A feature: a `key:value` string, for instance `domain:github.com`. */
 export type Feature = string;
 
-/** Une zone classée, avec les traits qui ont pesé. */
+/** A ranked zone, with the features that carried the decision. */
 export interface Ranked {
   id: string;
-  /** dans [0,1], somme 1 sur les zones demandées */
+  /** in [0,1], summing to 1 over the zones asked about */
   score: number;
   why: Feature[];
 }
 
-/** Même forme que `Prediction` de `@trieur/core` : les deux paquets restent indépendants. */
+/** Same shape as `Prediction` from `@trieur/core`: the two packages stay independent. */
 export type Prediction = Ranked;
 
 export interface ModelJSON {
@@ -25,22 +25,20 @@ export interface ModelJSON {
 }
 
 export interface Model {
-  /** identifiant du type de modèle, utilisé à la désérialisation */
+  /** model type identifier, used when deserialising */
   readonly kind: string;
-  /** nombre d'exemples appris (les annulations le font redescendre) */
+  /** number of examples learned (undos bring it back down) */
   readonly examples: number;
 
-  /**
-   * Apprend un rangement. `weight` négatif défait un exemple (annulation).
-   */
+  /** Learns one filing. A negative `weight` undoes an example. */
   learn(features: Feature[], target: string, weight?: number): void;
 
   /**
-   * Classe `targets` pour ces traits.
+   * Ranks `targets` for these features.
    *
-   * Renvoie `[]` pour dire « je ne sais pas » — trop peu d'exemples, ou aucun trait connu.
-   * **Ne rien proposer coûte moins cher que proposer au hasard** : une mauvaise
-   * proposition fait perdre confiance dans toutes les suivantes.
+   * Returns `[]` to mean "I do not know" — too few examples, or no recognised feature.
+   * **Saying nothing costs less than guessing**: a bad suggestion erodes trust in every
+   * suggestion that follows.
    */
   predict(features: Feature[], targets: string[]): Ranked[];
 
@@ -51,25 +49,25 @@ export interface Stats {
   examples: number;
   targets: number;
   vocab: number;
-  /** justesse top-1 mesurée en prédiction-puis-apprentissage (prequential) */
+  /** top-1 accuracy measured prequentially (test before learning) */
   accuracy: number;
-  /** justesse par membre, pour un ensemble */
+  /** per-member accuracy, for an ensemble */
   members?: Record<string, number>;
 }
 
-/** Un rangement tel que le deck le transmet (même forme que `SortRecord` de `@trieur/core`). */
+/** One filing, as the deck hands it over (same shape as `SortRecord` from `@trieur/core`). */
 export interface SortRecord<T = unknown> {
   item?: T;
   meta: unknown;
   zoneId: string;
   predicted?: string | null;
   at?: number;
-  /** texte brut de l'item, si on veut que le serveur en calcule un embedding */
+  /** raw text of the item, when the server should compute an embedding for it */
   text?: string;
 }
 
-/** Softmax d'un tableau de scores → distribution sommant à 1. Passe par le max pour éviter
- *  le débordement de `exp`. */
+/** Softmax of an array of scores → a distribution summing to 1. Goes through the max to
+ *  avoid `exp` overflowing. */
 export function softmax(scores: number[]): number[] {
   if (!scores.length) return [];
   const max = Math.max(...scores);

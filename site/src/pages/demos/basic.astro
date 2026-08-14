@@ -1,0 +1,73 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+
+const source = `import { Deck } from '@trieur/core';
+import '@trieur/core/trieur.css';
+
+new Deck(document.querySelector('#sorter'), {
+  items: links,
+  zones: [
+    { id: 'dev',  label: 'dev',  icon: '⌘' },
+    { id: 'ai',   label: 'ai',   icon: '◑' },
+    null,                                 // free zone: dropping calls onAssign
+    { id: 'home', label: 'home', icon: '⌂' },
+  ],
+  renderCard: (link, el) => { el.innerHTML = template(link); },
+  onSort:   (link, zone) => fetch('/file',   { method: 'POST', body: JSON.stringify({ link, zone }) }),
+  onUndo:   (link, zone) => fetch('/unfile', { method: 'POST', body: JSON.stringify({ link, zone }) }),
+  onAssign: (index)      => console.log('free zone', index),
+});`;
+---
+
+<Base title="Demo — the JavaScript API">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">The JavaScript API</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      The shortest path: a container, items, zones. <code>onSort</code> may be asynchronous and may fail — a rejection
+      puts the card back, the library never assumes the host accepted the filing. The fourth zone below is
+      <em>free</em>: dropping a card on it files nothing, it asks the host what to put there.
+    </p>
+
+    <div class="demo" style="margin-bottom:26px"><div id="sorter"></div></div>
+    <p id="log" style="font-family:var(--mono);font-size:13px;color:var(--dim);min-height:1.6em"></p>
+
+    <pre style="margin-top:26px"><code>{source}</code></pre>
+  </section>
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { shuffled } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+
+  const log = document.querySelector<HTMLElement>('#log')!;
+
+  const deck = new Deck(document.querySelector<HTMLElement>('#sorter')!, {
+    items: shuffled(3).slice(0, 20),
+    zones: [
+      { id: 'dev', label: 'dev', icon: '⌘', color: '#4a54f2' },
+      { id: 'ai', label: 'ai', icon: '◑', color: '#8b5cf6' },
+      null,
+      { id: 'home', label: 'home', icon: '⌂', color: '#f59e0b' },
+      { id: 'to read', label: 'to read', icon: '▤', color: '#64748b' },
+    ],
+    renderCard,
+    onSort: (link, zone) => {
+      log.textContent = `onSort → “${link.title}” into ${zone.id}`;
+    },
+    onUndo: (link) => {
+      log.textContent = `onUndo → “${link.title}” comes back`;
+    },
+    onAssign: (index) => {
+      log.textContent = `onAssign → free zone #${index}: the host decides what goes there`;
+    },
+    onSkip: () => {
+      log.textContent = 'onSkip → the card goes to the back of the pile';
+    },
+  });
+
+  deck.focus();
+</script>

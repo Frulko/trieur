@@ -1,27 +1,27 @@
-// Barreau 4 : les embeddings.
+// Rung 4: embeddings.
 //
-// C'est le seul barreau qui ne peut pas vivre dans le navigateur — il demande soit un
-// modèle embarqué de plusieurs dizaines de mégaoctets, soit un appel réseau. C'est aussi
-// pour ça que le mode complet existe : le serveur fait ce que la page ne peut pas faire.
+// This is the one rung that cannot live in the browser — it needs either an embedded model of
+// several tens of megabytes, or a network call. It is also why full mode exists: the server
+// does what the page cannot.
 //
-// Ce qu'il apporte que les traits creux n'apportent pas : « hooks » et « composants » sont
-// deux traits sans rapport pour Bayes, le kNN creux ou le linéaire — ils ne se rencontrent
-// jamais dans le même document. Dans l'espace des embeddings ils sont voisins. C'est le
-// seul barreau qui rapproche deux cartes qui ne partagent **aucun mot**.
+// What it brings that sparse features do not: "hooks" and "components" are two unrelated
+// features to Bayes, to sparse kNN and to the linear model — they never meet in the same
+// document. In embedding space they are neighbours. **It is the only rung that brings two
+// cards sharing no word closer together.**
 //
-// Ce qu'il coûte : un appel par carte (mis en cache), une latence réseau, et une
-// dépendance à un fournisseur. D'où la place qu'on lui donne — un expert de plus, pondéré
-// par sa justesse mesurée comme les autres, jamais un remplaçant.
+// What it costs: one call per card (cached), network latency, and a dependency on a provider.
+// Hence the place we give it — one more expert, weighted by its measured accuracy like the
+// others, never a replacement.
 
 import type { Ranked, Tally } from '@trieur/learn';
 import type { Database } from 'bun:sqlite';
 
 export interface EmbedConfig {
-  /** racine d'une API compatible OpenAI, ex. `https://api.openai.com/v1` */
+  /** root of an OpenAI-compatible API, e.g. `https://api.openai.com/v1` */
   url?: string | undefined;
   model?: string | undefined;
   key?: string | undefined;
-  /** nombre de voisins retenus */
+  /** number of neighbours kept */
   k?: number;
   timeout?: number;
 }
@@ -47,7 +47,7 @@ export class Embedder {
     return Boolean(this.url && this.model);
   }
 
-  /** Vecteurs normalisés (norme 1) : la similarité cosinus devient un simple produit scalaire. */
+  /** Normalised vectors (norm 1): cosine similarity becomes a plain dot product. */
   async embed(texts: string[]): Promise<Float32Array[] | null> {
     if (!this.enabled || !texts.length) return null;
     try {
@@ -81,11 +81,11 @@ function normalize(v: Float32Array): Float32Array {
 }
 
 /**
- * kNN dans l'espace des embeddings, adossé à la table `vectors`.
+ * kNN in embedding space, backed by the `vectors` table.
  *
- * ponytail: comparaison exhaustive en mémoire. À quelques dizaines de milliers de cartes
- * c'est quelques millisecondes ; au-delà, la marche suivante est un index approché (HNSW)
- * ou une extension vectorielle SQLite — sans rien changer à l'interface d'ici.
+ * ponytail: exhaustive in-memory comparison. At a few tens of thousands of cards that is a few
+ * milliseconds; beyond that the next step is an approximate index (HNSW) or a SQLite vector
+ * extension — without changing this interface.
  */
 export class VectorIndex {
   #cache = new Map<string, { vec: Float32Array; target: string }[]>();
@@ -100,12 +100,12 @@ export class VectorIndex {
   }
 
   /**
-   * Ajoute des cartes à l'index. Un texte déjà vu n'est pas ré-embarqué.
+   * Adds cards to the index. A text already seen is not re-embedded.
    *
-   * Chaque carte est d'abord **classée par l'index tel qu'il est**, puis ajoutée : la
-   * justesse renvoyée est donc mesurée sur des cartes jamais vues, exactement comme pour
-   * les modèles creux. C'est elle qui donne son poids aux embeddings dans le mélange —
-   * gratuitement, puisque le vecteur de la carte vient d'être calculé de toute façon.
+   * Every card is first classified by the index **as it stands**, then added: the accuracy
+   * returned is therefore measured on cards never seen, exactly like the sparse models. That
+   * is what gives embeddings their weight in the blend — for free, since the card's vector has
+   * just been computed anyway.
    */
   async ingest(deck: string, cards: Array<{ text: string; target: string }>): Promise<{ added: number } & Tally> {
     const none = { added: 0, hits: 0, seen: 0 };
@@ -138,13 +138,13 @@ export class VectorIndex {
           if (guess === c.target) hits++;
         }
         insert.run(deck, h, c.target, Buffer.from(vec.buffer), now);
-        rows.push({ vec, target: c.target }); // l'index grandit au fil des cartes
+        rows.push({ vec, target: c.target }); // the index grows card by card
       });
     })();
     return { added: entries.length, hits, seen };
   }
 
-  /** Zone du plus proche voisin, ou null si l'index est vide. */
+  /** Zone of the nearest neighbour, or null when the index is empty. */
   #top(rows: Array<{ vec: Float32Array; target: string }>, q: Float32Array): string | null {
     let best: string | null = null;
     let bestSim = 0;
@@ -187,7 +187,7 @@ export class VectorIndex {
     const sum = [...score.values()].reduce((a, b) => a + b, 0);
     if (!sum) return [];
     return targets
-      .map((id) => ({ id, score: (score.get(id) ?? 0) / sum, why: score.has(id) ? ['≈ voisins sémantiques'] : [] }))
+      .map((id) => ({ id, score: (score.get(id) ?? 0) / sum, why: score.has(id) ? ['≈ semantic neighbours'] : [] }))
       .sort((a, b) => b.score - a.score);
   }
 

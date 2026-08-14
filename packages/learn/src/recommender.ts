@@ -1,21 +1,20 @@
-// Ce qu'une app branche : un recommandeur.
+// What an app plugs in: a recommender.
 //
-// C'est la seule chose qu'un hôte manipule. Il expose exactement ce que `@trieur/core`
-// attend d'un `Advisor` — donc `deck.options.advisor = recommender` suffit — plus de quoi
-// afficher un état (`stats`) et de quoi ne rien perdre à la fermeture (`flush`).
+// It is the only object a host handles. It exposes exactly what `@trieur/core` expects from
+// an `Advisor` — so `deck.setOptions({ advisor: recommender })` is enough — plus what it takes
+// to display a state (`stats`) and to lose nothing on close (`flush`).
 //
-// Deux modes, une interface :
+// Two modes, one interface:
 //
-// - **léger** : tout est local, modèle dans IndexedDB. Aucun serveur, aucune donnée qui
-//   sort. C'est le mode par défaut, et pour beaucoup d'apps c'est le seul nécessaire.
-// - **complet** : le mode léger *plus* un serveur. Le local continue de répondre — il est
-//   instantané et fonctionne hors ligne — le serveur reçoit les événements, entraîne ce
-//   qu'un navigateur ne peut pas entraîner (embeddings, corpus complet, plusieurs
-//   appareils) et sert de démarrage à chaud sur une nouvelle machine.
+// - **light**: everything local, model in IndexedDB. No server, no data leaving the browser.
+//   It is the default, and for many apps it is all that is ever needed.
+// - **full**: the light mode *plus* a server. The local model still answers — it is instant
+//   and works offline — while the server receives the events, trains what a browser cannot
+//   (embeddings, the full corpus, several devices) and warm-starts a new machine.
 //
-// **Règle qui ne se négocie pas : la prédiction ne bloque jamais le geste.** La carte est
-// déjà sous le doigt. Le local répond tout de suite ; le serveur n'est consulté que
-// lorsque le local n'a rien à dire, et avec un délai maximum court.
+// **One rule that is not negotiable: the prediction never blocks the gesture.** The card is
+// already under the finger. The local model answers immediately; the server is only consulted
+// when the local one has nothing to say, and with a short deadline.
 
 import type { Extractor } from './features.js';
 import { defaultFeatures } from './features.js';
@@ -26,23 +25,23 @@ import { autoStore, type Store } from './store.js';
 import type { Model, ModelJSON, Prediction, Ranked, SortRecord, Stats } from './types.js';
 
 export interface Recommender {
-  /** la meilleure zone si elle se détache, sinon `null` */
+  /** the best zone if it stands out, otherwise `null` */
   best(meta: unknown, targets: string[], minScore?: number): Promise<Prediction | null>;
-  /** le classement complet */
+  /** the full ranking */
   suggest(meta: unknown, targets: string[]): Promise<Ranked[]>;
-  /** un rangement vient d'avoir lieu */
+  /** a filing just happened */
   record(r: SortRecord): Promise<void>;
-  /** ce rangement est annulé */
+  /** that filing is being undone */
   forget(r: SortRecord): Promise<void>;
   stats(): Promise<Stats>;
-  /** écrit tout ce qui est en attente (à appeler avant de fermer la page) */
+  /** writes whatever is pending (call before closing the page) */
   flush(): Promise<void>;
-  /** écrit, puis retire les écouteurs — à appeler si on remplace le recommandeur */
+  /** writes, then removes the listeners — call when replacing the recommender */
   destroy(): Promise<void>;
 }
 
-/** Écouteur de fenêtre qui sait se retirer. Sans ça, remplacer un recommandeur en laisse
- *  un derrière lui à chaque fois — invisible, jusqu'à ce qu'ils soient cent. */
+/** A window listener that knows how to remove itself. Without this, replacing a recommender
+ *  leaves one behind every time — invisible, until there are a hundred. */
 function listen(event: string, fn: () => void): () => void {
   if (typeof addEventListener !== 'function') return () => {};
   addEventListener(event, fn);
@@ -50,20 +49,20 @@ function listen(event: string, fn: () => void): () => void {
 }
 
 export interface LocalOptions {
-  /** clé de stockage — un modèle par jeu de cartes */
+  /** storage key — one model per deck */
   key?: string;
   model?: Model;
   features?: Extractor;
   store?: Store;
-  /** score minimum pour proposer quelque chose */
+  /** minimum score to suggest anything */
   minConfidence?: number;
-  /** délai avant sauvegarde, en ms : on ne réécrit pas le modèle à chaque carte */
+  /** delay before saving, in ms: the model is not rewritten on every card */
   saveDelay?: number;
 }
 
 const MIN_CONFIDENCE = 0.45;
 
-/** Mode léger : modèle local, aucune sortie réseau. */
+/** Light mode: local model, nothing goes over the network. */
 export class LocalRecommender implements Recommender {
   model: Model;
   readonly features: Extractor;
@@ -85,7 +84,7 @@ export class LocalRecommender implements Recommender {
     this.minConfidence = opts.minConfidence ?? MIN_CONFIDENCE;
     this.saveDelay = opts.saveDelay ?? 800;
     this.#ready = this.#load();
-    // fermer l'onglet ne doit pas coûter les derniers rangements
+    // closing the tab must not cost the last few filings
     this.#detach.push(listen('pagehide', () => void this.flush()));
   }
 
@@ -95,7 +94,7 @@ export class LocalRecommender implements Recommender {
     await this.flush();
   }
 
-  /** Résolue quand le modèle stocké a fini d'être relu. */
+  /** Resolves once the stored model has been read back. */
   ready(): Promise<void> {
     return this.#ready;
   }
@@ -105,8 +104,8 @@ export class LocalRecommender implements Recommender {
       const saved = await this.store.load<ModelJSON>(this.key);
       if (saved) this.model = modelFromJSON(saved);
     } catch {
-      // stockage indisponible ou modèle illisible : on repart d'un modèle neuf plutôt que
-      // de refuser de démarrer
+      // storage unavailable or model unreadable: start from a fresh model rather than
+      // refusing to run
     }
   }
 
@@ -162,21 +161,21 @@ export class LocalRecommender implements Recommender {
 
 export interface HybridOptions extends LocalOptions {
   server: Omit<ClientOptions, 'deck'> & { deck?: string };
-  /** identifiant du jeu de cartes côté serveur (défaut : `key`) */
+  /** deck identifier server-side (defaults to `key`) */
   deck?: string;
-  /** nombre d'événements avant envoi immédiat */
+  /** number of events before an immediate push */
   batch?: number;
-  /** délai d'envoi, en ms */
+  /** push delay, in ms */
   pushDelay?: number;
-  /** temps maximum accordé au serveur pour une prédiction, en ms */
+  /** maximum time granted to the server for a prediction, in ms */
   remoteTimeout?: number;
 }
 
 /**
- * Mode complet : le local plus un serveur.
+ * Full mode: the local model plus a server.
  *
- * La file d'événements est **persistée** : un tri fait hors ligne part au retour du
- * réseau, et chaque événement porte un id, donc un renvoi n'apprend rien deux fois.
+ * The event queue is **persisted**: a sorting session done offline leaves when the network
+ * comes back, and since every event carries an id, resending learns nothing twice.
  */
 export class HybridRecommender implements Recommender {
   readonly local: LocalRecommender;
@@ -225,12 +224,12 @@ export class HybridRecommender implements Recommender {
   }
 
   /**
-   * Démarrage à chaud : on récupère le modèle du serveur **uniquement si le local en sait
-   * moins**. C'est le cas d'un nouvel appareil, ou d'un premier lancement.
+   * Warm start: the server model is pulled **only if the local one knows less**. That is the
+   * case of a new device, or a first launch.
    *
-   * ponytail: remplacement, pas fusion. Fusionner deux modèles en ligne divergents demande
-   * de rejouer les événements des deux côtés ; le jour où deux appareils trient vraiment en
-   * parallèle, la bonne réponse est de faire rejouer le serveur et de tirer son modèle.
+   * ponytail: replacement, not merge. Merging two diverging online models means replaying both
+   * sides' events; the day two devices really sort in parallel, the right answer is to have
+   * the server replay and pull its model.
    */
   async warm(): Promise<boolean> {
     try {
@@ -240,7 +239,7 @@ export class HybridRecommender implements Recommender {
         return true;
       }
     } catch {
-      // hors ligne, serveur absent, token invalide : le mode léger suffit à travailler
+      // offline, no server, bad token: light mode is enough to keep working
     }
     return false;
   }
@@ -252,9 +251,9 @@ export class HybridRecommender implements Recommender {
   }
 
   /**
-   * Le local d'abord. Le serveur n'est appelé que si le local se tait — typiquement les
-   * premières cartes, ou une carte dont aucun trait n'est connu. C'est exactement là que
-   * les embeddings servent, et le seul moment où attendre le réseau se justifie.
+   * Local first. The server is only called when the local model stays silent — typically the
+   * first few cards, or a card with no recognised feature. That is exactly where embeddings
+   * help, and the only moment when waiting on the network is justified.
    */
   async best(meta: unknown, targets: string[], minScore?: number): Promise<Prediction | null> {
     const local = await this.local.best(meta, targets, minScore);
@@ -271,7 +270,7 @@ export class HybridRecommender implements Recommender {
         this.remoteTimeout,
       );
     } catch {
-      return null; // le serveur est un bonus, jamais une dépendance du geste
+      return null; // the server is a bonus, never a dependency of the gesture
     }
   }
 
@@ -304,7 +303,7 @@ export class HybridRecommender implements Recommender {
     return this.local.stats();
   }
 
-  /** Stats du serveur, qui voit tous les appareils. `null` s'il est injoignable. */
+  /** Server-side stats, across every device. `null` when unreachable. */
   async serverStats(): Promise<Stats | null> {
     return this.client.stats().catch(() => null);
   }
@@ -313,7 +312,7 @@ export class HybridRecommender implements Recommender {
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = null;
     await this.local.flush();
-    if (this.#sending) return this.#sending; // un seul envoi à la fois, sinon on double
+    if (this.#sending) return this.#sending; // one push at a time, otherwise we double up
     if (!this.#queue.length) return;
     this.#sending = this.#send().finally(() => (this.#sending = null));
     return this.#sending;
@@ -326,9 +325,9 @@ export class HybridRecommender implements Recommender {
       const sent = new Set(batch.map((e) => e.id));
       this.#queue = this.#queue.filter((e) => !sent.has(e.id));
       await this.#persistQueue();
-      if (this.#queue.length) await this.#send(); // il en reste : on continue
+      if (this.#queue.length) await this.#send(); // more left: keep going
     } catch {
-      // échec réseau : la file reste sur le disque et repartira au prochain flush
+      // network failure: the queue stays on disk and will leave on the next flush
       await this.#persistQueue();
     }
   }
@@ -337,13 +336,13 @@ export class HybridRecommender implements Recommender {
     await this.local.store.save(this.#queueKey, this.#queue).catch(() => {});
   }
 
-  /** Nombre d'événements pas encore acceptés par le serveur. */
+  /** Number of events not yet accepted by the server. */
   get pending(): number {
     return this.#queue.length;
   }
 }
 
-/** Texte brut d'une métadonnée, pour les embeddings côté serveur. */
+/** Raw text of a metadata object, for server-side embeddings. */
 function metaText(meta: unknown): string | undefined {
   if (typeof meta === 'string') return meta;
   if (!meta || typeof meta !== 'object') return undefined;
@@ -353,7 +352,7 @@ function metaText(meta: unknown): string | undefined {
 }
 
 export interface RecommenderConfig extends LocalOptions {
-  /** absent = mode léger ; présent = mode complet */
+  /** absent = light mode; present = full mode */
   server?: HybridOptions['server'];
   deck?: string;
   batch?: number;
@@ -362,15 +361,15 @@ export interface RecommenderConfig extends LocalOptions {
 }
 
 /**
- * Le point d'entrée d'une app.
+ * An app's entry point.
  *
  * ```js
- * const brain = createRecommender({ key: 'liens' });                       // léger
- * const brain = createRecommender({ key: 'liens', server: { url, token } }); // complet
+ * const brain = createRecommender({ key: 'links' });                        // light
+ * const brain = createRecommender({ key: 'links', server: { url, token } }); // full
  * deck.setOptions({ advisor: brain });
  * ```
  *
- * Passer du léger au complet, c'est ajouter `server` — rien d'autre ne change dans l'app.
+ * Going from light to full means adding `server` — nothing else changes in the app.
  */
 export function createRecommender(config: RecommenderConfig = {}): Recommender {
   return config.server ? new HybridRecommender(config as HybridOptions) : new LocalRecommender(config);

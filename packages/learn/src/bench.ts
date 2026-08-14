@@ -1,17 +1,16 @@
-// Mesurer, plutôt que croire.
+// Measuring, rather than believing.
 //
-// Protocole : **prequential**, autrement dit tester-puis-apprendre. Chaque carte est
-// d'abord soumise au modèle, qui ne l'a jamais vue ; on note s'il avait raison ; ensuite
-// seulement il l'apprend. Aucune séparation train/test à bricoler, aucune fuite possible,
-// et le chiffre obtenu est exactement ce que vit l'utilisateur : la justesse d'un modèle
-// qui découvre le corpus au fil de l'eau.
+// Protocol: **prequential**, that is, test-then-learn. Every card is first shown to the model,
+// which has never seen it; we note whether it was right; only then does it learn. No
+// train/test split to rig, no leakage possible, and the number you get is exactly what the
+// user experiences: the accuracy of a model discovering the corpus as it goes.
 //
-// Les zones proposées sont celles **déjà rencontrées** — on ne demande pas au modèle de
-// deviner un dossier qui n'existe pas encore.
+// The zones offered are the ones **already encountered** — we do not ask the model to guess a
+// folder that does not exist yet.
 //
-// C'est exporté (`@trieur/learn/bench`) et pas seulement dans un script : le jour où tu
-// hésites entre deux extracteurs de traits, la réponse doit venir de ton corpus, pas d'un
-// tableau dans un README.
+// This is exported (`@trieur/learn/bench`) rather than buried in a script: the day you
+// hesitate between two feature extractors, the answer should come from your corpus, not from
+// a table in a README.
 
 import { crosses, tokens, type Extractor } from './features.js';
 import type { Model } from './types.js';
@@ -23,18 +22,18 @@ export interface Card {
 
 export interface Run {
   name: string;
-  /** justesse de la première proposition */
+  /** accuracy of the first suggestion */
   top1: number;
-  /** la bonne zone est dans les trois premières */
+  /** the right zone is among the first three */
   top3: number;
-  /** proportion de cartes où le modèle a préféré se taire */
+  /** share of cards where the model chose to stay silent */
   silent: number;
   vocab: number;
   ms: number;
   asked: number;
 }
 
-/** L'extracteur avec croisements, celui de `defaultFeatures`. */
+/** The extractor with crosses, the one behind `defaultFeatures`. */
 export const crossed: Extractor = (meta) =>
   crosses([
     ['domain', 'tag'],
@@ -52,7 +51,7 @@ export function evaluate(name: string, model: Model, extract: Extractor, cards: 
 
   for (const card of cards) {
     const features = extract(card.meta);
-    // on ne juge le modèle que lorsqu'il a au moins deux zones où se tromper
+    // the model is only judged once it has at least two zones to get wrong
     if (seen.size > 1) {
       asked++;
       const ranked = model.predict(features, [...seen]);
@@ -77,19 +76,18 @@ export function evaluate(name: string, model: Model, extract: Extractor, cards: 
   };
 }
 
-// --- corpus synthétique -------------------------------------------------------
+// --- synthetic corpus ---------------------------------------------------------
 //
-// Fabriqué pour ressembler à un vrai flux de rangement, avec les trois régimes qu'on
-// rencontre : des domaines qui partent toujours au même endroit (signal marginal), des
-// couples domaine × tag qui décident sans que rien ne le laisse deviner trait par trait
-// (interaction), et un tirage sur dix qui part ailleurs (bruit). Sans le régime
-// d'interaction, tous les modèles se valent et le banc ne prouve rien.
+// Built to look like a real filing stream, with the three regimes you meet in practice: some
+// domains always go to the same place (marginal signal), some domain × tag pairs decide with
+// nothing to hint at it feature by feature (interaction), and one draw in ten goes elsewhere
+// (noise). Without the interaction regime every model ties and the bench proves nothing.
 
 export interface SynthCard extends Card {
   meta: { domain: string; tag: string[]; title: string };
 }
 
-/** PRNG déterministe : deux exécutions donnent le même corpus, donc des chiffres comparables. */
+/** Deterministic PRNG: two runs give the same corpus, hence comparable numbers. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -101,9 +99,9 @@ export function mulberry32(seed: number): () => number {
 }
 
 const DOMAINS = ['github.com', 'x.com', 'youtube.com', 'medium.com', 'reddit.com', 'arxiv.org'];
-const TAGS = ['rust', 'js', 'css', 'ml', 'cuisine', 'photo', 'diy', 'finance', 'jeux', 'vélo', 'jardin', 'droit'];
-const ZONES = ['dev', 'ia', 'design', 'perso', 'maison', 'veille', 'à-lire', 'archive'];
-const WORDS = 'guide tutoriel retour outil rapide comparatif introduction avancé pratique note fiche méthode astuce panorama'.split(' ');
+const TAGS = ['rust', 'js', 'css', 'ml', 'cooking', 'photo', 'diy', 'finance', 'games', 'cycling', 'garden', 'law'];
+const ZONES = ['dev', 'ai', 'design', 'personal', 'home', 'watch', 'to-read', 'archive'];
+const WORDS = 'guide tutorial takeaways tool quick comparison introduction advanced practical note sheet method tip overview'.split(' ');
 
 export function synth(n = 2000, seed = 7): SynthCard[] {
   const rnd = mulberry32(seed);
@@ -112,8 +110,8 @@ export function synth(n = 2000, seed = 7): SynthCard[] {
   const table = new Map<string, string>();
   for (const d of DOMAINS) for (const t of TAGS) table.set(`${d}|${t}`, pick(ZONES));
   const marginal = new Map<string, string>([
-    ['arxiv.org', 'ia'],
-    ['reddit.com', 'veille'],
+    ['arxiv.org', 'ai'],
+    ['reddit.com', 'watch'],
   ]);
 
   return Array.from({ length: n }, () => {
@@ -121,8 +119,8 @@ export function synth(n = 2000, seed = 7): SynthCard[] {
     const tag = pick(TAGS);
     const truth = marginal.get(domain) ?? table.get(`${domain}|${tag}`)!;
     const target = rnd() < 0.1 ? pick(ZONES) : truth;
-    // le titre parle du sujet, jamais de la zone : y glisser la réponse rendrait le banc
-    // flatteur et inutile
+    // the title talks about the subject, never about the zone: slipping the answer in there
+    // would make the bench flattering and useless
     const title = [tag, ...Array.from({ length: 4 }, () => pick(WORDS))].join(' ');
     return { meta: { domain, tag: [tag, pick(TAGS)], title }, target };
   });

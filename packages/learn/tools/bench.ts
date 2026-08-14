@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
 //
-// Le banc d'essai en ligne de commande. Tout le calcul vit dans `src/bench.ts` (exporté
-// sous `@trieur/learn/bench`) : ici il n'y a que la lecture du fichier et le tableau.
+// The bench, as a command line. All the computation lives in `src/bench.ts` (exported as
+// `@trieur/learn/bench`); this file only reads the corpus and prints the table.
 //
-//   bun tools/bench.ts                     # corpus synthétique
-//   bun tools/bench.ts corpus.jsonl        # ton corpus : {"meta": {...}, "target": "…"}
-//   bun tools/bench.ts corpus.jsonl 500    # les 500 premières cartes
+//   bun tools/bench.ts                     # synthetic corpus
+//   bun tools/bench.ts corpus.jsonl        # yours: {"meta": {...}, "target": "…"}
+//   bun tools/bench.ts corpus.jsonl 500    # the first 500 cards
 
 import { readFileSync } from 'node:fs';
-import { crossed, evaluate, synth, type Card, type Run } from '../src/bench.js';
 import { Bayes } from '../src/bayes.js';
+import { crossed, evaluate, synth, type Card, type Run } from '../src/bench.js';
 import { Ensemble } from '../src/ensemble.js';
 import { tokens, type Extractor } from '../src/features.js';
 import { Knn } from '../src/knn.js';
@@ -30,23 +30,23 @@ const pct = (x: number) => `${(x * 100).toFixed(1)} %`.padStart(7);
 
 const [, , path, limitArg] = process.argv;
 const cards = load(path, Number(limitArg ?? 0));
-console.log(`\n${cards.length} cartes, ${new Set(cards.map((c) => c.target)).size} zones — ${path ?? 'corpus synthétique'}\n`);
+console.log(`\n${cards.length} cards, ${new Set(cards.map((c) => c.target)).size} zones — ${path ?? 'synthetic corpus'}\n`);
 
 const suites: Array<[string, () => Model, Extractor]> = [
   ['bayes', () => new Bayes(), tokens],
-  ['bayes + croisés', () => new Bayes(), crossed],
-  ['linéaire', () => new Linear(), tokens],
-  ['linéaire + croisés', () => new Linear(), crossed],
-  ['kNN', () => new Knn(), tokens],
-  ['kNN + croisés', () => new Knn(), crossed],
+  ['bayes + crosses', () => new Bayes(), crossed],
+  ['linear', () => new Linear(), tokens],
+  ['linear + crosses', () => new Linear(), crossed],
+  ['knn', () => new Knn(), tokens],
+  ['knn + crosses', () => new Knn(), crossed],
   ['ensemble', () => new Ensemble([new Bayes(), new Linear(), new Knn()]), tokens],
-  ['ensemble + croisés', () => new Ensemble([new Bayes(), new Linear(), new Knn()]), crossed],
+  ['ensemble + crosses', () => new Ensemble([new Bayes(), new Linear(), new Knn()]), crossed],
 ];
 
 const runs: Run[] = suites.map(([name, make, extract]) => evaluate(name, make(), extract, cards));
 const best = Math.max(...runs.map((r) => r.top1));
 
-console.log('modèle                 top-1     top-3     muet    vocab      ms');
+console.log('model                  top-1     top-3   silent    vocab      ms');
 console.log('─'.repeat(68));
 for (const r of runs) {
   console.log(

@@ -1,17 +1,24 @@
 ---
+import { url } from '../lib/url';
+
 const here = Astro.url.pathname.replace(/\/$/, '');
 const tabs = [
-  { href: '/demos/base', label: 'En JavaScript' },
-  { href: '/demos/markup', label: 'En markup' },
-  { href: '/demos/modele', label: 'Le modèle' },
-  { href: '/demos/serveur', label: 'Léger vs complet' },
+  { href: '/demos/basic/', label: 'JavaScript API' },
+  { href: '/demos/markup/', label: 'Markup API' },
+  { href: '/demos/multi/', label: 'Several zones' },
+  { href: '/demos/model/', label: 'The model' },
+  { href: '/demos/server/', label: 'Light vs full' },
 ];
 ---
 
 <nav style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 26px">
   {
     tabs.map((t) => (
-      <a class="btn" href={t.href} style={here === t.href ? 'border-color:var(--accent);color:var(--accent)' : ''}>
+      <a
+        class="btn"
+        href={url(t.href)}
+        style={here === url(t.href).replace(/\/$/, '') ? 'border-color:var(--accent);color:var(--accent)' : ''}
+      >
         {t.label}
       </a>
     ))

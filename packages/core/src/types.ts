@@ -1,63 +1,65 @@
-// Types publics du deck. Rien du domaine : un item est un objet opaque, une zone une
-// étiquette opaque. Tout ce qui sait de quoi on parle vit chez l'appelant.
+// Public types for the deck.
+//
+// Nothing from any domain: an item is an opaque object, a zone an opaque label. Everything
+// that knows what is being sorted lives in the host application.
 
 export type Point = { x: number; y: number };
 export type Polygon = Array<[number, number]>;
 
-/** Une zone : un emplacement fixe de la scène, avec sa touche. */
+/** A zone: a fixed spot on the stage, with its key. */
 export interface Zone {
   id: string;
   label?: string;
-  /** touche clavier ; à défaut, attribuée par position */
+  /** keyboard key; assigned by position when absent */
   key?: string;
   color?: string;
   icon?: string;
   image?: string;
 }
 
-/** Une zone une fois placée sur la scène par le deck. */
+/** A zone once the deck has placed it on the stage. */
 export interface PlacedZone extends Zone {
   index: number;
-  /** zone libre : rien n'y est encore attribué, le dépôt appelle `onAssign` */
+  /** free zone: nothing is assigned to it yet, dropping calls `onAssign` */
   empty: boolean;
   key: string;
   angle: number;
   pos: Point;
-  /** région de la scène possédée par la zone (Voronoï) ; null si `segments: false` */
+  /** the slice of stage this zone owns (Voronoi); null when `segments: false` */
   cell: Polygon | null;
 }
 
 export interface LayoutBox {
   w: number;
   h: number;
-  /** rayon à dégager au centre pour que les zones ne passent pas sous la carte */
+  /** radius to keep clear at the centre so zones do not sit under the card */
   clear: number;
 }
 
-/** Une disposition place N zones autour du centre, en pixels. */
+/** A layout places N zones around the centre, in pixels. */
 export type Layout = (n: number, box: LayoutBox) => Point[];
 
-/** Une zone proposée par un modèle, avec les traits qui ont pesé. */
+/** A zone the model suggests, with the features that carried the decision. */
 export interface Prediction {
   id: string;
   score: number;
   why: string[];
 }
 
-/** Un rangement, tel qu'il est transmis au modèle. */
+/** One filing, as handed to the model. A card filed into three zones sends three of these. */
 export interface SortRecord<T = unknown> {
   item: T;
   meta: unknown;
   zoneId: string;
-  /** ce que le modèle avait proposé — sert à mesurer sa justesse */
+  /** what the model had suggested — used to measure how right it was */
   predicted?: string | null;
   at: number;
 }
 
 /**
- * Ce que le deck attend d'un modèle. `@trieur/learn` en fournit un, mais n'importe quoi
- * qui répond à `best()` fait l'affaire — y compris un appel réseau : le deck accepte une
- * promesse et ignore la réponse si la carte a changé entre-temps.
+ * What the deck expects from a model. `@trieur/learn` provides one, but anything answering
+ * `best()` will do — including a network call: the deck accepts a promise and drops the
+ * answer if the card changed in the meantime.
  */
 export interface Advisor<T = unknown> {
   best(meta: unknown, zoneIds: string[], minScore?: number): Prediction | null | Promise<Prediction | null>;
@@ -65,7 +67,7 @@ export interface Advisor<T = unknown> {
   forget?(r: SortRecord<T>): unknown;
 }
 
-/** Libellés de l'interface. `fr` par défaut, `en` fourni, ou les tiens. */
+/** Interface labels. English by default, `fr` provided, or bring your own. */
 export interface DeckText {
   empty: string;
   skip: string;
@@ -73,45 +75,61 @@ export interface DeckText {
   expand: string;
   close: string;
   free: string;
+  /** label of the multi-zone toggle */
+  multi: string;
   count: (n: number) => string;
+  /** label of the toggle once zones are picked */
+  sortMany: (n: number) => string;
 }
 
 export interface DeckOptions<T = any> {
-  /** pile à trier ; le premier élément est la carte du dessus */
+  /** the pile to sort; the first element is the top card */
   items?: T[];
-  /** zones ; `null` = zone libre */
+  /** zones; `null` means a free zone */
   zones?: Array<Zone | null>;
-  /** dessine la carte (obligatoire en pratique) */
+  /** draws the card (required in practice) */
   renderCard?: (item: T, el: HTMLElement) => void;
-  /** dessine une zone ; par défaut une tuile façon dossier */
+  /** draws a zone; a Finder-style folder tile by default */
   renderZone?: (zone: PlacedZone, el: HTMLElement) => void;
-  /** métadonnées passées au modèle ; par défaut l'item lui-même */
+  /** metadata handed to the model; the item itself by default */
   meta?: (item: T) => unknown;
   advisor?: Advisor<T>;
-  /** score minimum pour qu'une zone soit proposée */
+  /** minimum score for a zone to be suggested */
   minConfidence?: number;
   layout?: Layout | 'circle' | 'voronoi' | 'grid';
-  /** découpe la scène en régions et vise à la région plutôt qu'à l'angle */
+  /** carve the stage into regions and aim at the region rather than at an angle */
   segments?: boolean;
-  /** touches attribuées aux zones, dans l'ordre */
+  /** keys handed to zones, in order */
   keys?: string;
-  /** distance de glisser au-delà de laquelle le dépôt est armé, en px */
+  /** drag distance past which the drop is armed, in px */
   threshold?: number;
+  /**
+   * Allow a card to be filed into several zones at once. Off by default: it only makes
+   * sense when zones are not mutually exclusive (folders, tags), and the host is the only
+   * one who knows that.
+   */
+  multi?: boolean;
   text?: Partial<DeckText>;
   onSort?: (item: T, zone: PlacedZone) => unknown;
+  /** files one card into several zones at once; see `multi` */
+  onSortMany?: (item: T, zones: PlacedZone[]) => unknown;
   onUndo?: (item: T, zone: PlacedZone) => unknown;
+  onUndoMany?: (item: T, zones: PlacedZone[]) => unknown;
   onSkip?: (item: T) => unknown;
   onAssign?: (index: number, item: T) => unknown;
   onEmpty?: () => unknown;
 }
 
-/** `detail` des événements `trieur:*`. */
+/** `detail` of the `trieur:*` events. */
 export interface DeckEventMap<T = unknown> {
-  sort: { item: T; zone: PlacedZone; predicted: string | null; correct: boolean };
-  undo: { item: T; zone: PlacedZone };
+  /** `zone` is the primary (first) zone; `zones` holds them all */
+  sort: { item: T; zone: PlacedZone; zones: PlacedZone[]; predicted: string | null; correct: boolean };
+  undo: { item: T; zone: PlacedZone; zones: PlacedZone[] };
   skip: { item: T };
   assign: { index: number; item: T };
   suggest: { item: T } & Prediction;
+  /** the multi-zone selection changed */
+  pick: { item: T | undefined; zones: PlacedZone[]; multi: boolean };
   expand: { expanded: boolean };
   empty: Record<string, never>;
   error: { item?: T; zone?: PlacedZone; error: unknown };

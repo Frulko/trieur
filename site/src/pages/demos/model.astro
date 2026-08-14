@@ -1,0 +1,168 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+import { url } from '../../lib/url';
+---
+
+<Base title="Demo — the model learning">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">The model, live</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      File a few cards and watch the right-hand column. The model stays silent until it has learned something — a bad
+      suggestion costs more than no suggestion. Once it speaks, <kbd>↵</kbd> accepts. Undoing with <kbd>⌫</kbd> does not
+      merely put the card back: it <em>unlearns</em> the example.
+    </p>
+
+    <p style="margin:0 0 20px">
+      <button class="btn primary" id="play">Replay 25 filings</button>
+      <button class="btn" id="reset">Start over</button>
+    </p>
+
+    <div class="demo demo-side">
+      <div id="deck"></div>
+      <div>
+        <div class="panel">
+          <h3>Suggestion</h3>
+          <p id="guess" style="margin:0 0 6px;min-height:3em">—</p>
+          <p class="why" id="why"></p>
+        </div>
+        <div class="panel">
+          <h3>State</h3>
+          <div class="kv"><span>filings</span><b id="n">0</b></div>
+          <div class="kv"><span>zones known</span><b id="z">0</b></div>
+          <div class="kv"><span>features</span><b id="vocab">0</b></div>
+          <div class="kv"><span>accuracy (prequential)</span><b id="acc">—</b></div>
+        </div>
+        <div class="panel">
+          <h3>Member weights</h3>
+          <div id="weights"></div>
+          <p style="color:var(--dim);margin:10px 0 0;font-size:12.5px">
+            Nobody decrees who is right: every member is asked before learning, and its weight follows its past
+            mistakes.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap prose" style="margin-top:70px">
+    <h2>The bench, in your browser</h2>
+    <p>
+      The same code as <code>bun tools/bench.ts</code>, on a synthetic corpus of 800 cards where the zone mostly depends
+      on the <em>combination</em> of domain and tag. That is the case naive Bayes cannot see: each feature on its own
+      votes the same on both sides.
+    </p>
+    <p>
+      <button class="btn primary" id="bench">Run the bench</button>
+      <span id="bench-state" style="color:var(--dim)"></span>
+    </p>
+    <table id="bench-table" style="margin-top:10px">
+      <thead><tr><th>configuration</th><th>top-1</th><th>top-3</th><th>silent</th><th>features</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="note">
+      On that corpus, crossing features buys eight to nine points for Bayes and for the linear model, and kNN moves
+      ahead. On a real corpus of 3,412 links across 72 folders, the same crossing buys half a point — marginal signals
+      dominate there — and the ensemble takes the lead instead. Hence the bench:
+      <a href={url('/docs/measure/')}>measure on your corpus</a>, do not copy someone else's numbers.
+    </p>
+  </section>
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { Bayes, Ensemble, Knn, Linear, LocalRecommender, createRecommender, tokens } from '@trieur/learn';
+  import { crossed, evaluate, synth } from '@trieur/learn/bench';
+  import { meta, shuffled, zones, type Link } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+
+  const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const KEY = 'demo-model';
+
+  let brain = createRecommender({ key: KEY }) as LocalRecommender;
+  const deck = new Deck<Link>($('#deck'), { items: shuffled(7), zones, meta, renderCard, advisor: brain });
+
+  deck.root.addEventListener('trieur:suggest', (e) => {
+    const d = (e as CustomEvent).detail;
+    $('#guess').innerHTML = `→ <b>${d.id}</b><br /><small style="color:var(--dim)">${Math.round(d.score * 100)}% confidence · <kbd>↵</kbd> to accept</small>`;
+    $('#why').textContent = d.why.join('  ');
+  });
+
+  async function refresh() {
+    const s = await brain.stats();
+    $('#n').textContent = String(s.examples);
+    $('#z').textContent = String(s.targets);
+    $('#vocab').textContent = String(s.vocab);
+    $('#acc').textContent = s.accuracy ? `${Math.round(s.accuracy * 100)}%` : '—';
+    if (!deck.prediction) {
+      $('#guess').textContent = s.examples
+        ? 'Nothing decisive: the model would rather say nothing.'
+        : 'No example learned yet.';
+      $('#why').textContent = '';
+    }
+    const model = brain.model;
+    if (model instanceof Ensemble) {
+      $('#weights').innerHTML = Object.entries(model.weights)
+        .map(
+          ([k, w]) =>
+            `<div class="kv" style="border:0;padding-bottom:0"><span>${k}</span><b>${Math.round(w * 100)}%</b></div><div class="bar"><i style="width:${(w * 100).toFixed(1)}%"></i></div>`,
+        )
+        .join('');
+    }
+  }
+  for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, () => void refresh());
+  void refresh();
+
+  // --- automatic replay: every card goes where it "should" ---------------------
+  $('#play').addEventListener('click', async () => {
+    const btn = $<HTMLButtonElement>('#play');
+    btn.disabled = true;
+    for (let i = 0; i < 25 && deck.current; i++) {
+      const zone = deck.zones.find((z) => z.id === deck.current!.folder);
+      if (!zone) break;
+      await deck.commit(zone);
+      await new Promise((r) => setTimeout(r, 230));
+    }
+    btn.disabled = false;
+  });
+
+  $('#reset').addEventListener('click', async () => {
+    await brain.destroy();
+    await brain.store.remove(KEY);
+    brain = createRecommender({ key: KEY }) as LocalRecommender;
+    deck.setOptions({ advisor: brain });
+    deck.setItems(shuffled(7));
+    void refresh();
+  });
+
+  // --- the bench, yielding between runs ---------------------------------------
+  $('#bench').addEventListener('click', async () => {
+    const btn = $<HTMLButtonElement>('#bench');
+    btn.disabled = true;
+    const body = $('#bench-table tbody');
+    body.innerHTML = '';
+    const cards = synth(800);
+    const suites: Array<[string, () => any, any]> = [
+      ['bayes', () => new Bayes(), tokens],
+      ['bayes + crosses', () => new Bayes(), crossed],
+      ['linear', () => new Linear(), tokens],
+      ['linear + crosses', () => new Linear(), crossed],
+      ['knn + crosses', () => new Knn(), crossed],
+      ['ensemble + crosses', () => new Ensemble([new Bayes(), new Linear(), new Knn()]), crossed],
+    ];
+    for (const [name, make, extract] of suites) {
+      $('#bench-state').textContent = `${name}…`;
+      await new Promise((r) => setTimeout(r)); // hand the browser back between runs
+      const r = evaluate(name, make(), extract, cards);
+      const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+      body.insertAdjacentHTML(
+        'beforeend',
+        `<tr><td>${name}</td><td><b>${pct(r.top1)}</b></td><td>${pct(r.top3)}</td><td>${pct(r.silent)}</td><td>${r.vocab}</td></tr>`,
+      );
+    }
+    $('#bench-state').textContent = `${cards.length} cards, measured just now`;
+    btn.disabled = false;
+  });
+</script>

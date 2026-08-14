@@ -1,19 +1,19 @@
-// Animations d'entrée et de sortie des cartes.
+// How cards enter and leave.
 //
-// Une seule sortie, deux entrées. La carte qui part est toujours aspirée dans sa tuile :
-// lancer la carte hors écran dans la direction du geste ne dit pas où elle a atterri.
-// Les entrées, elles, disent d'où vient la carte — dépilée d'un cran après un rangement,
-// tombée du dessus après une annulation.
+// One exit, two entrances. The card being filed is always sucked into its tile: flinging it
+// off-screen along the gesture does not say where it landed. Entrances, on the other hand,
+// say where the card comes from — dealt down one notch after a filing, dropped from above
+// after an undo.
 
-/** D'où vient la carte qui apparaît. */
+/** Where the appearing card comes from. */
 export type Enter = 'sort' | 'undo';
 
 /**
- * Pose un état de départ sur un élément fraîchement inséré, puis le relâche : il rejoint
- * sa position de repos en transition.
+ * Sets a starting state on a freshly inserted element, then releases it: it transitions to
+ * its resting position.
  *
- * Le reflow forcé est indispensable — sans lui le navigateur ne voit qu'un seul état et
- * n'anime rien.
+ * The forced reflow is essential — without it the browser only ever sees one state and
+ * animates nothing.
  */
 export function animateFrom(el: HTMLElement, transform: string, opacity: number): void {
   el.style.transition = 'none';
@@ -25,29 +25,29 @@ export function animateFrom(el: HTMLElement, transform: string, opacity: number)
   el.style.opacity = '';
 }
 
-/** La carte du dessus apparaît : dépilée d'un cran, ou retombée du ciel après une annulation. */
+/** The top card appears: dealt down one notch, or dropped back from above after an undo. */
 export function enterTop(el: HTMLElement, kind: Enter): void {
   if (kind === 'sort') animateFrom(el, 'scale(0.94) translateY(14px)', 0.55);
   else animateFrom(el, 'translateY(-160px) scale(1.03) rotate(-2deg)', 0);
 }
 
-/** La carte de derrière remonte d'un cran. */
+/** The card behind moves up one notch. */
 export function enterBehind(el: HTMLElement): void {
   animateFrom(el, 'scale(0.86) translateY(28px)', 0);
 }
 
-/** Effet « génie » : la carte est aspirée dans sa tuile. `tilt` garde la sensation du geste. */
+/** Genie effect: the card is sucked into its tile. `tilt` preserves the feel of the gesture. */
 export function genie(el: HTMLElement, to: { x: number; y: number }, tilt: number): void {
   el.classList.add('tr-genie');
   el.style.transform = `translate(${to.x}px, ${to.y}px) scale(0.06) rotate(${tilt}deg)`;
   el.addEventListener('transitionend', () => el.remove(), { once: true });
-  setTimeout(() => el.remove(), 500); // filet si la transition ne se déclenche pas
+  setTimeout(() => el.remove(), 500); // safety net if the transition never fires
 }
 
-/** La tuile accuse réception, à l'aller comme au retour. */
+/** The tile acknowledges receipt, on the way out as on the way back. */
 export function catchPulse(tile: Element | null | undefined): void {
   if (!tile) return;
   tile.classList.remove('tr-catch');
-  void (tile as HTMLElement).offsetWidth; // relance l'animation même sur deux cartes d'affilée
+  void (tile as HTMLElement).offsetWidth; // restarts the animation even on two cards in a row
   tile.classList.add('tr-catch');
 }

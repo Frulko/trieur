@@ -1,23 +1,23 @@
-// Découpage de la scène en régions.
+// Carving the stage into regions.
 //
-// Les zones ne sont pas que des étiquettes : chaque zone possède un morceau de surface.
-// On calcule le diagramme de Voronoï des positions — ça donne exactement « le cercle
-// divisé en secteurs » pour une disposition circulaire, des cases pour une grille, et
-// n'importe quel pavage pour une disposition maison. Une seule formule pour les trois.
+// Zones are not just labels: each one owns a slice of surface. We compute the Voronoi
+// diagram of their positions — which gives exactly "the circle cut into sectors" for a
+// circular layout, cells for a grid, and the matching tiling for a custom layout. One
+// formula for all three.
 //
-// Méthode : découpes de demi-plans. On part du rectangle de la scène et, pour chaque
-// autre germe, on coupe par la médiatrice. O(n²) sur des polygones de quelques sommets —
-// à douze zones c'est instantané, et ça évite d'embarquer une lib de géométrie.
+// Method: half-plane clipping. Start from the stage rectangle and, for every other seed,
+// cut along the perpendicular bisector. O(n²) over polygons of a few vertices — at twelve
+// zones it is instant, and it avoids pulling in a geometry library.
 
 import type { Point, Polygon } from './types.js';
 
-/** Garde la partie de `poly` la plus proche de `a` que de `b`. */
+/** Keeps the part of `poly` closer to `a` than to `b`. */
 function clipHalfPlane(poly: Polygon, a: Point, b: Point): Polygon {
   const mx = (a.x + b.x) / 2;
   const my = (a.y + b.y) / 2;
   const nx = b.x - a.x;
   const ny = b.y - a.y;
-  const side = (p: [number, number]) => (p[0] - mx) * nx + (p[1] - my) * ny; // < 0 = du côté de `a`
+  const side = (p: [number, number]) => (p[0] - mx) * nx + (p[1] - my) * ny; // < 0 = on a's side
   const out: Polygon = [];
   for (let i = 0; i < poly.length; i++) {
     const p = poly[i]!;
@@ -33,7 +33,7 @@ function clipHalfPlane(poly: Polygon, a: Point, b: Point): Polygon {
   return out;
 }
 
-/** Cellules de Voronoï des points `pts` dans un rectangle w×h, dans le même ordre. */
+/** Voronoi cells of `pts` inside a w×h rectangle, in the same order. */
 export function voronoi(pts: Point[], w: number, h: number): Polygon[] {
   return pts.map((p, i) => {
     let poly: Polygon = [
@@ -47,7 +47,7 @@ export function voronoi(pts: Point[], w: number, h: number): Polygon[] {
   });
 }
 
-/** Test d'appartenance par lancer de rayon. */
+/** Point-in-polygon by ray casting. */
 export function inPolygon(poly: Polygon, x: number, y: number): boolean {
   let hit = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -58,6 +58,6 @@ export function inPolygon(poly: Polygon, x: number, y: number): boolean {
   return hit;
 }
 
-/** Chemin SVG d'un polygone. */
+/** SVG path of a polygon. */
 export const pathOf = (poly: Polygon): string =>
   poly.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('') + 'Z';

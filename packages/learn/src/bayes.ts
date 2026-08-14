@@ -1,21 +1,21 @@
-// Barreau 1 : Bayes naïf multinomial.
+// Rung 1: multinomial naive Bayes.
 //
-// Pourquoi celui-là en premier : il apprend dès le 3ᵉ exemple (aucune phase
-// d'entraînement), tient en cent lignes, se sérialise en JSON, et surtout il **s'explique**
-// — « proposé parce que tag:react et domain:github.com ».
+// Why this one first: it learns from the 3rd example (no training phase), fits in a hundred
+// lines, serialises to JSON, and above all it **explains itself** — "suggested because
+// tag:react and domain:github.com".
 //
-// Son plafond est connu et assumé : il suppose les traits indépendants. « github » et
-// « rust » votent séparément, jamais ensemble. Deux réponses à ça, dans cet ordre de
-// rentabilité : lui donner des traits croisés (`crosses()`, aucun changement de modèle),
-// puis passer à un modèle linéaire qui apprend des poids au lieu de compter (`Linear`).
+// Its ceiling is known and accepted: it assumes features are independent. "github" and
+// "rust" vote separately, never together. Two answers to that, in order of value for money:
+// feed it crossed features (`crosses()`, no model change at all), then move to a linear model
+// that learns weights instead of counting (`Linear`).
 
 import type { Feature, Model, ModelJSON, Ranked } from './types.js';
 import { softmax } from './types.js';
 
 export interface BayesOptions {
-  /** lissage de Laplace : plus haut = plus prudent */
+  /** Laplace smoothing: higher is more cautious */
   alpha?: number;
-  /** en dessous, on ne propose rien */
+  /** below this, suggest nothing */
   minExamples?: number;
 }
 
@@ -25,11 +25,11 @@ export class Bayes implements Model {
   minExamples: number;
   examples = 0;
 
-  /** zone → trait → compte */
+  /** zone → feature → count */
   #counts = new Map<string, Map<Feature, number>>();
-  /** zone → nombre total de traits vus */
+  /** zone → total number of features seen */
   #totals = new Map<string, number>();
-  /** zone → nombre de cartes rangées */
+  /** zone → number of cards filed */
   #docs = new Map<string, number>();
   #vocab = new Set<Feature>();
 
@@ -64,9 +64,9 @@ export class Bayes implements Model {
   predict(features: Feature[], targets: string[]): Ranked[] {
     const ids = targets.length ? targets : this.targets;
     if (this.examples < this.minExamples || !ids.length) return [];
-    // On ignore les traits jamais vus. Sans ça, chaque mot inconnu d'un titre pénalise la
-    // zone qui a beaucoup appris (son dénominateur est gros) et fait gagner une zone
-    // vierge : le modèle proposerait systématiquement les dossiers où l'on n'a rien rangé.
+    // Features never seen before are ignored. Without this, every unknown word of a title
+    // penalises the zone that has learned a lot (its denominator is large) and hands the win
+    // to an untouched zone: the model would systematically suggest the empty folders.
     const feats = features.filter((f) => this.#vocab.has(f));
     if (!feats.length) return [];
 
@@ -75,7 +75,7 @@ export class Bayes implements Model {
     const logp = ids.map((id) => {
       const c = this.#counts.get(id) ?? new Map<Feature, number>();
       const total = this.#totals.get(id) ?? 0;
-      // log P(zone) + Σ log P(trait | zone), lissé — les logs évitent le sous-dépassement
+      // log P(zone) + Σ log P(feature | zone), smoothed — logs avoid underflow
       let lp = Math.log(((this.#docs.get(id) ?? 0) + this.alpha) / (this.examples + this.alpha * ids.length));
       const hits: Array<{ f: Feature; n: number }> = [];
       for (const f of feats) {

@@ -1,65 +1,72 @@
 ---
 layout: ../../layouts/Doc.astro
-title: Référence
-description: Options, méthodes et types de @trieur/core et @trieur/learn.
+title: Reference
+description: Options, methods and types of @trieur/core and @trieur/learn.
 ---
 
 ## `new Deck(root, options)`
 
-| Option | Défaut | Rôle |
+| Option | Default | Role |
 |---|---|---|
-| `items` | `[]` | pile à trier ; le premier élément est la carte du dessus |
-| `zones` | `[]` | zones : `{ id, label?, key?, color?, icon?, image? }`, ou `null` pour une zone libre |
-| `renderCard(item, el)` | — | dessine la carte (obligatoire en pratique) |
-| `renderZone(zone, el)` | tuile façon dossier | dessine une zone |
-| `meta(item)` | l'item | ce que le modèle a le droit de regarder |
-| `advisor` | — | un `Recommender`, ou tout objet avec `best()` |
-| `minConfidence` | `0.45` | score minimum pour qu'une zone soit proposée |
-| `layout` | `'circle'` | `'circle'`, `'voronoi'`, `'grid'`, ou `(n, box) => [{x,y}]` |
-| `segments` | `true` | découpe la scène en régions et vise à la région |
-| `keys` | `'asdfghjkl…'` | touches attribuées aux zones, dans l'ordre |
-| `threshold` | `90` | distance de glisser au-delà de laquelle le dépôt est armé, en px |
-| `text` | `fr` | libellés (`en` fourni, ou les tiens) |
-| `onSort(item, zone)` | — | exécute le rangement ; peut être `async`, un rejet annule |
-| `onUndo(item, zone)` | — | défait le dernier rangement |
-| `onSkip(item)` | — | carte repoussée en fin de pile |
-| `onAssign(index, item)` | — | dépôt sur une zone libre |
-| `onEmpty()` | — | pile vide |
+| `items` | `[]` | the pile to sort; the first element is the top card |
+| `zones` | `[]` | zones: `{ id, label?, key?, color?, icon?, image? }`, or `null` for a free zone |
+| `renderCard(item, el)` | — | draws the card (required in practice) |
+| `renderZone(zone, el)` | folder tile | draws a zone |
+| `meta(item)` | the item | what the model is allowed to look at |
+| `advisor` | — | a `Recommender`, or anything with `best()` |
+| `minConfidence` | `0.45` | minimum score for a zone to be suggested |
+| `layout` | `'circle'` | `'circle'`, `'voronoi'`, `'grid'`, or `(n, box) => [{x,y}]` |
+| `segments` | `true` | carve the stage into regions and aim at the region |
+| `keys` | `'asdfghjkl…'` | keys handed to zones, in order |
+| `threshold` | `90` | drag distance past which the drop is armed, in px |
+| `multi` | `false` | allow a card to be filed into several zones ([details](../multi/)) |
+| `text` | `en` | labels (`fr` provided, or your own) |
+| `onSort(item, zone)` | — | performs the filing; may be `async`, a rejection cancels |
+| `onSortMany(item, zones)` | — | files into several zones at once |
+| `onUndo(item, zone)` | — | undoes the last filing |
+| `onUndoMany(item, zones)` | — | undoes a multi-zone filing |
+| `onSkip(item)` | — | card pushed to the back of the pile |
+| `onAssign(index, item)` | — | drop on a free zone |
+| `onEmpty()` | — | the pile is empty |
 
-### Méthodes
+### Methods
 
 ```js
-deck.setItems(items)        // remplace la pile
-deck.setZones(zones)        // remplace les zones (relance l'attribution des touches)
-deck.setOptions(patch)      // change une partie de la configuration
-deck.commit(zone, fling?)   // range la carte du dessus (ce que fait une touche)
-deck.skip()                 // repousse la carte en fin de pile
-deck.undo()                 // défait le dernier rangement
-deck.suggest()              // recalcule la proposition
-deck.expand(on)             // plein écran
-deck.layout()               // replace les zones (après un resize manuel)
-deck.zoneAt(x, y)           // zone sous un point de l'écran
-deck.destroy()              // retire tout du DOM et les écouteurs
+deck.setItems(items)        // replaces the pile
+deck.setZones(zones)        // replaces the zones (reassigns the keys)
+deck.setOptions(patch)      // changes part of the configuration
+deck.commit(zone, fling?)   // files the top card (what a key press does)
+deck.commitMany(zones?)     // files into several zones (defaults to the current stack)
+deck.skip()                 // pushes the card to the back of the pile
+deck.undo()                 // undoes the last filing
+deck.suggest()              // recomputes the suggestion
+deck.expand(on)             // fullscreen
+deck.layout()               // re-places the zones (after a manual resize)
+deck.zoneAt(x, y)           // zone under a screen point
+deck.destroy()              // removes everything from the DOM, and the listeners
 
-deck.current                // carte du dessus
-deck.zones                  // zones placées (avec index, key, angle, pos, cell)
-deck.prediction             // { id, score, why } ou null
-deck.expanded               // état du plein écran
+deck.current                // top card
+deck.zones                  // placed zones (index, key, angle, pos, cell)
+deck.prediction             // { id, score, why } or null
+deck.picking                // the multi-zone stack, in pick order
+deck.multi                  // whether multi-zone mode is on
+deck.expanded               // fullscreen state
 ```
 
-## `<trieur-deck>` et `<trieur-zone>`
+## `<trieur-deck>` and `<trieur-zone>`
 
-Attributs de `<trieur-deck>` : `layout`, `keys`, `threshold`, `min-confidence`, `segments`.
+Attributes of `<trieur-deck>`: `layout`, `keys`, `threshold`, `min-confidence`, `segments`,
+`multi`.
 
-Attributs de `<trieur-zone>` : `value` (l'id ; absent = zone libre), `key`, `label` (à
-défaut, le texte de la balise), `color`, `icon`, `image`.
+Attributes of `<trieur-zone>`: `value` (the id; absent means a free zone), `key`, `label`
+(falling back to the tag's text), `color`, `icon`, `image`.
 
-Propriétés JS : `.options`, `.items`, `.zones`, `.deck`, `.current`, `.prediction`.
-Méthodes : `.skip()`, `.undo()`, `.focus()`.
+JS properties: `.options`, `.items`, `.zones`, `.deck`, `.current`, `.prediction`, `.picking`.
+Methods: `.skip()`, `.undo()`, `.focus()`.
 
-Ajoutée, modifiée ou retirée à chaud, une zone suit — **sans interrompre le tri en cours**.
+Added, changed or removed on the fly, a zone follows — **without interrupting the session**.
 
-## Modèles
+## Models
 
 ```ts
 interface Model {
@@ -71,35 +78,35 @@ interface Model {
 }
 ```
 
-| Classe | Options |
+| Class | Options |
 |---|---|
 | `Bayes` | `alpha` (0.4), `minExamples` (3) |
-| `Linear` | `lr` (0.5), `margin` (1), `minExamples` (3), `maxVocab` (40 000) |
+| `Linear` | `lr` (0.5), `margin` (1), `minExamples` (3), `maxVocab` (40,000) |
 | `Knn` | `k` (12), `capacity` (1500), `probe` (24), `minExamples` (1) |
-| `Ensemble` | `new Ensemble([…modèles])` |
+| `Ensemble` | `new Ensemble([…models])` |
 
-`modelFromJSON(json)` reconstruit n'importe lequel ; un JSON inconnu rend `defaultModel()`.
+`modelFromJSON(json)` rebuilds any of them; unknown JSON yields `defaultModel()`.
 
-## Traits
+## Features
 
 ```js
-tokens(meta)                              // métadonnées → traits
-crosses([['domain', 'tag']], max = 4)     // ajoute les croisements
-only('domain', 'tag')                     // ne garde que ces clés
-pipe(tokens, crosses([…]), only(…))       // enchaîne
-defaultFeatures                            // tokens + croisements domaine/auteur/hôte × tag
+tokens(meta)                              // metadata → features
+crosses([['domain', 'tag']], max = 4)     // adds the crosses
+only('domain', 'tag')                     // keeps only those keys
+pipe(tokens, crosses([…]), only(…))       // chains them
+defaultFeatures                            // tokens + domain/author/host × tag crosses
 ```
 
-## Recommandeurs
+## Recommenders
 
 ```js
 createRecommender({ key, model?, features?, store?, minConfidence?, saveDelay?, server? })
 ```
 
-`server` absent → `LocalRecommender`. `server` présent → `HybridRecommender`, qui expose en
-plus `pending`, `warm()` et `serverStats()`.
+No `server` → `LocalRecommender`. With `server` → `HybridRecommender`, which additionally
+exposes `pending`, `warm()` and `serverStats()`.
 
-## Stockage
+## Storage
 
 `memoryStore()`, `localStore(prefix)`, `idbStore(db, store)`, `autoStore()`.
 
@@ -111,14 +118,14 @@ interface Store {
 }
 ```
 
-## Banc d'essai
+## Bench
 
 ```js
-import { evaluate, synth, crossed } from '@trieur/learn/bench';
-evaluate(nom, modèle, extracteur, cartes); // → { top1, top3, silent, vocab, ms, asked }
+import { crossed, evaluate, synth } from '@trieur/learn/bench';
+evaluate(name, model, extractor, cards); // → { top1, top3, silent, vocab, ms, asked }
 ```
 
-## Géométrie
+## Geometry
 
-`voronoi(points, w, h)` rend les polygones, `inPolygon(poly, x, y)` teste l'appartenance,
-`layouts.circle | voronoi | grid` sont les dispositions fournies.
+`voronoi(points, w, h)` returns the polygons, `inPolygon(poly, x, y)` tests membership, and
+`layouts.circle | voronoi | grid` are the built-in layouts.

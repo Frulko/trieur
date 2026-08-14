@@ -1,19 +1,19 @@
 #!/usr/bin/env bun
 //
-// Le serveur. Trente lignes autour de `createApi` : ouvrir la base, brancher les
-// embeddings s'ils sont configurés, écouter, et **écrire les modèles avant de mourir**.
+// The server. Thirty lines around `createApi`: open the database, wire the embeddings up if
+// they are configured, listen, and **write the models before dying**.
 //
-//   TRIEUR_TOKEN=secret bun src/index.ts
+//   TRIEUR_TOKEN=secret bun src/serve.ts
 //
-// | variable       | défaut           | rôle                                             |
-// |----------------|------------------|--------------------------------------------------|
-// | PORT           | 4747             | port HTTP                                        |
-// | TRIEUR_DB      | trieur.sqlite    | fichier SQLite                                   |
-// | TRIEUR_TOKEN   | —                | si défini, `Bearer` exigé sur toutes les routes   |
-// | TRIEUR_ORIGIN  | *                | valeur de `Access-Control-Allow-Origin`          |
-// | EMBED_URL      | —                | API compatible OpenAI, ex. `https://…/v1`        |
-// | EMBED_MODEL    | —                | modèle d'embeddings ; absent = barreau désactivé  |
-// | EMBED_KEY      | —                | clé d'API                                        |
+// | variable       | default          | role                                              |
+// |----------------|------------------|---------------------------------------------------|
+// | PORT           | 4747             | HTTP port                                         |
+// | TRIEUR_DB      | trieur.sqlite    | SQLite file                                       |
+// | TRIEUR_TOKEN   | —                | when set, `Bearer` is required on data routes      |
+// | TRIEUR_ORIGIN  | *                | value of `Access-Control-Allow-Origin`            |
+// | EMBED_URL      | —                | OpenAI-compatible API, e.g. `https://…/v1`        |
+// | EMBED_MODEL    | —                | embedding model; absent = rung disabled            |
+// | EMBED_KEY      | —                | API key                                           |
 
 import { createApi } from './api.js';
 import { openDb } from './db.js';
@@ -34,7 +34,7 @@ const cors = {
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 4747),
   async fetch(req) {
-    // une app trieur vit rarement sur la même origine que son serveur
+    // a trieur app rarely lives on the same origin as its server
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const res = await api.handle(req);
     for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
@@ -43,11 +43,11 @@ const server = Bun.serve({
 });
 
 console.log(`trieur → http://localhost:${server.port}`);
-console.log(`  base       ${process.env.TRIEUR_DB ?? 'trieur.sqlite'}`);
-console.log(`  auth       ${process.env.TRIEUR_TOKEN ? 'Bearer' : 'ouverte'}`);
-console.log(`  embeddings ${embedder.enabled ? `${embedder.model}` : 'désactivés (EMBED_URL + EMBED_MODEL)'}`);
+console.log(`  database   ${process.env.TRIEUR_DB ?? 'trieur.sqlite'}`);
+console.log(`  auth       ${process.env.TRIEUR_TOKEN ? 'Bearer' : 'open'}`);
+console.log(`  embeddings ${embedder.enabled ? `${embedder.model}` : 'disabled (EMBED_URL + EMBED_MODEL)'}`);
 
-// un modèle en mémoire non écrit, c'est du travail de tri perdu
+// an unwritten in-memory model is lost sorting work
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
     api.flush();

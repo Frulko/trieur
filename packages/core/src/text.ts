@@ -1,17 +1,6 @@
-// Libellés. Le français par défaut (c'est la langue du dépôt), l'anglais fourni,
-// n'importe quoi d'autre par l'option `text`.
+// Labels. English by default, French provided, anything else through the `text` option.
 
 import type { DeckText } from './types.js';
-
-export const fr: DeckText = {
-  empty: 'Rien à trier.',
-  skip: 'Passer',
-  undo: 'Annuler',
-  expand: 'Agrandir',
-  close: 'Fermer (Échap)',
-  free: 'zone libre',
-  count: (n) => `${n} à trier`,
-};
 
 export const en: DeckText = {
   empty: 'Nothing to sort.',
@@ -20,5 +9,19 @@ export const en: DeckText = {
   expand: 'Expand',
   close: 'Close (Esc)',
   free: 'free zone',
+  multi: 'Multiple zones',
   count: (n) => `${n} left`,
+  sortMany: (n) => `Sort into ${n} zones`,
+};
+
+export const fr: DeckText = {
+  empty: 'Rien à trier.',
+  skip: 'Passer',
+  undo: 'Annuler',
+  expand: 'Agrandir',
+  close: 'Fermer (Échap)',
+  free: 'zone libre',
+  multi: 'Plusieurs zones',
+  count: (n) => `${n} à trier`,
+  sortMany: (n) => `Ranger dans ${n} zones`,
 };

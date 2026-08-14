@@ -1,16 +1,16 @@
-// Le stockage : SQLite, une base par serveur, un modèle par deck.
+// Storage: SQLite, one database per server, one model per deck.
 //
-// Ce que le serveur garde, et pourquoi :
+// What the server keeps, and why:
 //
-// - **les événements**, pas seulement le modèle. Un modèle en ligne ne se ré-entraîne pas
-//   à l'envers : si on change d'extracteur de traits, de modèle ou d'hyperparamètre, la
-//   seule façon d'en profiter sur l'historique est de **rejouer** les événements. C'est ce
-//   qui rend l'échelle franchissable après coup au lieu d'être un choix définitif.
-// - **le modèle sérialisé**, pour ne pas rejouer à chaque démarrage.
-// - **les vecteurs**, pour ne pas repayer un appel d'embedding déjà fait.
+// - **the events**, not just the model. An online model cannot be retrained backwards: if you
+//   change feature extractor, model or hyperparameter, the only way to benefit on past data is
+//   to **replay** the events. That is what keeps the ladder climbable afterwards instead of
+//   being a one-way decision.
+// - **the serialised model**, so we do not replay on every boot.
+// - **the vectors**, so we do not pay twice for an embedding call already made.
 
-import { Database } from 'bun:sqlite';
 import type { SortEvent } from '@trieur/learn';
+import { Database } from 'bun:sqlite';
 
 export interface StoredEvent extends SortEvent {
   deck: string;
@@ -53,9 +53,9 @@ export function openDb(path = 'trieur.sqlite'): Database {
 }
 
 export function insertEvent(db: Database, deck: string, e: SortEvent): boolean {
-  // INSERT OR IGNORE : rejouer une file après une coupure réseau n'apprend rien deux fois.
-  // C'est la seule protection qui compte — un événement appris en double fausse le modèle
-  // durablement et silencieusement.
+  // INSERT OR IGNORE: replaying a queue after a network outage learns nothing twice. This is
+  // the only protection that matters — an event learned twice skews the model permanently and
+  // silently.
   const res = db
     .query(
       `INSERT OR IGNORE INTO events (id, deck, features, target, weight, at, predicted, text, seq)
@@ -65,8 +65,7 @@ export function insertEvent(db: Database, deck: string, e: SortEvent): boolean {
   return res.changes > 0;
 }
 
-/** Les événements d'un deck, dans l'ordre où ils ont été rangés — l'ordre compte pour un
- *  modèle en ligne. */
+/** A deck's events, in the order they were filed — order matters for an online model. */
 export function readEvents(db: Database, deck: string): SortEvent[] {
   const rows = db
     .query(`SELECT id, features, target, weight, at, predicted, text FROM events WHERE deck = ? ORDER BY seq, at`)

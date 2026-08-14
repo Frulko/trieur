@@ -1,11 +1,11 @@
-// Où vit le modèle en mode léger.
+// Where the model lives in light mode.
 //
-// Trois implémentations, une interface. `autoStore()` prend la meilleure disponible.
+// Three implementations, one interface. `autoStore()` picks the best one available.
 //
-// Pourquoi IndexedDB par défaut plutôt que localStorage : localStorage plafonne autour de
-// 5 Mo, et surtout il est **synchrone** — chaque écriture bloque le fil principal, en
-// plein tri. Un corpus kNN de quinze cents cartes plus un vocabulaire croisé passe
-// largement la limite. localStorage reste parfait pour un modèle Bayes seul.
+// Why IndexedDB by default rather than localStorage: localStorage caps out around 5 MB, and
+// above all it is **synchronous** — every write blocks the main thread, in the middle of a
+// sorting session. A kNN corpus of fifteen hundred cards plus a crossed vocabulary goes well
+// past the limit. localStorage remains perfect for a Bayes model on its own.
 
 export interface Store {
   load<T>(key: string): Promise<T | null>;
@@ -69,8 +69,8 @@ export function idbStore(dbName = 'trieur', storeName = 'models'): Store {
       return (await run<T | undefined>('readonly', (s) => s.get(key))) ?? null;
     },
     async save(key, value) {
-      // IndexedDB stocke la structure telle quelle (structured clone) : pas de JSON.stringify,
-      // donc pas de copie texte de plusieurs mégaoctets à chaque sauvegarde
+      // IndexedDB stores the structure as-is (structured clone): no JSON.stringify, so no
+      // multi-megabyte text copy on every save
       await run('readwrite', (s) => s.put(value, key));
     },
     async remove(key) {
@@ -79,13 +79,13 @@ export function idbStore(dbName = 'trieur', storeName = 'models'): Store {
   };
 }
 
-/** IndexedDB si disponible, sinon localStorage, sinon la mémoire. */
+/** IndexedDB when available, otherwise localStorage, otherwise memory. */
 export function autoStore(): Store {
   try {
     if (typeof indexedDB !== 'undefined') return idbStore();
     if (typeof localStorage !== 'undefined') return localStore();
   } catch {
-    // navigation privée, contexte sans origine, extension sans permission…
+    // private browsing, opaque origin, extension without permission…
   }
   return memoryStore();
 }

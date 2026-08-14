@@ -1,35 +1,33 @@
-// Barreau 2 : modèle linéaire en ligne (perceptron à marge / logistique).
+// Rung 2: an online linear model (margin perceptron / logistic).
 //
-// Des poids **appris** au lieu de comptes. Là où Bayes additionne des fréquences en
-// supposant les traits indépendants, celui-ci corrige ses poids quand il se trompe : deux
-// traits corrélés cessent de voter deux fois, et un trait croisé (`domain:github×tag:rust`)
-// peut prendre un poids que ni `domain:github` ni `tag:rust` n'ont.
+// Weights that are **learned** rather than counted. Where Bayes adds up frequencies assuming
+// independence, this one corrects its weights when it is wrong: two correlated features stop
+// voting twice, and a crossed feature (`domain:github×tag:rust`) can carry a weight neither
+// `domain:github` nor `tag:rust` has.
 //
-// Trois choix qui comptent :
+// Three choices that matter:
 //
-// 1. **Mise à jour contrastive**, pas dense. La logistique multinomiale classique met à
-//    jour *toutes* les zones à chaque exemple : la matrice de poids devient |vocab| ×
-//    |zones|, soit des centaines de milliers d'entrées à sérialiser dans un navigateur. On
-//    ne touche donc que deux zones : la bonne, et la meilleure des fautives. C'est la mise
-//    à jour du perceptron multiclasse, et elle reste creuse.
-// 2. **AdaGrad** plutôt qu'un pas fixe. Le reproche fait à un modèle en ligne, c'est « un
-//    taux d'apprentissage à régler ». AdaGrad le règle par trait : un trait rare garde un
-//    grand pas, un trait vu partout se calme tout seul. Six lignes, un hyperparamètre en
-//    moins.
-// 3. **Élagage.** Les traits croisés font exploser le vocabulaire. Au-delà de `maxVocab`,
-//    on jette les traits dont le poids maximum est le plus faible — ceux qui n'ont jamais
-//    fait pencher une décision.
+// 1. **Contrastive update**, not dense. Textbook multinomial logistic regression updates
+//    *every* class on every example: the weight matrix becomes |vocab| × |zones|, hundreds of
+//    thousands of entries to serialise inside a browser. So we only touch two zones: the
+//    right one, and the best of the wrong ones. That is the multiclass perceptron update, and
+//    it stays sparse.
+// 2. **AdaGrad rather than a fixed step.** The usual complaint about an online model is "a
+//    learning rate to tune". AdaGrad tunes it per feature: a rare feature keeps a large step,
+//    a feature seen everywhere calms down on its own. Six lines, one hyperparameter fewer.
+// 3. **Pruning.** Crossed features blow the vocabulary up. Past `maxVocab`, the features
+//    whose peak weight is lowest are dropped — the ones that never tipped a decision.
 
 import type { Feature, Model, ModelJSON, Ranked } from './types.js';
 import { softmax } from './types.js';
 
 export interface LinearOptions {
-  /** pas d'apprentissage de base (AdaGrad le module par trait) */
+  /** base learning rate (AdaGrad modulates it per feature) */
   lr?: number;
-  /** marge exigée entre la bonne zone et la meilleure fautive */
+  /** margin required between the right zone and the best wrong one */
   margin?: number;
   minExamples?: number;
-  /** au-delà, on élague les traits les moins utiles */
+  /** past this, the least useful features are pruned */
   maxVocab?: number;
 }
 
@@ -41,9 +39,9 @@ export class Linear implements Model {
   maxVocab: number;
   examples = 0;
 
-  /** zone → trait → poids */
+  /** zone → feature → weight */
   #w = new Map<string, Map<Feature, number>>();
-  /** zone → trait → somme des carrés des gradients (AdaGrad) */
+  /** zone → feature → sum of squared gradients (AdaGrad) */
   #g2 = new Map<string, Map<Feature, number>>();
   #bias = new Map<string, number>();
   #vocab = new Set<Feature>();
@@ -62,7 +60,7 @@ export class Linear implements Model {
     return [...this.#w.keys()];
   }
 
-  /** Score brut d'une zone : biais + somme des poids des traits présents. */
+  /** Raw score of a zone: bias plus the weights of the features present. */
   #score(features: Feature[], target: string): number {
     const w = this.#w.get(target);
     if (!w) return 0;
@@ -82,7 +80,7 @@ export class Linear implements Model {
     return w;
   }
 
-  /** Un pas AdaGrad sur une zone. */
+  /** One AdaGrad step on a zone. */
   #step(target: string, features: Feature[], g: number): void {
     const w = this.#row(target);
     const g2 = this.#g2.get(target)!;
@@ -96,15 +94,15 @@ export class Linear implements Model {
   }
 
   /**
-   * `weight` négatif défait approximativement l'exemple : on rejoue le pas dans l'autre
-   * sens. Ce n'est pas l'inverse exact (AdaGrad a déjà bougé ses accumulateurs), mais sur
-   * une annulation isolée l'écart est invisible — et un modèle en ligne n'a de toute façon
-   * pas de mémoire exacte de son passé.
+   * A negative `weight` approximately undoes the example: the step is replayed the other way.
+   * It is not the exact inverse (AdaGrad has already moved its accumulators), but on an
+   * isolated undo the difference is invisible — and an online model has no exact memory of
+   * its past anyway.
    */
   learn(features: Feature[], target: string, weight = 1): void {
     this.#row(target);
     const rivals = this.targets.filter((t) => t !== target);
-    // meilleure zone fautive : c'est contre elle qu'on se corrige
+    // the best wrong zone: that is what we correct against
     let worst: string | null = null;
     let worstScore = -Infinity;
     for (const t of rivals) {
@@ -117,16 +115,16 @@ export class Linear implements Model {
     this.examples += weight;
 
     if (!worst) {
-      // une seule zone connue : rien à contraster, on la renforce doucement
+      // only one known zone: nothing to contrast against, so nudge it gently
       this.#step(target, features, 0.1 * weight);
       return;
     }
     const good = this.#score(features, target);
     const gap = good - worstScore;
-    if (weight > 0 && gap >= this.margin) return; // déjà bien classé avec la marge : on ne touche à rien
+    if (weight > 0 && gap >= this.margin) return; // already right with margin to spare: leave it alone
 
-    // gradient logistique sur la paire {bonne, fautive} — 1 quand on se trompe à fond,
-    // proche de 0 quand on avait presque raison
+    // logistic gradient over the pair {right, wrong} — 1 when badly wrong, near 0 when it was
+    // nearly right
     const g = weight * (1 / (1 + Math.exp(gap)));
     this.#step(target, features, g);
     this.#step(worst, features, -g);
@@ -136,7 +134,7 @@ export class Linear implements Model {
   predict(features: Feature[], targets: string[]): Ranked[] {
     const ids = targets.length ? targets : this.targets;
     if (this.examples < this.minExamples || !ids.length) return [];
-    // même règle que Bayes : un trait jamais vu ne dit rien, il ne doit pas voter
+    // same rule as Bayes: a feature never seen says nothing, so it must not vote
     const feats = features.filter((f) => this.#vocab.has(f));
     if (!feats.length) return [];
 
@@ -156,7 +154,7 @@ export class Linear implements Model {
       .sort((a, b) => b.score - a.score);
   }
 
-  /** Jette les traits qui n'ont jamais fait pencher une décision. */
+  /** Drops the features that never tipped a decision. */
   #prune(): void {
     const peak = new Map<Feature, number>();
     for (const w of this.#w.values()) {

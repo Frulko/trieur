@@ -1,127 +1,127 @@
 ---
 layout: ../../layouts/Doc.astro
-title: Dans une app
-description: Mode léger et mode complet, stockage, hors ligne, et comment une app parle au modèle.
+title: In an app
+description: Light and full mode, storage, offline, and how an app talks to the model.
 ---
 
-Une app ne manipule qu'un objet : le **recommandeur**. Il expose exactement ce que le deck
-attend, plus de quoi afficher un état et de quoi ne rien perdre à la fermeture.
+An app handles exactly one object: the **recommender**. It exposes what the deck expects, plus
+what it takes to display a state and to lose nothing on close.
 
 ```ts
 interface Recommender {
-  best(meta, zones, minScore?): Promise<Prediction | null>;  // la zone si elle se détache
-  suggest(meta, zones): Promise<Ranked[]>;                   // le classement complet
-  record(r: SortRecord): Promise<void>;                      // un rangement a eu lieu
-  forget(r: SortRecord): Promise<void>;                      // il est annulé
+  best(meta, zones, minScore?): Promise<Prediction | null>;  // the zone, if it stands out
+  suggest(meta, zones): Promise<Ranked[]>;                   // the full ranking
+  record(r: SortRecord): Promise<void>;                      // a filing happened
+  forget(r: SortRecord): Promise<void>;                      // it is being undone
   stats(): Promise<Stats>;
-  flush(): Promise<void>;                                    // écrire ce qui est en attente
+  flush(): Promise<void>;                                    // write what is pending
+  destroy(): Promise<void>;                                  // write, then drop listeners
 }
 ```
 
-Le deck appelle `best`, `record` et `forget` tout seul. Les autres méthodes servent à ton
-interface.
+The deck calls `best`, `record` and `forget` on its own. The rest is for your interface.
 
-## Mode léger
+## Light mode
 
 ```js
-const brain = createRecommender({ key: 'liens' });
+const brain = createRecommender({ key: 'links' });
 deck.setOptions({ advisor: brain });
 ```
 
-Tout reste dans le navigateur. Aucune donnée ne sort, aucune latence réseau, ça marche dans
-l'avion. Pour beaucoup d'apps, c'est le seul mode nécessaire.
+Everything stays in the browser. No data leaves, no network latency, it works on a plane. For
+many apps this is the only mode ever needed.
 
-**Où vit le modèle.** `autoStore()` choisit IndexedDB si disponible, sinon `localStorage`,
-sinon la mémoire. IndexedDB par défaut pour deux raisons : `localStorage` plafonne autour de
-5 Mo, et surtout il est *synchrone* — chaque écriture bloque le fil principal, en plein tri.
-Un corpus kNN de quinze cents cartes plus un vocabulaire croisé passe largement la limite.
+**Where the model lives.** `autoStore()` picks IndexedDB when available, otherwise
+`localStorage`, otherwise memory. IndexedDB by default for two reasons: `localStorage` caps out
+around 5 MB, and above all it is *synchronous* — every write blocks the main thread, mid-sort.
+A kNN corpus of fifteen hundred cards plus a crossed vocabulary goes well past the limit.
 
 ```js
 import { idbStore, localStore, memoryStore } from '@trieur/learn';
-createRecommender({ key: 'liens', store: localStore('mon-app:') });
+createRecommender({ key: 'links', store: localStore('my-app:') });
 ```
 
-Les écritures sont groupées (`saveDelay`, 800 ms), et un `pagehide` déclenche un `flush()` :
-fermer l'onglet ne coûte pas les derniers rangements.
+Writes are batched (`saveDelay`, 800 ms), and `pagehide` triggers a `flush()`: closing the tab
+does not cost the last few filings.
 
-## Mode complet
+## Full mode
 
 ```js
 const brain = createRecommender({
-  key: 'liens',
-  server: { url: 'https://trieur.chez-moi.fr', token: '…' },
+  key: 'links',
+  server: { url: 'https://trieur.example.com', token: '…' },
 });
 ```
 
-C'est la seule différence dans l'app. Ce qui change dessous :
+That is the only difference in the app. What changes underneath:
 
-- **Le local continue de répondre.** Il est instantané et fonctionne hors ligne. Le serveur
-  n'est interrogé que lorsque le local se tait — typiquement les premières cartes, ou une
-  carte dont aucun trait n'est connu. C'est exactement là que les embeddings servent, et le
-  seul moment où attendre le réseau se justifie (400 ms maximum, réglable).
-- **Les événements partent en lot**, avec un identifiant chacun. La file est **persistée** :
-  un tri fait hors ligne repart au retour du réseau, et un renvoi n'apprend rien deux fois.
-- **Démarrage à chaud.** Au premier lancement sur un appareil neuf, le modèle du serveur est
-  récupéré s'il en sait plus que le local.
+- **The local model keeps answering.** It is instant and works offline. The server is only
+  asked when the local model stays silent — typically the first few cards, or a card with no
+  recognised feature. That is exactly where embeddings help, and the only moment when waiting
+  on the network is justified (400 ms at most, tunable).
+- **Events leave in batches**, each with an id. The queue is **persisted**: a session done
+  offline leaves when the network returns, and resending learns nothing twice.
+- **Warm start.** On a brand-new device, the server's model is pulled if it knows more than the
+  local one.
 
 ```js
-brain.pending;             // événements pas encore acceptés par le serveur
-await brain.flush();       // forcer l'envoi
-await brain.serverStats(); // ce que le serveur voit, tous appareils confondus
+brain.pending;             // events not yet accepted by the server
+await brain.flush();       // force a push
+await brain.serverStats(); // what the server sees, across all devices
 ```
 
-Voir la [démo léger vs complet](/demos/serveur), qui coupe le réseau pour de vrai.
+See the [light vs full demo](../../demos/server/), which really does cut the network.
 
-## Ce que le modèle a le droit de regarder
+## What the model is allowed to look at
 
-`meta(item)` est le seul endroit où tu décides quelles informations entrent dans le modèle.
-C'est une frontière utile : ce qui n'est pas dans `meta` n'est jamais appris, jamais
-sérialisé, jamais envoyé au serveur.
+`meta(item)` is the only place where you decide what information enters the model. It is a
+useful boundary: what is not in `meta` is never learned, never serialised, never sent to the
+server.
 
 ```js
-meta: (lien) => ({
-  domain: lien.host,      // trait tel quel
-  author: lien.author,    // idem
-  tag: lien.tags,         // un trait par élément
-  title: lien.title,      // un trait par mot
+meta: (link) => ({
+  domain: link.host,      // one feature, as-is
+  author: link.author,    // same
+  tag: link.tags,         // one feature per element
+  title: link.title,      // one feature per word
 })
 ```
 
-Le mode complet ajoute le **texte** de la carte à l'événement — et seulement lui — si `meta`
-contient `title`, `text`, `description` ou `excerpt`, parce que les embeddings en ont besoin.
-Un `text` explicite dans `record()` l'emporte.
+Full mode adds the card's **text** to the event — and only that — when `meta` contains `title`,
+`text`, `description` or `excerpt`, because embeddings need it. An explicit `text` in `record()`
+wins.
 
-## Brancher autre chose
+## Plugging something else in
 
-`advisor` n'exige pas `@trieur/learn` : n'importe quel objet avec `best(meta, zones)` fait
-l'affaire, y compris un appel réseau vers ton propre classifieur.
+`advisor` does not require `@trieur/learn`: any object with `best(meta, zones)` will do,
+including a network call to your own classifier.
 
 ```js
 deck.setOptions({
   advisor: {
     async best(meta, zones) {
-      const r = await fetch('/api/classer', { method: 'POST', body: JSON.stringify({ meta, zones }) });
+      const r = await fetch('/api/classify', { method: 'POST', body: JSON.stringify({ meta, zones }) });
       return r.ok ? await r.json() : null; // { id, score, why: [] }
     },
-    record: (r) => navigator.sendBeacon('/api/rangements', JSON.stringify(r)),
+    record: (r) => navigator.sendBeacon('/api/filings', JSON.stringify(r)),
   },
 });
 ```
 
-Le deck accepte une promesse et **jette la réponse si la carte a changé entre-temps** : un
-serveur lent ne fait jamais apparaître une proposition sur la mauvaise carte.
+The deck accepts a promise and **drops the answer if the card changed in the meantime**: a slow
+server never makes a suggestion appear on the wrong card.
 
-## Événements
+## Events
 
-Chaque action émet aussi un `CustomEvent` sur le conteneur, pour les hôtes qui préfèrent les
-événements aux callbacks :
+Every action also emits a `CustomEvent` on the container, for hosts that prefer events to
+callbacks:
 
-`trieur:sort`, `trieur:undo`, `trieur:skip`, `trieur:assign`, `trieur:suggest`,
+`trieur:sort`, `trieur:undo`, `trieur:skip`, `trieur:assign`, `trieur:suggest`, `trieur:pick`,
 `trieur:expand`, `trieur:empty`, `trieur:error`.
 
 ```js
 deck.root.addEventListener('trieur:sort', (e) => {
-  const { item, zone, predicted, correct } = e.detail;
-  if (predicted && !correct) console.log('le modèle proposait', predicted);
+  const { item, zone, zones, predicted, correct } = e.detail;
+  if (predicted && !correct) console.log('the model suggested', predicted);
 });
 ```

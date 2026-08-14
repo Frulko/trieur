@@ -1,13 +1,13 @@
-// Le dessin d'une carte appartient au site, pas à la lib : `renderCard` est justement le
-// point où trieur passe la main. Il ne sait pas ce qu'est un lien, un dossier ou un tag.
+// Drawing a card belongs to the site, not to the library: `renderCard` is exactly where
+// trieur hands over. It does not know what a link, a folder or a tag is.
 
-import type { Lien } from '../data/liens';
+import type { Link } from '../data/links';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-export function renderCard(l: Lien, el: HTMLElement): void {
+export function renderCard(l: Link, el: HTMLElement): void {
   el.innerHTML = `
-    <div class="lien">
+    <div class="link">
       <span class="host">${esc(l.host)}</span>
       <h4>${esc(l.title)}</h4>
       <p>${esc(l.excerpt)}</p>

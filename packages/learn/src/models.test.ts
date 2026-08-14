@@ -9,8 +9,8 @@ import type { Feature, Model, Ranked } from './types.js';
 
 const ZONES = ['z1', 'z2'];
 
-/** Jeu de données à interaction pure : la zone dépend de la *combinaison*, jamais d'un
- *  trait pris seul. Chaque trait isolé apparaît autant de fois dans les deux zones. */
+/** A pure interaction dataset: the zone depends on the *combination*, never on a feature
+ *  taken alone. Each isolated feature appears just as often in both zones. */
 const XOR: Array<[Record<string, unknown>, string]> = [];
 for (let i = 0; i < 5; i++) {
   XOR.push([{ domain: 'a.com', tag: ['x'] }, 'z1']);
@@ -24,43 +24,43 @@ const train = (model: Model, extract: (m: unknown) => Feature[], passes = 3) => 
   return model;
 };
 
-test('Bayes : apprend, propose, explique', () => {
+test('Bayes: learns, suggests, explains', () => {
   const b = new Bayes({ minExamples: 3 });
-  expect(b.predict(tokens({ tag: ['react'] }), ['dev', 'cuisine'])).toEqual([]); // trop tôt pour parler
+  expect(b.predict(tokens({ tag: ['react'] }), ['dev', 'cooking'])).toEqual([]); // too early to speak
 
   b.learn(tokens({ tag: ['react'], domain: 'github.com' }), 'dev');
   b.learn(tokens({ tag: ['hooks'], domain: 'github.com' }), 'dev');
-  b.learn(tokens({ tag: ['recette'], domain: 'marmiton.org' }), 'cuisine');
-  b.learn(tokens({ tag: ['recette', 'four'], domain: 'marmiton.org' }), 'cuisine');
+  b.learn(tokens({ tag: ['recipe'], domain: 'seriouseats.com' }), 'cooking');
+  b.learn(tokens({ tag: ['recipe', 'oven'], domain: 'seriouseats.com' }), 'cooking');
 
-  const [top] = b.predict(tokens({ tag: ['react'], domain: 'github.com' }), ['dev', 'cuisine']);
+  const [top] = b.predict(tokens({ tag: ['react'], domain: 'github.com' }), ['dev', 'cooking']);
   expect(top!.id).toBe('dev');
   expect(top!.score).toBeGreaterThan(0.9);
-  expect(top!.why).toContain('domain:github.com'); // la proposition est justifiable
+  expect(top!.why).toContain('domain:github.com'); // the suggestion can be justified
 });
 
-test('un trait jamais vu ne fait pas gagner une zone vierge', () => {
+test('a feature never seen must not hand the win to an untouched zone', () => {
   for (const model of [new Bayes({ minExamples: 3 }), new Linear({ minExamples: 3 })] as Model[]) {
-    for (let i = 0; i < 4; i++) model.learn(tokens({ tag: ['x'], domain: 'x.com', title: `tweet ${i}` }), 'keep');
-    const zones = ['keep', 'ui', 'jamais-servi'];
-    // titre entièrement nouveau, seul le domaine est connu : ça doit suffire
-    const [top] = model.predict(tokens({ tag: ['x'], domain: 'x.com', title: 'un intitulé inédit' }), zones);
+    for (let i = 0; i < 4; i++) model.learn(tokens({ tag: ['x'], domain: 'x.com', title: `post ${i}` }), 'keep');
+    const zones = ['keep', 'ui', 'never-used'];
+    // a brand new title, only the domain is known: that has to be enough
+    const [top] = model.predict(tokens({ tag: ['x'], domain: 'x.com', title: 'a wholly unseen headline' }), zones);
     expect(top!.id).toBe('keep');
-    // aucune correspondance du tout → le modèle se tait au lieu d'inventer
-    expect(model.predict(tokens({ tag: ['jardin'], domain: 'rustica.fr' }), zones)).toEqual([]);
+    // no match at all → the model says nothing rather than inventing
+    expect(model.predict(tokens({ tag: ['garden'], domain: 'gardenersworld.com' }), zones)).toEqual([]);
   }
 });
 
-test('interaction : ni Bayes ni le linéaire ne s\'en sortent sur les traits bruts', () => {
+test('interaction: neither Bayes nor the linear model cope on raw features', () => {
   for (const model of [new Bayes(), new Linear()] as Model[]) {
     const trained = train(model, tokens);
     const [top] = trained.predict(tokens({ domain: 'a.com', tag: ['x'] }), ZONES);
-    // chaque trait isolé vote exactement pareil des deux côtés : c'est un pile ou face
+    // each isolated feature votes exactly the same on both sides: it is a coin flip
     expect(top!.score).toBeLessThan(0.75);
   }
 });
 
-test('interaction : le croisement de traits la rend visible, sans changer de modèle', () => {
+test('interaction: crossing features exposes it, without changing model', () => {
   const extract = (m: unknown) => crosses([['domain', 'tag']])(tokens(m));
   for (const model of [new Bayes(), new Linear(), new Knn()] as Model[]) {
     const trained = train(model, extract);
@@ -72,27 +72,27 @@ test('interaction : le croisement de traits la rend visible, sans changer de mod
   }
 });
 
-test('kNN : répond dès la première carte, là où Bayes se tait encore', () => {
+test('kNN: answers from the first card, where Bayes is still silent', () => {
   const knn = new Knn();
   const bayes = new Bayes({ minExamples: 3 });
   const meta = tokens({ domain: 'github.com', tag: ['rust'] });
   knn.learn(meta, 'dev');
   bayes.learn(meta, 'dev');
-  expect(bayes.predict(meta, ['dev', 'perso'])).toEqual([]);
-  const [top] = knn.predict(tokens({ domain: 'github.com', tag: ['rust', 'cli'] }), ['dev', 'perso']);
+  expect(bayes.predict(meta, ['dev', 'personal'])).toEqual([]);
+  const [top] = knn.predict(tokens({ domain: 'github.com', tag: ['rust', 'cli'] }), ['dev', 'personal']);
   expect(top!.id).toBe('dev');
-  expect(top!.why.length).toBeGreaterThan(0); // il montre ce qu'il a reconnu
+  expect(top!.why.length).toBeGreaterThan(0); // it shows what it recognised
 });
 
-test('kNN : le tampon circulaire borne la mémoire', () => {
+test('kNN: the ring buffer bounds the memory', () => {
   const knn = new Knn({ capacity: 10 });
   for (let i = 0; i < 50; i++) knn.learn([`tag:t${i}`], 'z');
   expect((knn.toJSON().rows as unknown[]).length).toBe(10);
-  expect(knn.predict(['tag:t0'], ['z'])).toEqual([]); // sorti du tampon, oublié
+  expect(knn.predict(['tag:t0'], ['z'])).toEqual([]); // out of the buffer, forgotten
   expect(knn.predict(['tag:t49'], ['z'])[0]?.id).toBe('z');
 });
 
-test('annuler un rangement le désapprend', () => {
+test('undoing a filing unlearns it', () => {
   for (const model of [new Bayes({ minExamples: 1 }), new Knn()] as Model[]) {
     model.learn(['tag:x'], 'a');
     model.learn(['tag:x'], 'a');
@@ -103,10 +103,10 @@ test('annuler un rangement le désapprend', () => {
   }
 });
 
-test('ensemble : le poids suit la justesse mesurée', () => {
-  /** Un membre volontairement idiot : il vote toujours pour la première zone. */
-  class Idiot implements Model {
-    readonly kind = 'idiot';
+test('ensemble: weight follows measured accuracy', () => {
+  /** A deliberately useless member: it always votes for the first zone. */
+  class Dunce implements Model {
+    readonly kind = 'dunce';
     examples = 0;
     learn(): void {
       this.examples++;
@@ -119,15 +119,15 @@ test('ensemble : le poids suit la justesse mesurée', () => {
     }
   }
   const bayes = new Bayes({ minExamples: 1 });
-  const e = new Ensemble([bayes, new Idiot()]);
-  // un flux où la première zone est presque toujours la mauvaise réponse
+  const e = new Ensemble([bayes, new Dunce()]);
+  // a stream where the first zone is almost always the wrong answer
   for (let i = 0; i < 30; i++) e.learn(tokens({ tag: ['b'] }), 'zb');
   for (let i = 0; i < 5; i++) e.learn(tokens({ tag: ['a'] }), 'za');
-  expect(e.weights.bayes).toBeGreaterThan(e.weights.idiot!);
+  expect(e.weights.bayes).toBeGreaterThan(e.weights.dunce!);
   expect(e.stats().members!.bayes).toBeGreaterThan(0.5);
 });
 
-test('aller-retour JSON pour chaque modèle', () => {
+test('JSON round trip for every model', () => {
   const extract = (m: unknown) => crosses([['domain', 'tag']])(tokens(m));
   for (const model of [new Bayes(), new Linear(), new Knn(), new Ensemble([new Bayes(), new Linear(), new Knn()])]) {
     train(model, extract);

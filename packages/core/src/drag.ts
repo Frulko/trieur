@@ -1,21 +1,20 @@
-// Le geste, isolé du tri.
+// The gesture, kept apart from the sorting.
 //
-// Pointer Events uniquement : souris, doigt et stylet avec le même code. Pas de drag &
-// drop HTML5, inutilisable au doigt.
+// Pointer Events only: mouse, finger and stylus through the same code. No HTML5 drag and
+// drop, which is unusable with a thumb.
 //
-// Une carte se glisse d'un bloc — image, texte, marges. Mais **les liens et les boutons
-// restent cliquables** : on n'écarte tout de suite que les champs de saisie ; sur un `a`
-// ou un `button` on attend quelques pixels de mouvement pour décider, et on annule le
-// clic qui aurait suivi. Sinon une carte dont le lien couvre la moitié de la surface
-// devient impossible à trier.
+// A card is dragged as one block — image, text, padding. But **links and buttons stay
+// clickable**: only form fields are excluded outright; on an `a` or a `button` we wait for a
+// few pixels of movement before deciding, and cancel the click that would have followed.
+// Without this, a card whose link covers half its surface becomes impossible to sort.
 
 export interface GestureState {
   dx: number;
   dy: number;
   dist: number;
-  /** le glisser a pris la main (au-delà du seuil d'engagement) */
+  /** the drag has taken over (past the engagement threshold) */
   engaged: boolean;
-  /** le geste a démarré sur un lien ou un bouton */
+  /** the gesture started on a link or a button */
   interactive: boolean;
 }
 
@@ -24,12 +23,12 @@ export interface GestureHandlers {
   onEnd(g: GestureState, e: PointerEvent): void;
 }
 
-/** Distance, en px, au-delà de laquelle un appui sur un lien devient un glisser. */
+/** Distance, in px, past which a press on a link becomes a drag. */
 const ENGAGE = 6;
 
 /**
- * Démarre un geste sur `el`. Renvoie `null` si l'événement ne doit pas être capté
- * (bouton secondaire, champ de saisie).
+ * Starts a gesture on `el`. Returns `null` when the event should not be captured
+ * (secondary button, form field).
  */
 export function startGesture(el: HTMLElement, e: PointerEvent, handlers: GestureHandlers): GestureState | null {
   const target = e.target as Element | null;
@@ -47,7 +46,7 @@ export function startGesture(el: HTMLElement, e: PointerEvent, handlers: Gesture
     g.dx = ev.clientX - x0;
     g.dy = ev.clientY - y0;
     g.dist = Math.hypot(g.dx, g.dy);
-    // parti d'un lien : on ne prend la main qu'une fois l'intention de glisser établie
+    // started on a link: only take over once the intent to drag is established
     if (!g.engaged) {
       if (g.dist < ENGAGE) return;
       g.engaged = true;
@@ -61,7 +60,7 @@ export function startGesture(el: HTMLElement, e: PointerEvent, handlers: Gesture
     el.removeEventListener('pointerup', end);
     el.removeEventListener('pointercancel', end);
     el.classList.remove('tr-dragging');
-    // le glisser a démarré sur un lien : on annule le clic qui suivrait
+    // the drag started on a link: cancel the click that would follow
     if (g.interactive && g.engaged) {
       el.addEventListener(
         'click',

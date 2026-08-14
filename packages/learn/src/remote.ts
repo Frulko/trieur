@@ -1,18 +1,18 @@
-// Client HTTP du serveur trieur. Rien d'autre que `fetch` — utilisable dans un onglet,
-// une extension, un worker ou Node.
+// HTTP client for the trieur server. Nothing but `fetch` — usable from a tab, an extension,
+// a worker or Node.
 
 import { routes, type ModelResponse, type PredictRequest, type PredictResponse, type PushRequest, type PushResponse, type SortEvent } from './protocol.js';
 import type { Stats } from './types.js';
 
 export interface ClientOptions {
-  /** racine du serveur, sans slash final */
+  /** server root, no trailing slash */
   url: string;
-  /** identifiant du jeu de cartes : un modèle par deck */
+  /** deck identifier: one model per deck */
   deck: string;
   token?: string;
-  /** délai au-delà duquel on abandonne, en ms */
+  /** how long before giving up, in ms */
   timeout?: number;
-  /** injectable pour les tests */
+  /** injectable for tests */
   fetch?: typeof fetch;
 }
 
@@ -66,8 +66,8 @@ export class Client {
     return this.#call<ModelResponse>(`${routes.model(this.deck)}?since=${since}`);
   }
 
-  /** Prédiction côté serveur (modèles lourds, embeddings). `timeout` court par défaut :
-   *  une carte est déjà sous le doigt, on n'attend pas le réseau. */
+  /** Server-side prediction (heavy models, embeddings). Short timeout by default: a card is
+   *  already under the finger, we do not wait on the network. */
   predict(req: PredictRequest, timeout = 400): Promise<PredictResponse> {
     return this.#call<PredictResponse>(routes.predict(this.deck), {
       method: 'POST',

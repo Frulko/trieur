@@ -1,18 +1,18 @@
-// L'assemblage — et le seul barreau qui n'en est pas un.
+// The assembly — and the one rung that is not really a rung.
 //
-// Les trois modèles n'ont pas les mêmes forces au même moment : le kNN est le seul à
-// répondre sur les dix premières cartes, Bayes tient le milieu de terrain, le linéaire
-// prend l'avantage quand le volume monte et que les traits interagissent. Plutôt que de
-// choisir une fois pour toutes, on les fait voter.
+// The three models do not have the same strengths at the same time: kNN is the only one
+// answering over the first ten cards, Bayes holds the middle game, the linear model takes over
+// when volume rises and features interact. Rather than picking once and for all, we let them
+// vote.
 //
-// **Les poids sont mesurés, pas décrétés.** Avant d'apprendre un exemple, chaque membre
-// est interrogé : sa réponse est comparée au rangement réel. C'est de l'évaluation
-// « prequential » — tester avant d'apprendre — donc jamais mesurée sur des exemples déjà
-// vus. Les erreurs accumulées donnent les poids via l'algorithme des experts (`hedge.ts`),
-// qui garantit de faire à long terme aussi bien que le meilleur membre.
+// **The weights are measured, not decreed.** Before an example is learned, every member is
+// asked and its answer compared to the real filing. That is prequential evaluation — test
+// before learning — so it is never measured on examples already seen. The accumulated
+// mistakes give the weights through the experts algorithm (`hedge.ts`), which guarantees
+// doing as well as the best member in the long run.
 //
-// Mesuré sur un corpus réel de 3412 liens dans 72 dossiers : 35,8 % top-1 et 60,9 % top-3,
-// contre 33,1 / 57,1 pour le meilleur membre pris seul (`tools/bench.ts`).
+// Measured on a real corpus of 3,412 links across 72 folders: 35.8% top-1 and 60.9% top-3,
+// against 33.1 / 57.1 for the best member on its own (`tools/bench.ts`).
 
 import { blend, hedge } from './hedge.js';
 import type { Feature, Model, ModelJSON, Ranked, Stats } from './types.js';
@@ -49,16 +49,16 @@ export class Ensemble implements Model {
     return [...new Set(this.#members.flatMap((m) => (m.model as { targets?: string[] }).targets ?? []))];
   }
 
-  /** Poids de chaque membre, par l'algorithme des experts (cf. `hedge.ts`). */
+  /** Each member's weight, through the experts algorithm (see `hedge.ts`). */
   get weights(): Record<string, number> {
     const w = hedge(this.#members);
     return Object.fromEntries(this.#members.map((m, i) => [m.model.kind, w[i]!]));
   }
 
   learn(features: Feature[], target: string, weight = 1): void {
-    // tester avant d'apprendre : la justesse mesurée reste honnête. On interroge chaque
-    // membre une seule fois et on réutilise ses réponses pour le vote — sinon chaque
-    // rangement coûterait deux prédictions complètes.
+    // Test before learning: the measured accuracy stays honest. Every member is asked once
+    // and its answer reused for the vote — otherwise each filing would cost two full
+    // predictions.
     if (weight > 0) {
       const votes = this.#members.map((m) => m.model.predict(features, []));
       this.#members.forEach((m, i) => {
@@ -80,7 +80,7 @@ export class Ensemble implements Model {
     return this.#blend(this.#members.map((m) => m.model.predict(features, targets)));
   }
 
-  /** Mélange des distributions, pondéré par la justesse mesurée de chaque membre. */
+  /** Blends the distributions, weighted by each member's measured accuracy. */
   #blend(votes: Ranked[][]): Ranked[] {
     return blend(votes, hedge(this.#members));
   }

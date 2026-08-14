@@ -1,17 +1,17 @@
-// Des métadonnées aux traits.
+// From metadata to features.
 //
-// Le choix des traits pèse plus que le choix du modèle. C'est pour ça qu'ils sont
-// extraits ici, une fois, et que tous les modèles reçoivent exactement la même liste :
-// comparer deux modèles n'a de sens que sur le même jeu de traits.
+// The choice of features matters more than the choice of model. Which is why they are
+// extracted here, once, and every model receives exactly the same list: comparing two models
+// only means something on the same features.
 
 import type { Feature } from './types.js';
 
 const STOP = new Set(
-  ('le la les un une des de du et ou en au aux pour par sur avec sans dans ' +
-    'the a an of to in on for and or is are with as at by from this that it its you your').split(' '),
+  ('the a an of to in on for and or is are with as at by from this that it its you your ' +
+    'le la les un une des de du et ou en au aux pour par sur avec sans dans').split(' '),
 );
 
-/** Découpe une valeur texte en jetons utiles (mots de 3 à 24 lettres, sans mots vides). */
+/** Splits a text value into useful tokens (words of 3 to 24 letters, no stop words). */
 export function words(s: string): string[] {
   return String(s)
     .toLowerCase()
@@ -19,18 +19,18 @@ export function words(s: string): string[] {
     .filter((w) => w.length >= 3 && w.length <= 24 && !STOP.has(w));
 }
 
-/** Un extracteur transforme des métadonnées quelconques en traits. */
+/** An extractor turns arbitrary metadata into features. */
 export type Extractor = (meta: unknown) => Feature[];
 
 /**
- * Traits par défaut : chaque propriété devient un ou plusieurs jetons `clé:valeur`.
+ * Default features: every property becomes one or more `key:value` tokens.
  *
- * - tableau → un trait par élément (`tag:react`)
- * - texte court (≤ 3 mots) → un trait tel quel (`domain:github.com`)
- * - texte long → un trait par mot (`title:hooks`)
+ * - array → one feature per element (`tag:react`)
+ * - short text (≤ 3 words) → one feature as-is (`domain:github.com`)
+ * - long text → one feature per word (`title:hooks`)
  *
- * Les nombres et les booléens sont ignorés : ils ne discriminent pas un rangement, et un
- * modèle sur traits creux ne saurait qu'en faire.
+ * Numbers and booleans are ignored: they do not discriminate a filing, and a sparse model
+ * would not know what to do with them.
  */
 export const tokens: Extractor = (meta) => {
   const out: Feature[] = [];
@@ -46,23 +46,22 @@ export const tokens: Extractor = (meta) => {
   return [...new Set(out)];
 };
 
-/** Une transformation de traits : reçoit la liste, en rend une autre. */
+/** A feature transform: takes the list, returns another one. */
 export type Transform = (features: Feature[]) => Feature[];
 
 const keyOf = (f: Feature) => f.slice(0, f.indexOf(':'));
 
 /**
- * Traits croisés : `domain:github.com` + `tag:rust` → `domain:github.com×tag:rust`.
+ * Crossed features: `domain:github.com` + `tag:rust` → `domain:github.com×tag:rust`.
  *
- * C'est le coup le plus rentable de toute l'échelle. Bayes naïf suppose les traits
- * indépendants : pour lui « github et rust » vaut exactement la somme de « github » et de
- * « rust ». Or c'est faux — la combinaison range ailleurs que chacun pris à part. Fabriquer
- * le croisement rend la combinaison visible **sans changer de modèle**.
+ * This is the best value for money on the whole ladder. Naive Bayes assumes features are
+ * independent: to it, "github and rust" is exactly the sum of "github" and "rust". Which is
+ * wrong — the combination files somewhere neither of them would. Manufacturing the cross
+ * makes the combination visible **without changing model**.
  *
- * Le prix, c'est l'explosion du vocabulaire : n valeurs × m valeurs. D'où deux garde-fous :
- * on ne croise qu'une liste explicite de paires de clés, et au plus `max` valeurs par clé
- * (les tags d'une page sont déjà triés par pertinence par l'appelant). Le modèle linéaire
- * élague ensuite ce qui ne sert pas.
+ * The price is vocabulary explosion: n values × m values. Hence two guard rails: only an
+ * explicit list of key pairs is crossed, and at most `max` values per key (a page's tags are
+ * already sorted by relevance by the caller). The linear model then prunes what never helped.
  */
 export function crosses(pairs: Array<[string, string]>, max = 4): Transform {
   return (features) => {
@@ -77,7 +76,7 @@ export function crosses(pairs: Array<[string, string]>, max = 4): Transform {
     for (const [a, b] of pairs) {
       for (const fa of byKey.get(a) ?? []) {
         for (const fb of byKey.get(b) ?? []) {
-          if (fa !== fb) out.push(fa < fb ? `${fa}×${fb}` : `${fb}×${fa}`); // ordre stable
+          if (fa !== fb) out.push(fa < fb ? `${fa}×${fb}` : `${fb}×${fa}`); // stable order
         }
       }
     }
@@ -85,18 +84,18 @@ export function crosses(pairs: Array<[string, string]>, max = 4): Transform {
   };
 }
 
-/** Ne garde que les traits dont la clé est listée. */
+/** Keeps only the features whose key is listed. */
 export function only(...keys: string[]): Transform {
   const set = new Set(keys);
   return (features) => features.filter((f) => set.has(keyOf(f)));
 }
 
-/** Enchaîne un extracteur et des transformations. */
+/** Chains an extractor and a few transforms. */
 export function pipe(base: Extractor, ...steps: Transform[]): Extractor {
   return (meta) => steps.reduce<Feature[]>((f, step) => step(f), base(meta));
 }
 
-/** L'extracteur conseillé : jetons + croisements domaine/auteur × tag. */
+/** The recommended extractor: tokens plus domain/author/host × tag crosses. */
 export const defaultFeatures: Extractor = pipe(
   tokens,
   crosses([

@@ -1,12 +1,12 @@
-// Rendu par défaut d'une zone.
+// Default rendering of a zone.
 //
-// Une zone est une tuile, pas une étiquette : pastille de 46 px remplie de sa couleur,
-// ou son emoji, ou son image ; libellé sur deux lignes ; touche en pied. `renderZone`
-// reprend la main si tu veux autre chose.
+// A zone is a tile, not a label: a 46px chip filled with its colour, or its emoji, or its
+// image; a two-line label; the key at the foot. `renderZone` takes over if you want
+// something else.
 
 import type { DeckText, PlacedZone } from './types.js';
 
-// Dossier plein, à la Finder : la couleur remplit, elle ne se contente pas d'un liseré.
+// A filled folder, Finder style: the colour fills the shape, it does not settle for an outline.
 const FOLDER =
   'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z';
 

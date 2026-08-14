@@ -1,98 +1,111 @@
-# trieur — notes pour l'agent
+# trieur — notes for the agent
 
-Monorepo Bun. Trois paquets publiables sans dépendance d'exécution, plus un site Astro qui
-sert de documentation **et** de banc d'essai visuel.
+Bun monorepo. Three publishable packages with no runtime dependencies, plus an Astro site that
+doubles as documentation **and** as a visual bench.
 
 ```bash
-bun test                 # les trois paquets
+bun test                 # the three packages
 bunx tsc -b packages/core packages/learn packages/server
-bun run bench            # banc d'essai des modèles (corpus synthétique)
-bun run dev              # site + démos
+bun run bench            # model bench (synthetic corpus)
+bun run dev              # site + demos
 ```
 
-## Règles
+## Rules
 
-- **Aucune dépendance d'exécution.** Si une dépendance semble nécessaire, c'est probablement
-  que la fonctionnalité n'a pas sa place ici. `typescript` et `astro` sont des outils de
-  développement, pas des dépendances.
-- **Rien du domaine dans `core` ni `learn`.** Pas de « favori », « bookmark », « dossier »
-  dans le code ni dans les classes CSS. On trie des objets opaques dans des zones opaques.
-- **Pas de bundler.** `tsc -b` uniquement. Les imports portent l'extension `.js` en source :
-  c'est ce qui rend la sortie exécutable telle quelle par Node et les navigateurs.
-- **Un chiffre annoncé est un chiffre mesuré.** Toute affirmation de performance dans une doc
-  doit être reproductible par `tools/bench.ts`. Si le banc contredit la doc, la doc a tort.
-- **Le site pointe sur les *sources* des paquets** (alias Vite dans `astro.config.mjs`), pas
-  sur `dist/` : une démo casse tout de suite, pas après un build oublié.
+- **English everywhere.** Code, comments, docs, site, commit messages. The package name is
+  French; nothing else is.
+- **No runtime dependency.** If one seems necessary, the feature probably does not belong here.
+  `typescript`, `astro` and `@happy-dom/global-registrator` are development tools, not
+  dependencies.
+- **Nothing domain-specific in `core` or `learn`.** No "bookmark", "folder" or "link" in the code
+  or in the CSS class names. We sort opaque objects into opaque zones.
+- **No bundler.** `tsc -b` only. Imports carry the `.js` extension in the source: that is what
+  makes the output runnable as-is by Node and by browsers.
+- **A number that is stated is a number that was measured.** Any performance claim in any doc has
+  to be reproducible with `tools/bench.ts`. If the bench contradicts the docs, the docs are wrong.
+- **The site points at the packages' *sources*** (Vite aliases in `astro.config.mjs`), not at
+  `dist/`: a broken demo breaks immediately, not after a forgotten build.
+- **Internal site links are relative or go through `url()`.** GitHub Pages serves the site from
+  `/trieur/`; a root-absolute link would 404 there.
 
-## Fichiers
+## Files
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `packages/core/src/deck.ts` | la classe `Deck` : pile, zones, rendu, actions |
-| `packages/core/src/drag.ts` | le geste, isolé du tri (engagement, clics annulés) |
-| `packages/core/src/voronoi.ts` | découpage de la scène, `inPolygon` |
-| `packages/core/src/layouts.ts` | `circle`, `voronoi` (spirale d'or), `grid` |
-| `packages/core/src/anim.ts` | entrées, sortie « génie », rebond des tuiles |
+| `packages/core/src/deck.ts` | the `Deck` class: pile, zones, rendering, actions, multi-zone stack |
+| `packages/core/src/drag.ts` | the gesture, kept apart from the sorting (engagement, cancelled clicks) |
+| `packages/core/src/voronoi.ts` | stage carving, `inPolygon` |
+| `packages/core/src/layouts.ts` | `circle`, `voronoi` (golden spiral), `grid` |
+| `packages/core/src/anim.ts` | entrances, genie exit, tile bounce |
 | `packages/core/src/element.ts` | `<trieur-deck>` / `<trieur-zone>` |
-| `packages/learn/src/features.ts` | traits creux, croisements, `pipe` |
-| `packages/learn/src/{bayes,linear,knn}.ts` | les trois modèles creux |
-| `packages/learn/src/hedge.ts` | poids des experts + mélange — **une seule formule pour tout le dépôt** |
-| `packages/learn/src/recommender.ts` | mode léger, mode complet, file hors ligne |
-| `packages/learn/src/protocol.ts` | types du dialogue, importés des deux côtés |
-| `packages/learn/src/bench.ts` | `evaluate()` prequential + corpus synthétique |
-| `packages/server/src/api.ts` | routes, `Request → Response`, testable sans port |
-| `packages/server/src/db.ts` | schéma SQLite, `INSERT OR IGNORE` sur l'id d'événement |
-| `packages/server/src/embed.ts` | embeddings + index vectoriel |
-| `packages/server/src/serve.ts` | l'exécutable (`index.ts` n'exporte que la lib) |
+| `packages/learn/src/features.ts` | sparse features, crosses, `pipe` |
+| `packages/learn/src/{bayes,linear,knn}.ts` | the three sparse models |
+| `packages/learn/src/hedge.ts` | expert weights + blending — **one formula for the whole repo** |
+| `packages/learn/src/recommender.ts` | light mode, full mode, offline queue |
+| `packages/learn/src/protocol.ts` | wire types, imported by both sides |
+| `packages/learn/src/bench.ts` | prequential `evaluate()` + synthetic corpus |
+| `packages/server/src/api.ts` | routes, `Request → Response`, testable without a port |
+| `packages/server/src/db.ts` | SQLite schema, `INSERT OR IGNORE` on the event id |
+| `packages/server/src/embed.ts` | embeddings + vector index |
+| `packages/server/src/serve.ts` | the executable (`index.ts` only exports the library) |
 
-## Pièges déjà payés — ne pas les réintroduire
+## Traps already paid for — do not reintroduce them
 
-### Sur le modèle
+### On the model
 
-- **Ignorer les traits jamais vus à la prédiction.** Sinon chaque mot inconnu d'un titre
-  pénalise la zone qui a beaucoup appris (gros dénominateur) et fait gagner une zone vierge.
-- **Se taire plutôt qu'inventer** : pas assez d'exemples, ou aucun trait reconnu → `[]`.
-- **La mise à jour du linéaire est contrastive, pas dense.** Une logistique multinomiale
-  classique touche toutes les zones à chaque exemple : `|vocab| × |zones|` entrées à
-  sérialiser dans un navigateur. On ne touche que la bonne zone et la meilleure fautive.
-- **Les poids d'ensemble se mesurent avant d'apprendre** (prequential). Mesurer après, c'est
-  mesurer sur des exemples déjà vus.
-- **Le corpus synthétique ne doit jamais contenir la réponse dans le titre.** C'est arrivé :
-  le banc affichait 95 % et ne mesurait rien.
+- **Ignore features never seen, at prediction time.** Otherwise every unknown word of a title
+  penalises the zone that has learned a lot (large denominator) and hands the win to an empty one.
+- **Stay silent rather than invent**: not enough examples, or no recognised feature → `[]`.
+- **The linear update is contrastive, not dense.** A textbook multinomial logistic touches every
+  zone on every example: `|vocab| × |zones|` entries to serialise in a browser. Only the right
+  zone and the best wrong one are touched.
+- **Ensemble weights are measured before learning** (prequential). Measuring after means measuring
+  on examples already seen.
+- **The synthetic corpus must never carry the answer in the card title.** It happened: the bench
+  displayed 95% and measured nothing.
 
-### Sur le serveur
+### On the server
 
-- **`INSERT OR IGNORE` sur l'id d'événement.** Un événement appris deux fois fausse le modèle
-  durablement et silencieusement. Vérifier l'ordre des liaisons SQL : un décalage transforme
-  une contrainte `NOT NULL` en insertion ignorée sans erreur — c'est arrivé aussi.
-- **Les embeddings partent après la réponse.** Personne n'attend un fournisseur tiers pour
-  qu'un rangement soit accepté.
-- **`api.flush()` sur SIGINT/SIGTERM**, sinon c'est du travail de tri perdu.
+- **`INSERT OR IGNORE` on the event id.** An event learned twice skews the model permanently and
+  silently. Check the order of the SQL bindings: an off-by-one turns a `NOT NULL` constraint into
+  a silently ignored insert — that happened too.
+- **Embeddings leave after the response.** Nobody waits on a third-party provider for a filing to
+  be accepted.
+- **`api.flush()` on SIGINT/SIGTERM**, otherwise it is lost sorting work.
 
-### Sur le deck
+### On the deck
 
-- **Une carte en vol survit au rendu suivant.** `render()` conserve les `.tr-genie` et ne les
-  *touche pas* : les réinsérer annule la transition et fait sauter la carte à l'arrivée.
-- **Les entrées passent par `animateFrom()`** : état de départ inline, reflow forcé, relâche.
-  Sans le `void el.offsetWidth`, le navigateur ne voit qu'un état et n'anime rien.
-- **Le découpage est la vérité du dépôt.** `zoneAt()` teste l'appartenance à la cellule ; le
-  ciblage angulaire n'est qu'un repli quand `segments: false`. Ne pas les désynchroniser.
-- **Changer de zones ne remonte pas la lib** (`setZones`), sinon les cartes déjà rangées
-  réapparaissent et l'historique d'annulation est vidé.
-- **Le JS l'emporte sur le markup**, jamais l'inverse.
-- **Un lien dans une carte ne bloque pas le glisser** : six pixels de mouvement décident, et
-  le clic qui suivrait est annulé en capture.
-- **`best()` peut être asynchrone.** Le jeton `#ask` jette une réponse tardive : un serveur
-  lent ne doit pas faire apparaître une proposition sur la carte suivante.
-- **Le plein écran n'est pas l'API Fullscreen** : elle rend la page inerte et casse les liens
-  des cartes. Après bascule, rappeler `layout()`.
+- **A card in flight survives the next render.** `render()` keeps the `.tr-genie` nodes and does
+  not *touch* them: reinserting them cancels the transition and snaps the card to the end state.
+- **Entrances go through `animateFrom()`**: inline start state, forced reflow, release. Without
+  the `void el.offsetWidth` the browser only sees one state and animates nothing.
+- **The carving is the truth of the drop.** `zoneAt()` tests cell membership; angular aiming is
+  only a fallback when `segments: false`. Do not let them drift apart.
+- **Changing zones does not remount the library** (`setZones`), otherwise already-filed cards come
+  back and the undo history is wiped. A pick pointing at a removed zone is dropped there too.
+- **JS wins over markup**, never the other way round.
+- **A link inside a card does not block the drag**: six pixels of movement decide, and the click
+  that would follow is cancelled in the capture phase.
+- **`best()` may be asynchronous.** The `#ask` token drops a late answer: a slow server must not
+  make a suggestion appear on the next card.
+- **Fullscreen is not the Fullscreen API**: it makes the page inert and breaks links inside cards.
+  After toggling, call `layout()` again.
 
-## Choses volontairement absentes
+### On multi-zone mode
 
-- Pas de virtualisation : on affiche deux cartes, la pile peut en faire dix mille.
-- Pas de multi-sélection ni de sous-zones — un tri, un coup par carte.
-- Pas de fusion de deux modèles divergents : le serveur *remplace* le local au démarrage à
-  chaud, et rien d'autre. Le jour où deux appareils trient vraiment en parallèle, la réponse
-  est de faire rejouer le serveur.
-- Pas d'index vectoriel approché : comparaison exhaustive tant que le corpus tient en
-  mémoire.
+- **`multi` is off by default.** Stacking only makes sense when zones are not mutually exclusive,
+  and only the host knows that.
+- **Two ways in, one state.** `#multi` records *how* the mode was opened: a `⇧` release only files
+  a stack that `⇧` itself opened, so a stray release cannot fire a latched stack.
+- **One example per zone** for the model, and undo unlearns every one of them.
+- **Without `onSortMany`**, several zones fall back to sequential `onSort` calls — documented, with
+  its partial-failure ceiling stated.
+
+## Deliberately absent
+
+- No virtualisation: two cards are rendered, the pile can hold ten thousand.
+- No multi-select of cards, no sub-zones — one card, one move.
+- No merging of two diverging models: the server *replaces* the local one at warm start, nothing
+  more. The day two devices really sort in parallel, the answer is to have the server replay.
+- No approximate vector index: exhaustive comparison as long as the corpus fits in memory.
+- No suggestion of a *set* of zones: that would need a confidence per subset.

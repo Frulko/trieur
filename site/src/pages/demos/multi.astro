@@ -1,0 +1,131 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Demo — filing into several zones">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">One card, several zones</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      Some zones are mutually exclusive — keep or discard. Folders and tags are not: a link about Rust tooling belongs in
+      <em>dev</em> and in <em>to read</em>. Turn <code>multi</code> on and one card can be stacked into several zones
+      before it leaves.
+    </p>
+
+    <div class="grid" style="margin-bottom:26px">
+      <div class="card">
+        <h3>With a keyboard</h3>
+        <p>
+          Hold <kbd>⇧</kbd> and press several zone letters. Releasing <kbd>⇧</kbd> files the card into all of them. The
+          hold is the mode — nothing to turn on, nothing to turn off.
+        </p>
+      </div>
+      <div class="card">
+        <h3>With a thumb</h3>
+        <p>
+          Tap <b>Multiple zones</b> in the bar: the mode latches. Then tap the tiles, or flick the card at them — it
+          comes back to the centre each time. The same button confirms.
+        </p>
+      </div>
+      <div class="card">
+        <h3>How it reads</h3>
+        <p>
+          The card gets a dashed amber outline that breathes, and every stacked zone is numbered. Amber, not red: red
+          means error or destruction, and this is neither.
+        </p>
+      </div>
+    </div>
+
+    <div class="demo demo-side">
+      <div id="sorter"></div>
+      <div>
+        <div class="panel">
+          <h3>Current stack</h3>
+          <p id="stack" style="margin:0;min-height:4em;color:var(--dim)">
+            Nothing stacked. Hold <kbd>⇧</kbd> and press <kbd>a</kbd>, <kbd>s</kbd>, <kbd>d</kbd>…
+          </p>
+        </div>
+        <div class="panel">
+          <h3>What the host receives</h3>
+          <pre
+            id="out"
+            style="font-size:12px;padding:12px 14px;margin:0;white-space:pre-wrap">waiting…</pre>
+        </div>
+        <div class="panel">
+          <h3>Escape hatches</h3>
+          <p style="margin:0;color:var(--dim)">
+            <kbd>Esc</kbd> drops the stack without filing anything. Pressing the same zone twice removes it. The first
+            zone stacked stays the primary one — badge <b>1</b> — which is what most hosts treat as the main folder.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:60px">
+      <h2>What it changes for the host</h2>
+      <p>
+        One zone still goes through <code>onSort(item, zone)</code>. Several go through
+        <code>onSortMany(item, zones)</code>, in the order they were picked. Without <code>onSortMany</code>, the
+        library falls back to calling <code>onSort</code> once per zone — which is fine for a local update, and not fine
+        if the filing has to be atomic: if the third call fails, the first two already happened.
+      </p>
+      <pre><code>{`new Deck(el, {
+  items, zones,
+  multi: true,
+  onSort:     (item, zone)  => api.file(item.id, [zone.id]),
+  onSortMany: (item, zones) => api.file(item.id, zones.map((z) => z.id)),
+  onUndoMany: (item, zones) => api.unfile(item.id, zones.map((z) => z.id)),
+});
+
+el.addEventListener('trieur:pick', (e) => {
+  // the stack changed — e.detail.zones, e.detail.multi
+});`}</code></pre>
+      <p>
+        The model learns <b>one example per zone</b>: a card filed in three places teaches three times, and undoing
+        unlearns all three. That is the right behaviour for folders, and it is an approximation worth knowing about —
+        a genuine multi-label model would learn the combination as such.
+      </p>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { createRecommender } from '@trieur/learn';
+  import { meta, shuffled, zones, type Link } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+
+  const $ = (s: string) => document.querySelector(s)!;
+
+  const deck = new Deck<Link>($('#sorter') as HTMLElement, {
+    items: shuffled(21),
+    zones,
+    meta,
+    renderCard,
+    multi: true,
+    advisor: createRecommender({ key: 'demo-multi' }),
+    onSortMany: (item, picked) => {
+      $('#out').textContent = `onSortMany(\n  "${item.title.slice(0, 34)}…",\n  [${picked.map((z) => `"${z.id}"`).join(', ')}]\n)`;
+    },
+    onSort: (item, zone) => {
+      $('#out').textContent = `onSort(\n  "${item.title.slice(0, 34)}…",\n  "${zone.id}"\n)`;
+    },
+    onUndoMany: () => {
+      $('#out').textContent = 'onUndoMany(…) — the card comes back, every zone unlearned';
+    },
+  });
+
+  deck.root.addEventListener('trieur:pick', (e) => {
+    const { zones: picked, multi } = (e as CustomEvent).detail;
+    $('#stack').innerHTML = picked.length
+      ? picked.map((z: { id: string }, i: number) => `<b>${i + 1}.</b> ${z.id}`).join('<br />') +
+        '<br /><span style="color:var(--dim)">↵ or the bar button to file</span>'
+      : multi
+        ? 'Mode on, nothing stacked yet — tap a tile or press a zone letter.'
+        : 'Nothing stacked. Hold <kbd>⇧</kbd> and press <kbd>a</kbd>, <kbd>s</kbd>, <kbd>d</kbd>…';
+  });
+
+  deck.focus();
+</script>

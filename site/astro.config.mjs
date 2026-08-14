@@ -3,11 +3,17 @@ import { fileURLToPath } from 'node:url';
 
 const src = (p) => fileURLToPath(new URL(p, import.meta.url));
 
-// Le site pointe sur les **sources** des paquets, pas sur leur `dist/`. Deux raisons :
-// on n'a pas à builder pour lancer les démos, et une démo qui casse casse tout de suite —
-// pas après un build oublié.
+// The site points at the packages' **sources**, not at their `dist/`. Two reasons: no build
+// is needed to run the demos, and a broken demo breaks immediately rather than after a
+// forgotten build.
+//
+// `base` comes from the environment so the same site can be served from the root of a domain
+// or from `/<repo>/` on GitHub Pages. Every internal link is either relative or goes through
+// `url()`, so both work.
 export default defineConfig({
-  site: 'https://trieur.dev',
+  site: process.env.ASTRO_SITE ?? 'https://trieur.dev',
+  base: process.env.ASTRO_BASE ?? '/',
+  trailingSlash: 'always',
   vite: {
     resolve: {
       alias: [

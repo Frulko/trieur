@@ -1,173 +1,201 @@
 # trieur
 
-Trier une pile de cartes dans des zones — au doigt, à la souris ou au clavier — et un modèle
-qui apprend, à chaque rangement, où la carte suivante ira probablement.
+Sort a pile of cards into zones — by thumb, by mouse or by keyboard — and a model that learns,
+on every filing, where the next card will probably go.
 
-Le geste sans le modèle, c'est un tri manuel agréable. Le modèle sans le geste, c'est un
-classifieur sans interface. Ensemble, la boucle se referme : ranger entraîne, et
-l'entraînement raccourcit le rangement suivant — jusqu'à ce que `↵` suffise.
+The gesture without the model is pleasant manual sorting. The model without the gesture is a
+classifier with no interface. Together the loop closes: filing trains, and training shortens
+the next filing — until `↵` is enough.
+
+*(**trieur** is French for the machine that sorts mail into pigeonholes.)*
+
+**[Docs and live demos →](https://frulko.github.io/trieur/)**
 
 ```bash
 bun i
-bun run dev      # le site et ses démos
-bun test         # les trois paquets
-bun run bench    # le banc d'essai des modèles
+bun run dev      # the site and its demos
+bun test         # the three packages
+bun run bench    # the model bench
 ```
 
-## Structure
+## Layout
 
 ```
 packages/
-  core/     la scène, les zones, le geste, les animations   → @trieur/core   (0 dépendance)
-  learn/    traits, modèles, stockage local, protocole      → @trieur/learn  (0 dépendance)
-  server/   événements, rejeu, embeddings                   → @trieur/server (Bun + SQLite)
-site/       Astro : documentation et démos
+  core/     the stage, zones, gesture, animations   → @trieur/core   (0 dependencies)
+  learn/    features, models, local storage, wire   → @trieur/learn  (0 dependencies)
+  server/   events, replay, embeddings              → @trieur/server (Bun + SQLite)
+site/       Astro: documentation and demos
 ```
 
-Modules ES publiés en JavaScript avec leurs déclarations de types. Pas de bundler
-nécessaire, pas de dépendance d'exécution.
+ES modules published as JavaScript with their type declarations. No bundler required, no
+runtime dependency.
 
-## En trente secondes
+## Thirty seconds
 
 ```js
 import { Deck } from '@trieur/core';
-import { createRecommender } from '@trieur/learn';
 import '@trieur/core/trieur.css';
+import { createRecommender } from '@trieur/learn';
 
-const brain = createRecommender({ key: 'liens' }); // modèle local, IndexedDB
+const brain = createRecommender({ key: 'links' }); // local model, IndexedDB
 
-new Deck(document.querySelector('#tri'), {
-  items: liens,
-  zones: [{ id: 'dev' }, { id: 'ia' }, null, { id: 'maison' }], // null = zone libre
+new Deck(document.querySelector('#sorter'), {
+  items: links,
+  zones: [{ id: 'dev' }, { id: 'ai' }, null, { id: 'home' }], // null = free zone
   advisor: brain,
-  meta: (l) => ({ domain: l.host, tag: l.tags, title: l.title }), // ce que le modèle regarde
-  renderCard: (l, el) => (el.innerHTML = gabarit(l)),
-  onSort: (l, zone) => api.ranger(l.id, zone.id), // async ; un rejet remet la carte
+  multi: true,                                                 // several zones per card
+  meta: (l) => ({ domain: l.host, tag: l.tags, title: l.title }), // what the model may see
+  renderCard: (l, el) => (el.innerHTML = template(l)),
+  onSort: (l, zone) => api.file(l.id, zone.id),   // async; a rejection puts the card back
+  onSortMany: (l, zones) => api.file(l.id, zones.map((z) => z.id)),
 });
 ```
 
-| Touche | Effet |
+| Key | Effect |
 |---|---|
-| lettre d'une zone | y range la carte |
-| `↵` | accepte la zone proposée par le modèle |
-| `espace` | passer |
-| `⌫` | annuler — et **désapprendre** l'exemple |
+| a zone letter | files the card there |
+| `⇧` + several letters | files into several zones at once |
+| `↵` | accepts the zone the model suggests |
+| `space` | skip |
+| `⌫` | undo — and **unlearn** the example |
 
-## Les principes qui expliquent le reste
+## The principles that explain the rest
 
-**La lib ne sait rien du domaine.** Pas de « favori », pas de « dossier », ni dans le code ni
-dans les noms de classes CSS. Elle trie des objets opaques dans des zones opaques. Ce qui
-connaît le sujet vit chez l'appelant : `renderCard` dessine, `onSort` exécute, `meta` décide
-de ce que le modèle a le droit de regarder.
+**The library knows nothing about your domain.** No "bookmark", no "folder", neither in the code
+nor in the CSS class names. It sorts opaque objects into opaque zones. What knows the subject
+lives in the host: `renderCard` draws, `onSort` performs, `meta` decides what the model may look
+at.
 
-**L'appelant décide, et peut refuser.** `onSort` est asynchrone et peut échouer — un rejet
-remet la carte en place. La lib ne mute jamais rien en dehors de sa propre pile.
+**The host decides, and may refuse.** `onSort` is asynchronous and may fail — a rejection puts
+the card back. The library never mutates anything outside its own pile.
 
-**La prédiction ne bloque jamais le geste.** La carte est déjà sous le doigt quand il faut
-proposer une zone. Le modèle local répond en microsecondes ; le serveur n'est consulté que
-lorsque le local se tait, avec un délai maximum court, et son silence n'empêche rien.
+**The prediction never blocks the gesture.** The card is already under the finger when a zone
+must be suggested. The local model answers in microseconds; the server is only consulted when
+the local one stays silent, with a short deadline, and its silence prevents nothing.
 
-**Ne rien proposer plutôt que proposer au hasard.** Trop peu d'exemples, ou aucun trait
-reconnu, et `predict()` rend une liste vide. Une mauvaise proposition coûte plus cher qu'une
-absence de proposition : elle fait perdre confiance dans toutes les suivantes.
+**Say nothing rather than guess.** Too few examples, or no recognised feature, and `predict()`
+returns an empty list. A bad suggestion costs more than a missing one: it erodes trust in every
+suggestion that follows.
 
-**Les poids sont mesurés, pas décrétés.** Quand plusieurs modèles votent, leur poids vient de
-leur justesse observée. Aucun coefficient magique dans le code.
+**The weights are measured, not decreed.** When several models vote, their weight comes from
+their observed accuracy. No magic coefficient anywhere in the code.
 
-## Une zone est un emplacement, pas une étiquette
+## A zone is a spot, not a label
 
-La touche vient de la **position**, pas du libellé : changer ce qu'il y a dans une zone ne
-change pas le geste, et le geste reste mémorisable. Une entrée `null` est une zone libre — y
-déposer une carte appelle `onAssign(index)` au lieu de ranger.
+The key comes from the **position**, not from the label: changing what a zone holds does not
+change the gesture, and the gesture stays memorable. A `null` entry is a free zone — dropping a
+card there calls `onAssign(index)` instead of filing.
 
-Chaque zone possède une **région** de la scène, le diagramme de Voronoï des positions : des
-secteurs pour un cercle, des cases pour une grille, le pavage correspondant pour une
-disposition maison — même formule. Et ce n'est pas qu'un dessin : **le dépôt vise la région
-sous le doigt**. Ce qu'on voit est ce qu'on touche.
+Each zone owns a **region** of the stage, the Voronoi diagram of the positions: sectors for a
+circle, cells for a grid, the matching tiling for a custom layout — one formula. And it is not
+just a drawing: **the drop aims at the region under the finger**. What you see is what you touch.
 
-## L'échelle du modèle
+## One card, several zones
 
-Bayes naïf plafonne quand les traits interagissent : « github *et* rust » n'est pas la somme
-de « github » et de « rust ». Tous les barreaux tiennent sur le même jeu de traits et la même
-interface `Model`, donc on peut les monter un par un — et les comparer.
+Folders are not mutually exclusive. With `multi: true`, hold `⇧` and press several zone letters —
+releasing `⇧` files the card into all of them. On a phone, the bar button latches the same mode,
+and the tiles become tappable.
 
-| Barreau | Ce que ça apporte | Ce que ça coûte |
+The card takes a dashed amber outline whose halo breathes, and each stacked zone gets a numbered
+badge — badge `1` is the primary zone. Amber rather than red: red reads as error or destruction,
+and this is neither. The model learns one example per zone, and undoing unlearns all of them.
+
+## The model ladder
+
+Naive Bayes plateaus as soon as features interact: "github *and* rust" is not the sum of "github"
+and "rust". Every rung runs on the same features and the same `Model` interface, so they can be
+climbed one at a time — and compared.
+
+| Rung | What it buys | What it costs |
 |---|---|---|
-| `Bayes` | apprend dès le 3ᵉ exemple, s'explique, cent lignes | suppose les traits indépendants |
-| `crosses()` | `domaine×tag` rend la combinaison visible, **sans changer de modèle** | le vocabulaire explose, il faut élaguer |
-| `Linear` | des poids appris au lieu de comptes ; encaisse les traits corrélés | un pas d'apprentissage — réglé tout seul par AdaGrad |
-| `Knn` | « ce lien ressemble à ceux-là » : le meilleur démarrage à froid | il faut garder le corpus |
-| embeddings | rapproche deux cartes qui ne partagent **aucun mot** | un serveur et un appel réseau |
+| `Bayes` | learns from the 3rd example, explains itself, a hundred lines | assumes features are independent |
+| `crosses()` | `domain×tag` exposes the combination, **without changing model** | the vocabulary explodes, it needs pruning |
+| `Linear` | learned weights instead of counts; copes with correlated features | a learning rate — tuned on its own by AdaGrad |
+| `Knn` | "this link looks like those": the best cold start | the corpus has to be kept |
+| embeddings | brings two cards sharing **no word** closer together | a server and a network call |
 
-`defaultModel()` ne choisit pas : les trois modèles creux votent, pondérés par leur justesse
-mesurée avant apprentissage (algorithme des experts). La garantie de cet algorithme, c'est
-qu'à long terme l'ensemble fait aussi bien que son meilleur membre — sans qu'on ait eu à le
-désigner.
+`defaultModel()` does not choose: the three sparse models vote, weighted by the accuracy measured
+before learning (the experts algorithm). Its classic guarantee is that in the long run the
+ensemble does as well as its best member — without anyone naming it in advance.
 
-### Mesuré, pas supposé
+### Measured, not assumed
 
-`bun run bench` évalue en **prequential** : chaque carte est d'abord soumise au modèle qui ne
-l'a jamais vue, on note s'il avait raison, ensuite seulement il l'apprend. Pas de séparation
-train/test à bricoler, pas de fuite possible, et le chiffre obtenu est celui que vit
-l'utilisateur.
+`bun run bench` evaluates **prequentially**: every card is first shown to a model that has never
+seen it, we note whether it was right, and only then does it learn. No train/test split to rig,
+no leakage possible, and the number is the one the user experiences.
 
-Sur un corpus réel de 3 412 liens rangés à la main dans 72 dossiers :
+On a real corpus of 3,412 links filed by hand across 72 folders:
 
 ```
-modèle                 top-1     top-3     muet    vocab      ms
+model                  top-1     top-3   silent    vocab      ms
 ────────────────────────────────────────────────────────────────
 bayes                 33.1 %    57.1 %     0.7 %   49221     490
-bayes + croisés       33.6 %    57.4 %     0.7 %   65385     449
-linéaire              32.5 %    53.2 %     0.7 %   32789     796
-linéaire + croisés    32.8 %    54.7 %     0.7 %   38797     911
-kNN                   32.1 %    54.4 %     0.7 %   27421    4420
-kNN + croisés         31.8 %    54.7 %     0.7 %   34798    5253
+bayes + crosses       33.6 %    57.4 %     0.7 %   65385     449
+linear                32.5 %    53.2 %     0.7 %   32789     796
+linear + crosses      32.8 %    54.7 %     0.7 %   38797     911
+knn                   32.1 %    54.4 %     0.7 %   27421    4420
+knn + crosses         31.8 %    54.7 %     0.7 %   34798    5253
 ensemble              35.8 %    60.9 %     0.7 %   49221   12158 ←
-ensemble + croisés    35.3 %    61.3 %     0.7 %   65385   13698
+ensemble + crosses    35.3 %    61.3 %     0.7 %   65385   13698
 ```
 
-Deux enseignements qu'on n'aurait pas devinés :
+Two findings nobody would have guessed:
 
-- **Le croisement ne rapporte presque rien ici** (+0,5 point), alors qu'il vaut sept à onze
-  points sur un corpus où les interactions dominent. Il paie quand les interactions existent,
-  pas par principe.
-- **L'ensemble bat chacun de ses membres**, ce qui n'a rien d'automatique : il ne le fait que
-  parce que ses poids suivent les erreurs mesurées.
+- **Crossing buys almost nothing here** (+0.5 point), while it is worth seven to eleven points on
+  a corpus where interactions dominate. It pays when interactions exist, not on principle.
+- **The ensemble beats each of its members**, which is not automatic: it only does so because its
+  weights follow measured mistakes.
 
-Avec 72 zones, le hasard ferait 1,4 %. `bun run bench mon-corpus.jsonl` mesure sur le tien —
-une ligne `{"meta": {…}, "target": "…"}` par carte, dans l'ordre chronologique.
+With 72 zones, chance would score 1.4%. `bun run bench my-corpus.jsonl` measures on yours — one
+`{"meta": {…}, "target": "…"}` line per card, in chronological order.
 
-## Léger, puis complet
+## Light, then full
 
 ```js
-const brain = createRecommender({ key: 'liens' });                          // léger
-const brain = createRecommender({ key: 'liens', server: { url, token } });   // complet
+const brain = createRecommender({ key: 'links' });                        // light
+const brain = createRecommender({ key: 'links', server: { url, token } }); // full
 ```
 
-C'est la seule différence dans l'app.
+That is the only difference in the app.
 
-**Léger** — tout dans le navigateur (IndexedDB par défaut : `localStorage` plafonne à 5 Mo et
-bloque le fil principal à chaque écriture). Rien ne sort, rien n'attend le réseau, ça marche
-dans l'avion.
+**Light** — everything in the browser (IndexedDB by default: `localStorage` caps at 5 MB and
+blocks the main thread on every write). Nothing leaves, nothing waits on the network, it works
+on a plane.
 
-**Complet** — le local continue de répondre ; les événements partent en lot, chacun avec un
-identifiant, dans une file **persistée** : un tri fait hors ligne repart au retour du réseau,
-et un renvoi n'apprend rien deux fois. Le serveur garde les **événements**, pas seulement le
-modèle — donc on peut tout rejouer après avoir changé d'extracteur de traits. Il démarre à
-chaud un appareil neuf, et fait tourner ce qu'un onglet ne peut pas : les embeddings.
+**Full** — the local model keeps answering; events leave in batches, each with an id, from a
+**persisted** queue: a session done offline leaves when the network returns, and resending
+learns nothing twice. The server keeps the **events**, not just the model — so history can be
+replayed after a change of extractor or model. It warm-starts a new device, and runs what a tab
+cannot: embeddings.
 
 ```bash
 TRIEUR_TOKEN=secret bun run --cwd packages/server start
-# + EMBED_URL / EMBED_MODEL / EMBED_KEY pour brancher les embeddings
+# plus EMBED_URL / EMBED_MODEL / EMBED_KEY to switch embeddings on
 ```
 
-## Documentation
+## How this was built
 
-Le site (`bun run dev`) contient la documentation complète et quatre démos : l'API
-JavaScript, l'API en markup, le modèle qui apprend en direct — avec le banc d'essai qui
-tourne dans l'onglet — et un mode complet dont on peut couper le réseau pour voir la file
-tenir.
+This repository was written by Claude (Anthropic), driven from Claude Code, against a design and
+a set of constraints given by a human. Saying so matters, because it should change how you read
+it:
 
-## Licence
+- **The numbers are the part you can check, so check them.** Every performance claim above comes
+  out of `bun run bench`, on a corpus that ships with the repo or on yours. Two of those numbers
+  contradicted the intuition that produced the design — crossing features buys almost nothing on
+  the real corpus, and the ensemble only beats its members because of how its weights are
+  computed. They are in the README because they were measured, not because they were expected.
+- **A model is easy to write and hard to be honest about.** The bench is prequential, the
+  synthetic corpus deliberately does not leak its labels into card titles (an earlier version
+  did, reported 95%, and measured nothing), and every rung is evaluated on the same features so
+  the comparison means something.
+- **The tests are where the review effort went.** 41 of them, covering the parts you cannot check
+  by eye: the multi-zone state machine, offline queueing and event deduplication, model
+  serialisation round-trips, and the two failure modes that bite sparse models (unknown features
+  handing the win to an empty zone; suggesting at random rather than staying silent).
+
+Judge it on the bench, the tests and the diff, not on who typed it.
+
+## License
 
 MIT.

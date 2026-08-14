@@ -1,0 +1,122 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Demo — light and full">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">Light, full, offline</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      Here the deck talks to a trieur server <em>simulated inside this tab</em> — same routes, same deduplication by
+      event id as <code>@trieur/server</code>. Cut the network and keep sorting: the local model still answers, the
+      event queue fills up, and everything leaves when the connection returns. Nothing is lost, nothing is learned
+      twice.
+    </p>
+
+    <p style="margin:0 0 20px">
+      <button class="btn" id="offline">Cut the network</button>
+      <button class="btn" id="flush">Push now</button>
+      <button class="btn" id="device">Simulate a new device</button>
+    </p>
+
+    <div class="demo demo-side">
+      <div id="deck"></div>
+      <div>
+        <div class="panel">
+          <h3>Client</h3>
+          <div class="kv"><span>state</span><b id="net">online</b></div>
+          <div class="kv"><span>learned locally</span><b id="local">0</b></div>
+          <div class="kv"><span>waiting to be sent</span><b id="pending">0</b></div>
+        </div>
+        <div class="panel">
+          <h3>Server</h3>
+          <div class="kv"><span>events received</span><b id="received">0</b></div>
+          <div class="kv"><span>model version</span><b id="version">0</b></div>
+        </div>
+        <div class="panel">
+          <h3>Traffic</h3>
+          <ol id="log" style="margin:0;padding:0;list-style:none;font-family:var(--mono);font-size:11.5px;color:var(--dim)"></ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:60px">
+      <h2>What the server changes, and what it does not</h2>
+      <p>
+        What it does not change: the gesture loop. The card is already under the finger when a zone has to be suggested —
+        the local model answers, always. The server is only asked when the local model <em>has nothing to say</em>, with
+        a short deadline, and its silence never prevents sorting.
+      </p>
+      <p>What it changes:</p>
+      <ul>
+        <li><b>It keeps the events</b>, not just the model — so history can be replayed after a change of feature extractor or model.</li>
+        <li><b>It warm-starts</b> a brand-new device (button above): first launch, the model is already there.</li>
+        <li><b>It runs what the tab cannot</b>: embeddings, which bring two cards sharing no word closer together.</li>
+      </ul>
+      <pre><code>{`// light mode — nothing leaves the browser
+const brain = createRecommender({ key: 'links' });
+
+// full mode — the only difference
+const brain = createRecommender({
+  key: 'links',
+  server: { url: 'https://trieur.example.com', token: '…' },
+});`}</code></pre>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { HybridRecommender } from '@trieur/learn';
+  import { meta, shuffled, zones, type Link } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+  import { mockServer } from '../../scripts/mock-server';
+
+  const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const server = mockServer();
+
+  const make = (key: string) =>
+    new HybridRecommender({
+      key,
+      deck: 'demo',
+      saveDelay: 0,
+      batch: 4,
+      pushDelay: 1500,
+      server: { url: 'https://example', fetch: server.fetch },
+    });
+
+  let brain = make('demo-server');
+  const deck = new Deck<Link>($('#deck'), { items: shuffled(13), zones, meta, renderCard, advisor: brain });
+
+  async function refresh() {
+    $('#net').textContent = server.offline ? 'offline' : 'online';
+    $('#pending').textContent = String(brain.pending);
+    $('#local').textContent = String((await brain.stats()).examples);
+    $('#received').textContent = String(server.events.length);
+    $('#version').textContent = String(server.version);
+    $('#log').innerHTML = server.log.map((l) => `<li>${l}</li>`).join('');
+  }
+  server.onchange = () => void refresh();
+  for (const ev of ['trieur:sort', 'trieur:undo']) deck.root.addEventListener(ev, () => void refresh());
+  setInterval(() => void refresh(), 700);
+
+  $('#offline').addEventListener('click', () => {
+    server.offline = !server.offline;
+    $('#offline').textContent = server.offline ? 'Restore the network' : 'Cut the network';
+    if (!server.offline) void brain.flush();
+    void refresh();
+  });
+
+  $('#flush').addEventListener('click', () => void brain.flush());
+
+  // New device: an empty local model that pulls the server's one on boot.
+  $('#device').addEventListener('click', async () => {
+    await brain.destroy();
+    brain = make(`device-${Date.now()}`);
+    await brain.ready();
+    deck.setOptions({ advisor: brain });
+    void refresh();
+  });
+</script>

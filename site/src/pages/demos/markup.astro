@@ -4,32 +4,32 @@ import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
 ---
 
-<Base title="Démo — en markup">
+<Base title="Demo — the markup API">
   <section class="wrap" style="padding-top:44px">
     <DemoNav />
-    <h1 style="margin:0 0 8px">En markup, sans écrire de JS</h1>
+    <h1 style="margin:0 0 8px">In markup, without writing JS</h1>
     <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
-      Les zones et le gabarit de carte se déclarent en HTML. Le seul JS qui reste, c'est la pile — et elle vient de tes
-      données de toute façon. Ajoute, modifie ou retire une <code>&lt;trieur-zone&gt;</code> pendant le tri&nbsp;: la
-      scène suit <em>sans</em> repartir de zéro, la pile en cours et l'historique d'annulation survivent.
+      Zones and the card template are declared in HTML. The only JS left is the pile — and that comes from your data
+      anyway. Add, change or remove a <code>&lt;trieur-zone&gt;</code> mid-session: the stage follows <em>without</em>
+      starting over, the current pile and the undo history survive.
     </p>
 
     <p style="margin:0 0 20px">
-      <button class="btn" id="add">Ajouter une zone « archive »</button>
-      <button class="btn" id="recolor">Changer la couleur de « dev »</button>
-      <button class="btn" id="drop">Retirer la dernière zone</button>
+      <button class="btn" id="add">Add an “archive” zone</button>
+      <button class="btn" id="recolor">Recolour “dev”</button>
+      <button class="btn" id="drop">Remove the last zone</button>
     </p>
 
     <div class="demo" style="margin-bottom:26px">
-      <trieur-deck id="tri" layout="voronoi" threshold="80">
+      <trieur-deck id="sorter" layout="voronoi" threshold="80">
         <trieur-zone value="dev" key="a" icon="⌘" color="#4a54f2">dev</trieur-zone>
-        <trieur-zone value="ia" icon="◑" color="#8b5cf6">ia</trieur-zone>
-        <trieur-zone value="maison" icon="⌂" color="#f59e0b">maison</trieur-zone>
+        <trieur-zone value="ai" icon="◑" color="#8b5cf6">ai</trieur-zone>
+        <trieur-zone value="home" icon="⌂" color="#f59e0b">home</trieur-zone>
         <trieur-zone></trieur-zone>
-        <trieur-zone value="à lire" icon="▤" color="#64748b">à lire</trieur-zone>
+        <trieur-zone value="to read" icon="▤" color="#64748b">to read</trieur-zone>
 
         <template data-card>
-          <div class="lien">
+          <div class="link">
             <span class="host" data-field="host"></span>
             <h4 data-field="title"></h4>
             <p data-field="excerpt"></p>
@@ -38,13 +38,13 @@ import Base from '../../layouts/Base.astro';
       </trieur-deck>
     </div>
 
-    <pre><code>{`<trieur-deck id="tri" layout="voronoi" threshold="80">
+    <pre><code>{`<trieur-deck id="sorter" layout="voronoi" threshold="80" multi>
   <trieur-zone value="dev" key="a" icon="⌘" color="#4a54f2">dev</trieur-zone>
-  <trieur-zone value="ia" icon="◑">ia</trieur-zone>
-  <trieur-zone></trieur-zone><!-- zone libre : le dépôt émet trieur:assign -->
+  <trieur-zone value="ai" icon="◑">ai</trieur-zone>
+  <trieur-zone></trieur-zone><!-- free zone: dropping fires trieur:assign -->
 
   <template data-card>
-    <div class="lien">
+    <div class="link">
       <span class="host" data-field="host"></span>
       <h4 data-field="title"></h4>
       <img data-field="image" data-attr="src" alt="" />
@@ -54,21 +54,21 @@ import Base from '../../layouts/Base.astro';
 
 <script type="module">
   import '@trieur/core/element';
-  tri.items = liens;                       // le JS l'emporte toujours sur le markup
-  tri.addEventListener('trieur:sort', (e) => console.log(e.detail.item, e.detail.zone));
+  sorter.items = links;                    // JS always wins over markup
+  sorter.addEventListener('trieur:sort', (e) => console.log(e.detail.item, e.detail.zones));
 </script>`}</code></pre>
 
     <p class="note" style="max-width:70ch">
-      Pas de shadow DOM, volontairement&nbsp;: c'est toi qui dessines les cartes, tes styles doivent les atteindre. La
-      scène vit dans un enfant du custom element, pour que la lib puisse réécrire son conteneur sans effacer les
-      <code>&lt;trieur-zone&gt;</code> qui sont sa configuration.
+      No shadow DOM, deliberately: you draw the cards, so your styles have to reach them. The stage lives in a child of
+      the custom element, so the library can rewrite its container without erasing the
+      <code>&lt;trieur-zone&gt;</code> elements that are its configuration.
     </p>
   </section>
 </Base>
 
 <script>
   import '@trieur/core/element';
-  import { shuffled } from '../../data/liens';
+  import { shuffled } from '../../data/links';
 
   const deck = document.querySelector('trieur-deck')!;
   deck.items = shuffled(5).slice(0, 20);

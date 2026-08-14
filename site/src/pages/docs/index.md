@@ -1,54 +1,54 @@
 ---
 layout: ../../layouts/Doc.astro
-title: Vue d'ensemble
-description: Ce que fait trieur, comment les trois paquets se répartissent le travail.
+title: Overview
+description: What trieur does, and how the three packages split the work.
 ---
 
-trieur, c'est deux choses qui vont ensemble mais qui s'installent séparément :
+trieur is two things that belong together but install separately:
 
-1. **un geste** — une pile de cartes, des zones autour, un mouvement par carte ;
-2. **un modèle** — qui apprend, à chaque rangement, où la carte suivante ira probablement.
+1. **a gesture** — a pile of cards, zones around it, one movement per card;
+2. **a model** — which learns, on every filing, where the next card will probably go.
 
-Le geste sans le modèle, c'est un tri manuel agréable. Le modèle sans le geste, c'est un
-classifieur sans interface. Ensemble, la boucle se referme : ranger entraîne, et
-l'entraînement raccourcit le rangement suivant — jusqu'à ce que `↵` suffise.
+The gesture without the model is pleasant manual sorting. The model without the gesture is a
+classifier with no interface. Together the loop closes: filing trains, and training shortens
+the next filing — until `↵` is enough.
 
-## Trois paquets
+## Three packages
 
-| Paquet | Rôle | Dépendances |
+| Package | Role | Dependencies |
 |---|---|---|
-| `@trieur/core` | la scène, les zones, le geste, les animations | aucune |
-| `@trieur/learn` | les traits, les modèles, le stockage local, le protocole | aucune |
-| `@trieur/server` | événements, rejeu, embeddings | Bun + SQLite (fournis par le runtime) |
+| `@trieur/core` | the stage, the zones, the gesture, the animations | none |
+| `@trieur/learn` | features, models, local storage, the protocol | none |
+| `@trieur/server` | events, replay, embeddings | Bun + SQLite (from the runtime) |
 
-Aucun bundler n'est nécessaire : ce sont des modules ES, publiés en JavaScript avec leurs
-déclarations de types. Un `<script type="module">` suffit.
+No bundler is required: these are ES modules, published as JavaScript with their type
+declarations. A `<script type="module">` is enough.
 
-## Les principes qui expliquent le reste
+## The principles that explain the rest
 
-**La lib ne sait rien du domaine.** Pas de « favori », pas de « dossier », rien de tel dans
-le code ni dans les noms de classes CSS. Elle trie des objets opaques dans des zones
-opaques. Ce qui connaît le sujet vit chez l'appelant : `renderCard` dessine, `onSort`
-exécute, `meta` décide de ce que le modèle a le droit de regarder.
+**The library knows nothing about your domain.** No "bookmark", no "folder", nothing of the
+sort in the code or in the CSS class names. It sorts opaque objects into opaque zones. What
+knows the subject lives in the host: `renderCard` draws, `onSort` performs, `meta` decides
+what the model is allowed to look at.
 
-**L'appelant décide, et peut refuser.** `onSort` est asynchrone et peut échouer — un rejet
-remet la carte en place. La lib ne mute jamais rien en dehors de sa propre pile.
+**The host decides, and may refuse.** `onSort` is asynchronous and may fail — a rejection puts
+the card back. The library never mutates anything outside its own pile.
 
-**La prédiction ne bloque jamais le geste.** La carte est déjà sous le doigt quand il faut
-proposer une zone. Le modèle local répond en microsecondes ; le serveur n'est consulté que
-lorsque le local se tait, avec un délai maximum court, et son silence n'empêche rien.
+**The prediction never blocks the gesture.** The card is already under the finger when a zone
+has to be suggested. The local model answers in microseconds; the server is only consulted
+when the local one stays silent, with a short deadline, and its silence prevents nothing.
 
-**Ne rien proposer plutôt que proposer au hasard.** Trop peu d'exemples, ou aucun trait
-reconnu, et `predict()` rend une liste vide. Une mauvaise proposition coûte plus cher qu'une
-absence de proposition : elle fait perdre confiance dans toutes les suivantes.
+**Say nothing rather than guess.** Too few examples, or no recognised feature, and `predict()`
+returns an empty list. A bad suggestion costs more than a missing one: it erodes trust in
+every suggestion that follows.
 
-**Les poids sont mesurés, pas décrétés.** Quand plusieurs modèles votent, leur poids vient
-de leur justesse observée, mesurée avant apprentissage. Aucun coefficient magique dans le
-code.
+**The weights are measured, not decreed.** When several models vote, their weight comes from
+their observed accuracy, measured before learning. No magic coefficient anywhere in the code.
 
-## Par où commencer
+## Where to start
 
-- [Démarrer](/docs/demarrer) — installer et faire tourner un premier tri.
-- [Zones et geste](/docs/zones) — pourquoi une zone n'est pas une étiquette.
-- [L'échelle du modèle](/docs/modele) — de Bayes aux embeddings, et quand monter d'un barreau.
-- [Dans une app](/docs/integration) — mode léger, mode complet, hors ligne.
+- [Getting started](./start/) — install and run a first sorting session.
+- [Zones and gesture](./zones/) — why a zone is not a label.
+- [Several zones at once](./multi/) — one card, several folders.
+- [The model ladder](./model/) — from Bayes to embeddings, and when to climb a rung.
+- [In an app](./integration/) — light mode, full mode, offline.
