@@ -182,7 +182,9 @@ for (const deck of [left, right]) {
 
   /** One board, two piles: `piles: 2` and nothing else. */
   const board = () => {
-    const deck = new Deck<Link>($('#board') as HTMLElement, { ...common, items: queue.splice(0, 6), piles: 2 });
+    // two piles need two thumbs and a tablet's worth of width; below that it is one pile
+    const piles = window.innerWidth < 820 ? 1 : 2;
+    const deck = new Deck<Link>($('#board') as HTMLElement, { ...common, items: queue.splice(0, 6), piles });
     deck.root.addEventListener('trieur:sort', () => {
       // the pile that filed is the active one, so the tally knows which hand did it
       filed[deck.active === 0 ? 'left' : 'right']++;
