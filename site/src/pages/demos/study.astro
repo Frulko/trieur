@@ -1,0 +1,252 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+import Kbd from '../../components/Kbd.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
+---
+
+<Base title="Demo — flashcards, the Anki way">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">Flashcards, the Anki way</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      Spaced repetition is card sorting where the zones are <em>how well did that go</em> and the pile writes itself:
+      every answer schedules the card back into the future. Tap the card to turn it over, then grade it — the zone
+      labels show what each grade costs you in days, which is the number Anki puts on its buttons and the only one
+      anybody reads.
+    </p>
+
+    <div class="demo demo-side">
+      <div id="sorter"></div>
+      <div>
+        <div class="panel">
+          <h3>This session</h3>
+          <div class="kv"><span>reviewed</span><b id="done">0</b></div>
+          <div class="kv"><span>again</span><b id="again">0</b></div>
+          <div class="kv"><span>due now</span><b id="due">—</b></div>
+          <div class="kv"><span>scheduled</span><b id="sched">0</b></div>
+        </div>
+        <div class="panel">
+          <h3>The card in hand</h3>
+          <div class="kv"><span>ease</span><b id="ease">2.50</b></div>
+          <div class="kv"><span>interval</span><b id="ivl">new</b></div>
+          <div class="kv"><span>reps · lapses</span><b id="reps">0 · 0</b></div>
+        </div>
+        <div class="panel">
+          <h3>Coming back</h3>
+          <ol id="queue" class="sq"></ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:60px">
+      <h2>Why there is no model here</h2>
+      <p>
+        Every other demo hands the deck an <code>advisor</code>, and this one does not. A recommender learns
+        <em>where things go</em> from what the card looks like — and a flashcard's grade does not live in the card, it
+        lives in your head. A model that guessed <em>Good</em> because the last three Japanese cards were good would be
+        confidently wrong about the only thing that matters. Knowing when not to predict is part of the design.
+      </p>
+      <h2>The pile writes itself</h2>
+      <p>
+        <code>onSort</code> grades the card with SM-2, and then puts it back: <em>Again</em> returns it a few cards
+        later in the same session, anything else schedules it out in days and removes it from today's queue. That is
+        the whole loop — the deck never needs to know it is doing spaced repetition.
+      </p>
+      <pre><code>{`onSort: (card, zone) => {
+  const graded = schedule(card, GRADE[zone.id]);   // SM-2
+  if (graded.interval === 0) deck.setItems([...deck.items.slice(1, 4), graded, ...deck.items.slice(4)]);
+  else scheduled.push(graded);                      // out of today's pile
+}`}</code></pre>
+      <p>
+        The zone labels are rewritten for every card with <code>setZones()</code>, which is what makes the four
+        buttons honest: <em>Easy</em> on a card you have seen four times is not the same promise as <em>Easy</em> on a
+        card you have never seen. Same keys, same positions — only the numbers move.
+      </p>
+      <p style="color:var(--dim)">
+        <Kbd keys="space" /> turns the card over (there is no "later" in a study session, so the skip key does the
+        one thing that makes sense), <Kbd keys="a s d f" /> grade it, <Kbd keys="backspace" /> takes the
+        last one back — including its schedule.
+      </p>
+    </div>
+  </section>
+  <ShortcutsDialog />
+</Base>
+
+<style is:global>
+  .flash { display: flex; flex-direction: column; height: 100%; padding: 18px 18px 14px; text-align: center; }
+  .flash .deck {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .flash .front {
+    margin: auto 0;
+    font-size: clamp(24px, 4vw, 34px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .flash .front.cjk { font-size: clamp(44px, 7vw, 64px); }
+  .flash .back { margin: auto 0 0; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 17px; }
+  .flash .note { margin: 6px 0 0; font-size: 12.5px; color: var(--dim); }
+  .flash .turn {
+    margin: auto 0 0;
+    padding: 8px 0 0;
+    border: 0;
+    border-top: 1px dashed var(--line);
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .sq { margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+  .sq li { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px dotted var(--line); color: var(--dim); }
+  .sq li i { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--ink); }
+  /* the grade is a verdict, not a folder: no boxes, just the word and the interval */
+  .demo .tr-zone .ivl { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
+</style>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { cards, grades, preview, schedule, type Flashcard } from '../../data/cards';
+  import { shortcutsButton } from '../../scripts/shortcuts';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  const GRADE = Object.fromEntries(grades.map((g) => [g.id, g.q]));
+
+  const scheduled: Flashcard[] = [];
+  const session = { done: 0, again: 0 };
+  /** cards turned over, by id — a card you have already seen stays seen if it comes back */
+  const shown = new Set<number>();
+
+  function renderCard(c: Flashcard, el: HTMLElement) {
+    const cjk = /[　-鿿]/.test(c.front);
+    const open = shown.has(c.id);
+    el.innerHTML = `
+      <div class="flash">
+        <span class="deck">${esc(c.deck)}${c.reps ? ` · rep ${c.reps}` : ' · new'}</span>
+        <div class="front${cjk ? ' cjk' : ''}">${esc(c.front)}</div>
+        ${
+          open
+            ? `<div class="back">${esc(c.back)}${c.note ? `<p class="note">${esc(c.note)}</p>` : ''}</div>`
+            : '<button class="turn" type="button">Show the answer · space</button>'
+        }
+      </div>`;
+    el.querySelector('.turn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      turn();
+    });
+  }
+
+  /** Turning the card over is the only thing that happens before a grade. */
+  function turn(c = deck.current) {
+    if (!c || shown.has(c.id)) return;
+    shown.add(c.id);
+    deck.refresh(); // same card, new face: render() would keep the one it already has
+  }
+
+  /** The four buttons, relabelled for the card in hand — the numbers are the point. */
+  function relabel() {
+    const c = deck.current;
+    const next = c ? preview(c) : null;
+    deck.setZones(
+      grades.map((g) => ({
+        ...g,
+        label: next ? `${g.label}` : g.label,
+        // the interval rides along in the label's second line, drawn by renderZone
+        ...(next ? { image: undefined } : {}),
+      })),
+    );
+    if (!c) return;
+    $('#ease').textContent = c.ease.toFixed(2);
+    $('#ivl').textContent = c.interval ? `${c.interval} d` : 'new';
+    $('#reps').textContent = `${c.reps} · ${c.lapses}`;
+    // paint the interval under each grade
+    for (const el of document.querySelectorAll<HTMLElement>('.tr-zone')) {
+      const id = el.dataset.id!;
+      const p = next?.find((n) => n.id === id);
+      if (!p) continue;
+      el.querySelector('.ivl')?.remove();
+      const span = document.createElement('span');
+      span.className = 'ivl';
+      span.textContent = p.label;
+      el.append(span);
+    }
+  }
+
+  const report = () => {
+    $('#done').textContent = String(session.done);
+    $('#again').textContent = String(session.again);
+    $('#due').textContent = String(deck.items.length);
+    $('#sched').textContent = String(scheduled.length);
+    $('#queue').innerHTML = scheduled
+      .slice(-7)
+      .reverse()
+      .map((c) => `<li>${esc(c.front.slice(0, 22))}<i>${c.interval} d</i></li>`)
+      .join('');
+  };
+
+  const deck = new Deck<Flashcard>($('#sorter'), {
+    items: [...cards],
+    zones: grades,
+    renderCard,
+    keys: 'asdf',
+    layout: 'dock',
+    // no advisor: the grade is in your head, not in the card
+    onSort: (card, zone) => {
+      const graded = schedule(card, GRADE[zone.id] ?? 4);
+      session.done++;
+      if (graded.interval === 0) {
+        // Again: back into this session, three cards later, still turned over
+        session.again++;
+        setTimeout(() => {
+          const rest = deck.items.filter((c) => c.id !== card.id);
+          deck.setItems([...rest.slice(0, 3), graded, ...rest.slice(3)]);
+          relabel();
+          report();
+        });
+      } else {
+        shown.delete(card.id);
+        scheduled.push(graded);
+      }
+    },
+    onUndo: (card) => {
+      shown.delete(card.id);
+      session.done = Math.max(0, session.done - 1);
+      const i = scheduled.findIndex((c) => c.id === card.id);
+      if (i >= 0) scheduled.splice(i, 1);
+    },
+    // In a study session there is no "later": skip turns the card over and puts it straight
+    // back at the front. Reusing the skip key rather than binding one of our own keeps the
+    // shortcut working wherever the deck listens — stage, document, phone.
+    onSkip: (card) => {
+      // the pile has already rotated by the time this runs, so the card to turn over is the
+      // one handed in — and it goes straight back to the front
+      shown.add(card.id);
+      setTimeout(() => {
+        deck.setItems([card, ...deck.items.filter((c) => c.id !== card.id)]);
+        deck.refresh();
+      });
+    },
+    onEmpty: () => {
+      $('#queue').innerHTML = '<li>Nothing left today — every card has a date.</li>';
+    },
+  });
+
+  for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) {
+    deck.root.addEventListener(ev, () => {
+      relabel();
+      report();
+    });
+  }
+
+  relabel();
+  report();
+  shortcutsButton(deck);
+  deck.focus();
+</script>

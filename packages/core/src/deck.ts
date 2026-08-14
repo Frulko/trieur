@@ -235,6 +235,9 @@ export class Deck<T = any> {
 
   setItems(items: T[]): void {
     this.items = [...items];
+    // a new pile deals from the top: a lane holds on to its card, which is right when the card
+    // is still yours to file and wrong when the host has just handed over a different pile
+    this.#lanes = [];
     this.#clearPicks();
     this.render();
   }
@@ -594,6 +597,24 @@ export class Deck<T = any> {
       if (behind && !kept.behind) enterBehind(behind);
       if (front && !kept.top) enterTop(front, enter);
     }
+  }
+
+  /**
+   * Redraws the cards that are on screen, in place — same elements, `renderCard` called again.
+   *
+   * `render()` deliberately keeps a card it already has (that is what stops the pile blinking
+   * on every filing), so a host that changes what a card *says* — an answer revealed, a
+   * message marked read — needs a way to say so. This is it.
+   */
+  refresh(): void {
+    for (const el of this.#cardsEl.querySelectorAll<HTMLElement>('.tr-card')) {
+      const item = this.#shown.get(el);
+      if (item === undefined) continue;
+      el.replaceChildren();
+      this.#opts.renderCard?.(item, el);
+      for (const img of el.querySelectorAll('img')) img.draggable = false;
+    }
+    this.layout();
   }
 
   render(enter?: Enter): void {

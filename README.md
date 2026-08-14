@@ -142,6 +142,17 @@ Two experiments live one step further out:
   adjacent cells where a few pixels either side of a border file the card in the wrong folder.
   A direction is a much easier thing to be accurate about than a coordinate.
 
+## What it looks like on something real
+
+The [demos](https://frulko.github.io/trieur/demos/basic/) are not decorations; each one is a
+pattern the library had to survive. A **mailbox** where half the zones are folders and the
+other half are verbs — reply opens a compose box and refuses the filing until it is sent.
+**Flashcards** where nothing is ever filed: grading a card schedules it, the pile writes
+itself, and the deck is handed no model at all, because a card's grade lives in your head
+rather than in the card. **Reigns** and **Tinder**, which are two zones and a threshold.
+**Photos**, which is EXIF and a lot of pixels. They are collected in
+[Recipes](https://frulko.github.io/trieur/docs/recipes/).
+
 ## What keeps it smooth
 
 The gesture loop was tuned against a 2015 iPad, which is a better judge than a desktop. One

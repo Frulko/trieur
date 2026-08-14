@@ -53,6 +53,7 @@ deck.commit(zone, fling?)   // files the top card (what a key press does)
 deck.commitMany(zones?)     // files into several zones (defaults to the current stack)
 deck.skip()                 // pushes the card to the back of the pile
 deck.undo()                 // undoes the last filing
+deck.refresh()              // redraws the cards on screen, in place (renderCard again)
 deck.suggest()              // recomputes the suggestion
 deck.expand(on)             // fullscreen
 deck.play(on)               // touch: take the gesture, or give the page its swipe back

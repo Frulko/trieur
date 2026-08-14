@@ -50,5 +50,9 @@ their observed accuracy, measured before learning. No magic coefficient anywhere
 - [Getting started](./start/) — install and run a first sorting session.
 - [Zones and gesture](./zones/) — why a zone is not a label.
 - [Several zones at once](./multi/) — one card, several folders.
+- [Keyboard and gestures](./keyboard/) — every key, every gesture, and the phone bargain.
+- [The throw](./throw/) — flick a card and let the physics land it.
+- [Two hands, two piles](./piles/) — one stage, one set of zones, two thumbs.
+- [Recipes](./recipes/) — verbs as zones, a pile that writes itself, a game loop.
 - [The model ladder](./model/) — from Bayes to embeddings, and when to climb a rung.
 - [In an app](./integration/) — light mode, full mode, offline.
