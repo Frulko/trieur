@@ -27,6 +27,9 @@ const DEFAULT_KEYS = 'asdfghjklqwertyuiopzxcvbnm';
 /** Width of a zone tile. Layouts use it to keep one from hanging off the stage. */
 const TILE = 104;
 
+/** Past this angle between the drag and the tile, the drag is heading away from it, not at it. */
+const AWAY = Math.PI * 0.55;
+
 /**
  * How the multi-zone stack was opened — which decides how it closes.
  *
@@ -297,8 +300,18 @@ export class Deck<T = any> {
     // as it is wide, and margining on the width alone let the top row hang off the stage
     const first = els[0]!;
     const tile = round(Math.max(first.offsetWidth, first.offsetHeight)) || TILE;
-    const cardW = card?.offsetWidth ?? 260;
-    const cardH = card?.offsetHeight ?? 300;
+    // The card's *declared* size, never the content's. A card with one more line of text is
+    // still the same card as far as the zones are concerned, and measuring the content made
+    // every new card nudge the whole layout and repaint the carving — a flicker with no cause
+    // the user can see. `--tr-card-w` / `--tr-card-h` are what the stylesheet promised, so
+    // they are what the zones are placed around; the measured width still wins when a host
+    // draws a card wider than it declared.
+    const declared = (name: string, fallback: number) => {
+      const v = parseFloat(getComputedStyle(this.root).getPropertyValue(name));
+      return Number.isFinite(v) && v > 0 ? v : fallback;
+    };
+    const cardW = Math.max(card?.offsetWidth ?? 0, declared('--tr-card-w', 260));
+    const cardH = declared('--tr-card-h', card?.offsetHeight ?? 300);
     const box: LayoutBox = {
       w: this.#stage.clientWidth,
       h: this.#stage.clientHeight,
@@ -313,30 +326,32 @@ export class Deck<T = any> {
     this.#layoutKey = key;
 
     const { points, cells, centre } = resolveLayout(this.#opts.layout)(els.length, box);
-    // Where the card goes — read before the zones, since their direction is measured from it.
-    // A layout may say so itself: an arc menu wants the hole off-centre so the wedges get the
-    // whole stage instead of half of it.
-    this.#centre = centre ?? { x: 0, y: 0 };
-    els.forEach((el, i) => {
-      const p = points[i] ?? { x: 0, y: 0 };
-      const z = this.zones[i]!;
-      // the direction *from the card*, which is not the stage centre when a layout moved it
-      z.angle = angleOf(p.x - this.#centre.x, p.y - this.#centre.y);
-      z.pos = p; // where the genie animation lands
-      el.style.left = `calc(50% + ${p.x}px)`;
-      el.style.top = `calc(50% + ${p.y}px)`;
-    });
-    // Otherwise the deck works it out: a layout that parks every tile along the bottom edge
+
+    // Where the card sits — worked out before the zones, because their direction is measured
+    // from it. A layout may say so itself (an arc menu wants the hole off-centre so the wedges
+    // get the whole stage). Otherwise: a layout that parks every tile along the bottom edge
     // leaves the card everything above them, which is what stops the first wrapped row of a
-    // dock from landing on the card.
+    // dock from landing on the card — and raises the card by half that tray.
     const ys = points.map((p) => p.y);
     const band = !centre && ys.length && ys.every((y) => y > 0) ? box.h / 2 - (Math.min(...ys) - box.tile / 2) : 0;
     // never so deep that the card no longer fits above it: a tray that squeezes the card is
     // worse than a tray the card slightly overlaps
     const tray = Math.max(0, Math.min(band, box.h - box.cardH - 12));
+    this.#centre = centre ?? { x: 0, y: -tray / 2 };
     this.root.style.setProperty('--tr-tray', `${Math.round(tray)}px`);
-    this.root.style.setProperty('--tr-card-x', `${Math.round(this.#centre.x)}px`);
-    this.root.style.setProperty('--tr-card-y', `${Math.round(this.#centre.y)}px`);
+    this.root.style.setProperty('--tr-card-x', `${Math.round(centre?.x ?? 0)}px`);
+    this.root.style.setProperty('--tr-card-y', `${Math.round(centre?.y ?? 0)}px`);
+
+    els.forEach((el, i) => {
+      const p = points[i] ?? { x: 0, y: 0 };
+      const z = this.zones[i]!;
+      // the direction *from the card*, which is not the stage centre when a layout moved it
+      // or a tray raised it
+      z.angle = angleOf(p.x - this.#centre.x, p.y - this.#centre.y);
+      z.pos = p; // where the genie animation lands
+      el.style.left = `calc(50% + ${p.x}px)`;
+      el.style.top = `calc(50% + ${p.y}px)`;
+    });
     // a host styles a radial menu differently from floating tiles, and only the deck knows
     // which layout is in play
     const name = typeof this.#opts.layout === 'string' ? this.#opts.layout : this.#opts.layout ? 'custom' : 'auto';
@@ -820,10 +835,18 @@ export class Deck<T = any> {
     svg.toggleAttribute('hidden', false);
   }
 
-  /** Zone being aimed at: the region under the finger; failing a carving, the drag direction. */
+  /**
+   * Zone being aimed at: the region under the finger; failing a carving, the drag direction.
+   *
+   * The region only counts when the drag is not pointing **away** from its tile. A dock is
+   * where this shows: the card sits inside one of the columns, so that column's zone owned
+   * every pixel behind and above the card and swallowed drags heading nowhere near it — the
+   * one zone in line with the card behaved differently from all the others. A card dragged
+   * away from a tile was never aimed at it, whatever region it happens to be over.
+   */
   #aim(dx: number, dy: number, x: number, y: number): PlacedZone | null {
     const byRegion = this.zoneAt(x, y);
-    if (byRegion) return byRegion;
+    if (byRegion && (Math.hypot(dx, dy) < 1 || angleGap(angleOf(dx, dy), byRegion.angle) < AWAY)) return byRegion;
     const a = angleOf(dx, dy);
     const span = Math.PI / Math.max(this.zones.length, 1) + 0.25;
     return (

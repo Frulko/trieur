@@ -425,3 +425,24 @@ test('the small scale follows the stage, not the window', () => {
   expect(root.classList.contains('tr-sm')).toBe(false);
   expect(root.classList.contains('tr-xs')).toBe(false);
 });
+
+test('a drag away from a zone does not file into it, however wide its region', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, onSort: (_i, z) => void filed.push(z.id) });
+  // the dock's home column: the zone below the card owns the region the card sits in
+  const home = d.zones[0]!;
+  home.angle = Math.PI / 2; // straight down from the card
+  home.cell = [
+    [-1e4, -1e4],
+    [1e4, -1e4],
+    [1e4, 1e4],
+    [-1e4, 1e4],
+  ];
+  for (const other of d.zones.slice(1)) other.cell = null;
+
+  await drag([[0, -220]]); // dragged straight up: away from the only zone there is
+  expect(filed).toEqual([]);
+
+  await drag([[0, 220]]); // and towards it
+  expect(filed).toEqual(['dev']);
+});

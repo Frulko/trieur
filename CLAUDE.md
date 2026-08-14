@@ -143,6 +143,16 @@ bun run dev              # site + demos
   coarse) { .tr { position: relative } }`, for one — beats `.tr-full { position: fixed }` at
   equal specificity and silently kills fullscreen on exactly the devices that need it. Write
   `.tr:not(.tr-full)`.
+- **The layout is placed around the card's *declared* size, never its content.** Measuring
+  `offsetHeight` made a card with one more line of text nudge every zone and repaint the
+  carving — a flicker with no visible cause. `--tr-card-w` / `--tr-card-h` are what the zones
+  are placed around.
+- **Nothing that marks a zone may change its box.** The suggestion glyph, the pick badge: all
+  out of flow. A tile is centred on its point, so a tile that grows by 8px moves by 4 — and the
+  measured tile size feeds the layout's own margins.
+- **A region only wins the aim when the drag is not heading away from its tile.** A dock puts
+  the card *inside* one of its columns, so without that check the one zone in line with the
+  card swallowed drags pointing anywhere, including straight up, away from every tile.
 - **The responsive scale is measured, not guessed.** `.tr-sm` / `.tr-xs` come from the stage's
   own width, set at the top of `layout()` before anything else is measured. A viewport media
   query is wrong twice over: a deck in a narrow panel on a wide screen never gets the small

@@ -31,6 +31,12 @@ That region is not only a drawing: **the drop aims at the region under the finge
 approximate angle. What you see is what you touch. (`segments: false` shows only the tiles;
 aiming then falls back to angles.)
 
+With one caveat, which a dock makes obvious: a region only wins if the drag is not heading
+**away** from its tile. The card sits inside one of the dock's columns, so that column's zone
+owns every pixel behind and above the card — and without the check, a card dragged straight
+up, away from every tile, filed itself into the zone underneath it. The zone in line with the
+card behaved differently from all the others; now it does not.
+
 The computation fits in forty lines — start from the stage rectangle and cut along the
 perpendicular bisector of each pair of seeds. No geometry dependency, and `voronoi(points, w, h)`
 is exported if you want the polygons.
@@ -49,6 +55,11 @@ layout: (n, box) => ({ points: [...], cells: [[[x, y], …], …] })
 `clearX` and `clearY` are the half-extents to keep free at the centre — the card, plus half a
 tile — and `tile` is the measured size of a zone tile. Margins are worth half a tile: a zone
 spilling off the stage is unreachable by thumb.
+
+The card in that box is its **declared** size — `--tr-card-w` / `--tr-card-h` — not the size
+its content happens to make it. A card with one more line of text is still the same card as far
+as the zones are concerned, and placing them around the measured height meant every new card
+nudged the whole stage.
 
 **The clearance is enforced, not merely requested.** Whatever a layout returns — including
 yours — is put through two passes: the set is scaled down until every tile fits the stage, then
