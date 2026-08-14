@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 import Kbd from '../../components/Kbd.astro';
 import Shortcuts from '../../components/Shortcuts.astro';
 import { url } from '../../lib/url';
@@ -72,10 +73,12 @@ import { url } from '../../lib/url';
       <a href={url('/docs/measure/')}>measure on your corpus</a>, do not copy someone else's numbers.
     </p>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <script>
   import { Deck } from '@trieur/core';
+  import { shortcutsButton } from '../../scripts/shortcuts';
   import { Bayes, Ensemble, Knn, Linear, LocalRecommender, createRecommender, tokens } from '@trieur/learn';
   import { crossed, evaluate, synth } from '@trieur/learn/bench';
   import { meta, shuffled, zones, type Link } from '../../data/links';
@@ -87,6 +90,7 @@ import { url } from '../../lib/url';
 
   let brain = createRecommender({ key: KEY }) as LocalRecommender;
   const deck = new Deck<Link>($('#deck'), { items: shuffled(7), zones, meta, renderCard, advisor: brain });
+  shortcutsButton(deck);
 
   deck.root.addEventListener('trieur:suggest', (e) => {
     const d = (e as CustomEvent).detail;

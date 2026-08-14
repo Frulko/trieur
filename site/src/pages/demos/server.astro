@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 ---
 
 <Base title="Demo — light and full">
@@ -65,10 +66,12 @@ const brain = createRecommender({
 });`}</code></pre>
     </div>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <script>
   import { Deck } from '@trieur/core';
+  import { shortcutsButton } from '../../scripts/shortcuts';
   import { HybridRecommender } from '@trieur/learn';
   import { meta, shuffled, zones, type Link } from '../../data/links';
   import { renderCard } from '../../scripts/card';
@@ -89,6 +92,7 @@ const brain = createRecommender({
 
   let brain = make('demo-server');
   const deck = new Deck<Link>($('#deck'), { items: shuffled(13), zones, meta, renderCard, advisor: brain });
+  shortcutsButton(deck);
 
   async function refresh() {
     $('#net').textContent = server.offline ? 'offline' : 'online';

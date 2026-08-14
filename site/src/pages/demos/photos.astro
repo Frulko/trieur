@@ -3,6 +3,7 @@ import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Shortcuts from '../../components/Shortcuts.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 ---
 
 <Base title="Demo — sorting photographs">
@@ -54,6 +55,7 @@ import Base from '../../layouts/Base.astro';
       </p>
     </div>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <style is:global>
@@ -73,6 +75,7 @@ import Base from '../../layouts/Base.astro';
   import { createRecommender } from '@trieur/learn';
   import { albums, meta, photos, type Photo } from '../../data/photos';
   import { deckGui } from '../../scripts/gui';
+  import { shortcutsButton } from '../../scripts/shortcuts';
 
   const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   $('#sorter').closest('.demo')!.classList.add('photos');
@@ -116,5 +119,6 @@ import Base from '../../layouts/Base.astro';
   for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, show);
   show();
   deckGui(deck);
+  shortcutsButton(deck);
   deck.focus();
 </script>

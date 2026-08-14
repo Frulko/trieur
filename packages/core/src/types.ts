@@ -51,6 +51,14 @@ export interface LayoutBox {
 export interface Placement {
   points: Point[];
   cells?: Polygon[];
+  /**
+   * Where the card should sit, in pixels from the centre of the stage.
+   *
+   * A layout that does not surround the card — a half or quarter radial menu — wants the hole
+   * somewhere other than the middle, so that the arc gets the whole stage instead of half of
+   * it. Absent, the card stays centred.
+   */
+  centre?: Point;
 }
 
 /** A layout places N zones around the centre, in pixels. */
@@ -144,6 +152,45 @@ export interface DeckOptions<T = any> {
    * finger then sweeps across zones, and releasing files them. `0` disables it.
    */
   holdDelay?: number;
+  /**
+   * On a touch screen, outside fullscreen, a tap on the card opens the deck fullscreen instead
+   * of starting a drag (default `true`).
+   *
+   * On a phone a sorting swipe and a page scroll are the same gesture: taking one takes the
+   * other, and the page turns into a trap you cannot scroll past. So inline the deck is a
+   * preview — the page scrolls straight through it — and the gesture is ours only once the
+   * deck owns the screen, the way an embedded map waits to be opened before it eats drags.
+   * Set it to `false` where the deck already *is* the screen: an app view, a phone-sized popup.
+   */
+  touchFullscreen?: boolean;
+  /**
+   * **Experimental.** Throw instead of drop: on release the card keeps the speed it had, and
+   * the zone is the one where that throw *lands*, not the one under the finger.
+   *
+   * It is aimed at the two cases where a drop-where-you-are is a coin toss: zones far from the
+   * card, where the drag has to cross the whole stage to reach them, and a mosaic of small
+   * neighbouring cells, where a few pixels either side of a border file the card in the wrong
+   * folder. A flick states a direction, and a direction is a much easier thing to be accurate
+   * about than a coordinate.
+   */
+  /**
+   * **Experimental.** How many piles to deal at once, side by side, sharing the same zones
+   * (default 1).
+   *
+   * It is for a big tablet held in two hands: one pile in the middle has both thumbs doing
+   * the same job in turn, two piles have each thumb owning one, and neither waits for the
+   * other. A pile keeps its card until that card leaves, so filing on the left never shuffles
+   * what the right hand was about to drop. The keyboard, the suggestion and Undo follow the
+   * pile you last touched — `deck.active`.
+   */
+  piles?: number;
+  flick?: boolean;
+  /** how far ahead a throw is projected, in ms of travel at the release speed (default 170) */
+  flickMs?: number;
+  /** below this speed, in px/ms, a release is a drop and not a throw (default 0.25) */
+  flickMin?: number;
+  /** draw the throw vector and where it lands — for tuning `flickMs`, and for the demo */
+  flickDebug?: boolean;
   text?: Partial<DeckText>;
   onSort?: (item: T, zone: PlacedZone) => unknown;
   /** files one card into several zones at once; see `multi` */
@@ -163,6 +210,8 @@ export interface DeckEventMap<T = unknown> {
   skip: { item: T };
   assign: { index: number; item: T };
   suggest: { item: T } & Prediction;
+  /** a drag ended: what the release was worth, and what it aimed at. See `flick`. */
+  release: { item: T | undefined; zone: PlacedZone | null; speed: number; carried: number; thrown: boolean };
   /** the multi-zone selection changed */
   pick: { item: T | undefined; zones: PlacedZone[]; multi: boolean };
   expand: { expanded: boolean };

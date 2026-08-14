@@ -35,7 +35,7 @@ bun run dev              # site + demos
 | `packages/core/src/deck.ts` | the `Deck` class: pile, zones, rendering, actions, multi-zone stack |
 | `packages/core/src/drag.ts` | the gesture, kept apart from the sorting (engagement, cancelled clicks) |
 | `packages/core/src/voronoi.ts` | stage carving, `inPolygon` |
-| `packages/core/src/layouts.ts` | `auto`, `circle`, `radial` (multi-ring), `voronoi` (Lloyd), `grid`, `dock` |
+| `packages/core/src/layouts.ts` | `auto`, `circle`, `radial` (arcs, multi-ring), `voronoi` (Lloyd), `grid`, `dock` (wrapping) |
 | `packages/core/src/anim.ts` | entrances, genie exit, tile bounce |
 | `packages/core/src/element.ts` | `<trieur-deck>` / `<trieur-zone>` |
 | `packages/learn/src/features.ts` | sparse features, crosses, `pipe` |
@@ -133,6 +133,20 @@ bun run dev              # site + demos
 - **The clearance is an invariant, not a suggestion.** `resolveLayout()` runs `clearCentre()` over
   every layout, custom ones included — a grid with an odd cell count puts a tile under the card
   every time.
+- **`render()` reconciles, it does not rebuild.** The card that was second is promoted by removing
+  a class, not by being recreated: rebuilding refetches every image it holds, and an image that
+  reloads blinks. Elements are matched to items through `#shown`.
+- **The card is not always at the centre of the stage.** A layout may return a `centre` (arc
+  menus do), and the deck writes `--tr-card-x/y`; zone angles and the genie target are measured
+  from *that* point, not from the stage centre.
+- **An absolutely positioned card ignores its container's padding.** The zone tray shortens
+  `.tr-cards` with `bottom: var(--tr-tray)`, never with padding — padding is exactly what the
+  card's own layout skips.
+- **On touch, the page owns the vertical swipe until the deck is fullscreen.** `touch-action:
+  pan-y` inline, `none` expanded, and a tap opens it. A widget that takes the scroll gesture
+  turns the page into a trap.
+- **Velocity is sampled on the raw pointer move, not the throttled one.** A flick is over in
+  three frames; averaging it across a frame boundary flattens the peak that made it a flick.
 
 ## Deliberately absent
 

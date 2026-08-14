@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 
 const source = `import { Deck } from '@trieur/core';
 import '@trieur/core/trieur.css';
@@ -36,12 +37,14 @@ new Deck(document.querySelector('#sorter'), {
 
     <pre style="margin-top:26px"><code>{source}</code></pre>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <script>
   import { Deck } from '@trieur/core';
   import { shuffled } from '../../data/links';
   import { renderCard } from '../../scripts/card';
+  import { shortcutsButton } from '../../scripts/shortcuts';
   import { deckGui } from '../../scripts/gui';
 
   const log = document.querySelector<HTMLElement>('#log')!;
@@ -71,5 +74,6 @@ new Deck(document.querySelector('#sorter'), {
   });
 
   deckGui(deck);
+  shortcutsButton(deck);
   deck.focus();
 </script>

@@ -4,7 +4,7 @@
 // (`renderCard`) and performs the filing (`onSort`). No dependencies.
 
 import { catchPulse, enterBehind, enterTop, genie, type Enter } from './anim.js';
-import { startGesture } from './drag.js';
+import { startGesture, type GestureState } from './drag.js';
 import { angleGap, angleOf, resolveLayout } from './layouts.js';
 import { en } from './text.js';
 import { defaultTile } from './tile.js';
@@ -48,6 +48,7 @@ export class Deck<T = any> {
   #text: DeckText;
   #stage: HTMLElement;
   #segsEl: SVGSVGElement;
+  #vecEl: SVGSVGElement;
   #zonesEl: HTMLElement;
   #cardsEl: HTMLElement;
   #padEl: HTMLElement;
@@ -60,6 +61,8 @@ export class Deck<T = any> {
   #shiftUsed = false;
   /** suggestion token: a late answer must not apply to the next card */
   #ask = 0;
+  /** where the card sits, in px from the centre of the stage — a layout may move it */
+  #centre: Point = { x: 0, y: 0 };
   /** stage rect, read once per drag instead of once per move */
   #rect: DOMRect | null = null;
   /** what is currently lit, so a move that changes nothing touches no DOM */
@@ -68,6 +71,12 @@ export class Deck<T = any> {
   #layoutKey = '';
   /** last tap on a card, to spot the second one */
   #lastTap = { t: 0, x: 0, y: 0 };
+  /** which item each card element is showing, so a card can be kept instead of rebuilt */
+  #shown = new WeakMap<HTMLElement, T>();
+  /** the item each pile is holding; `piles: 1` makes this a one-element array */
+  #lanes: Array<T | undefined> = [];
+  /** the pile the keyboard and the suggestion apply to */
+  #active = 0;
   #onResize: () => void;
   #onEsc: (e: KeyboardEvent) => void;
 
@@ -82,6 +91,7 @@ export class Deck<T = any> {
     root.innerHTML = `
       <div class="tr-stage" tabindex="0" role="application" aria-roledescription="card sorter">
         <svg class="tr-segments" aria-hidden="true"></svg>
+        <svg class="tr-vector" aria-hidden="true" hidden></svg>
         <div class="tr-zones"></div>
         <div class="tr-cards"></div>
         <p class="tr-nothing" hidden></p>
@@ -104,6 +114,7 @@ export class Deck<T = any> {
       </button>`;
     this.#stage = root.querySelector('.tr-stage')!;
     this.#segsEl = root.querySelector('.tr-segments')!;
+    this.#vecEl = root.querySelector('.tr-vector')!;
     this.#zonesEl = root.querySelector('.tr-zones')!;
     this.#cardsEl = root.querySelector('.tr-cards')!;
     this.#padEl = root.querySelector('.tr-pad')!;
@@ -210,7 +221,20 @@ export class Deck<T = any> {
   }
 
   get current(): T | undefined {
-    return this.items[0];
+    return this.#lanes[this.#active] ?? this.items[0];
+  }
+
+  /** Which pile the keyboard, the suggestion and Undo are talking about. */
+  get active(): number {
+    return this.#active;
+  }
+  set active(i: number) {
+    const piles = Math.max(1, Math.round(this.#opts.piles ?? 1));
+    this.#active = Math.max(0, Math.min(Math.round(i), piles - 1));
+    for (const pile of this.#cardsEl.children) {
+      (pile as HTMLElement).dataset.active = String(Number((pile as HTMLElement).dataset.lane) === this.#active);
+    }
+    void this.suggest();
   }
 
   get options(): Readonly<DeckOptions<T>> {
@@ -256,7 +280,7 @@ export class Deck<T = any> {
   layout(force = false): void {
     const els = [...this.#zonesEl.children] as HTMLElement[];
     if (!els.length) return;
-    const card = this.#cardsEl.firstElementChild as HTMLElement | null;
+    const card = this.#cardsEl.querySelector('.tr-card') as HTMLElement | null;
     // Zones clear the card along an **ellipse**, not a circle: a zone directly above only has
     // to clear the card's height, and using the circumscribed radius everywhere pushed the top
     // tile off a short stage. Rounded to 8px steps so a card one pixel taller does not shift
@@ -281,15 +305,31 @@ export class Deck<T = any> {
     if (!force && key === this.#layoutKey) return;
     this.#layoutKey = key;
 
-    const { points, cells } = resolveLayout(this.#opts.layout)(els.length, box);
+    const { points, cells, centre } = resolveLayout(this.#opts.layout)(els.length, box);
+    // Where the card goes — read before the zones, since their direction is measured from it.
+    // A layout may say so itself: an arc menu wants the hole off-centre so the wedges get the
+    // whole stage instead of half of it.
+    this.#centre = centre ?? { x: 0, y: 0 };
     els.forEach((el, i) => {
       const p = points[i] ?? { x: 0, y: 0 };
       const z = this.zones[i]!;
-      z.angle = angleOf(p.x, p.y); // the actual visual direction
+      // the direction *from the card*, which is not the stage centre when a layout moved it
+      z.angle = angleOf(p.x - this.#centre.x, p.y - this.#centre.y);
       z.pos = p; // where the genie animation lands
       el.style.left = `calc(50% + ${p.x}px)`;
       el.style.top = `calc(50% + ${p.y}px)`;
     });
+    // Otherwise the deck works it out: a layout that parks every tile along the bottom edge
+    // leaves the card everything above them, which is what stops the first wrapped row of a
+    // dock from landing on the card.
+    const ys = points.map((p) => p.y);
+    const band = !centre && ys.length && ys.every((y) => y > 0) ? box.h / 2 - (Math.min(...ys) - box.tile / 2) : 0;
+    // never so deep that the card no longer fits above it: a tray that squeezes the card is
+    // worse than a tray the card slightly overlaps
+    const tray = Math.max(0, Math.min(band, box.h - box.cardH - 12));
+    this.root.style.setProperty('--tr-tray', `${Math.round(tray)}px`);
+    this.root.style.setProperty('--tr-card-x', `${Math.round(this.#centre.x)}px`);
+    this.root.style.setProperty('--tr-card-y', `${Math.round(this.#centre.y)}px`);
     // a host styles a radial menu differently from floating tiles, and only the deck knows
     // which layout is in play
     const name = typeof this.#opts.layout === 'string' ? this.#opts.layout : this.#opts.layout ? 'custom' : 'auto';
@@ -343,22 +383,94 @@ export class Deck<T = any> {
     return this.zones.find((z) => z.cell && inPolygon(z.cell, x, y)) ?? null;
   }
 
-  render(enter?: Enter): void {
-    const [top, next] = this.items;
+  /**
+   * Which item each pile shows, and the one behind it.
+   *
+   * A pile keeps its card until that card actually leaves: filing the left pile must not make
+   * the right one change under the other hand. So the lanes hold items, the queue is whatever
+   * no lane holds, and only an empty lane draws from it.
+   */
+  #assign(piles: number): Array<{ top?: T; behind?: T }> {
+    const lanes = this.#lanes;
+    lanes.length = piles;
+    for (let i = 0; i < piles; i++) {
+      if (lanes[i] !== undefined && !this.items.includes(lanes[i]!)) lanes[i] = undefined;
+    }
+    const held = new Set(lanes.filter((x): x is T => x !== undefined));
+    const queue = this.items.filter((it) => !held.has(it));
+    let q = 0;
+    const out: Array<{ top?: T; behind?: T }> = [];
+    for (let i = 0; i < piles; i++) {
+      if (lanes[i] === undefined && q < queue.length) lanes[i] = queue[q++];
+      out[i] = { top: lanes[i] };
+    }
+    // one card showing behind each top card, so a pile reads as a pile
+    for (let i = 0; i < piles; i++) if (q < queue.length) out[i]!.behind = queue[q++];
+    if (lanes[this.#active] === undefined) {
+      const first = lanes.findIndex((x) => x !== undefined);
+      this.#active = first < 0 ? 0 : first;
+    }
+    return out;
+  }
+
+  /** Makes the DOM hold exactly `n` piles. One pile is the ordinary deck. */
+  #syncPiles(n: number): void {
+    this.root.classList.toggle('tr-piles', n > 1);
+    while (this.#cardsEl.children.length > n) this.#cardsEl.lastElementChild!.remove();
+    while (this.#cardsEl.children.length < n) {
+      const pile = document.createElement('div');
+      pile.className = 'tr-pile';
+      pile.dataset.lane = String(this.#cardsEl.children.length);
+      this.#cardsEl.append(pile);
+    }
+    for (const pile of this.#cardsEl.children) {
+      (pile as HTMLElement).dataset.active = String(Number((pile as HTMLElement).dataset.lane) === this.#active);
+    }
+  }
+
+  /** One pile: the top card, the one behind it, and as little DOM churn as possible. */
+  #renderPile(pile: HTMLElement, top: T | undefined, next: T | undefined, enter?: Enter): void {
     // A card in flight survives the next render, and above all we do not *touch* it:
     // reinserting it in the DOM cancels its transition and snaps it to the end state.
-    for (const c of [...this.#cardsEl.children]) if (!c.classList.contains('tr-genie')) c.remove();
+    const live = ([...pile.children] as HTMLElement[]).filter((c) => !c.classList.contains('tr-genie'));
+    // The card that was second becomes first — and it is the *same element*, promoted by a
+    // class. Rebuilding it would refetch every image it holds, and an image that reloads
+    // blinks: that blink is the whole reason this reconciles instead of replacing.
+    const take = (item: T | undefined): HTMLElement | null => {
+      if (item === undefined) return null;
+      const i = live.findIndex((c) => this.#shown.get(c) === item);
+      return i < 0 ? null : live.splice(i, 1)[0]!;
+    };
+    const kept = { top: take(top), behind: take(next) };
+    for (const stale of live) stale.remove();
+
+    const behind = kept.behind ?? (next !== undefined ? this.#buildCard(next) : null);
+    const front = kept.top ?? (top !== undefined ? this.#buildCard(top) : null);
+    behind?.classList.add('tr-behind');
+    front?.classList.remove('tr-behind');
+    // insert around whichever card stayed, so the one that stayed keeps its transition: moving
+    // a node in the DOM restarts it, and the promotion *is* the animation
+    if (behind && front) {
+      if (!behind.isConnected && !front.isConnected) pile.append(behind, front);
+      else if (!behind.isConnected) front.before(behind);
+      else if (!front.isConnected) behind.after(front);
+      else if (behind.compareDocumentPosition(front) & Node.DOCUMENT_POSITION_PRECEDING) front.before(behind);
+    } else if (behind && !behind.isConnected) pile.append(behind);
+    else if (front && !front.isConnected) pile.append(front);
+    if (enter) {
+      if (behind && !kept.behind) enterBehind(behind);
+      if (front && !kept.top) enterTop(front, enter);
+    }
+  }
+
+  render(enter?: Enter): void {
+    const piles = Math.max(1, Math.round(this.#opts.piles ?? 1));
+    const plan = this.#assign(piles);
+    this.#syncPiles(piles);
+    const piled = [...this.#cardsEl.children] as HTMLElement[];
+    plan.forEach((p, i) => this.#renderPile(piled[i]!, p.top, p.behind, enter));
+    const top = this.current;
     (this.root.querySelector('.tr-nothing') as HTMLElement).hidden = top !== undefined;
-    if (next !== undefined) {
-      const el = this.#buildCard(next, true);
-      this.#cardsEl.append(el);
-      if (enter) enterBehind(el);
-    }
-    if (top !== undefined) {
-      const el = this.#buildCard(top, false);
-      this.#cardsEl.append(el);
-      if (enter) enterTop(el, enter);
-    }
     this.layout(); // the card's size can change the clearance
     this.#label('.tr-count', this.items.length ? this.#text.count(this.items.length) : '');
     (this.root.querySelector('[data-tr="undo"]') as HTMLButtonElement).disabled = !this.#history.length;
@@ -404,18 +516,40 @@ export class Deck<T = any> {
     return this.#opts.meta ? this.#opts.meta(item) : item;
   }
 
-  #buildCard(item: T, behind: boolean): HTMLElement {
+  #buildCard(item: T): HTMLElement {
     const el = document.createElement('article');
-    el.className = 'tr-card' + (behind ? ' tr-behind' : '');
+    el.className = 'tr-card';
+    this.#shown.set(el, item);
     this.#opts.renderCard?.(item, el);
     // without this the browser starts its own image drag and steals the gesture
     for (const img of el.querySelectorAll('img')) img.draggable = false;
-    if (!behind) {
-      el.addEventListener('pointerdown', (e) => {
-        if (!this.#doubleTap(e)) this.#startDrag(e, el);
-      });
-    }
+    // The listeners live on the element for as long as it does: a card is promoted from the
+    // pile by a class, not by being rebuilt, so they check the role instead of assuming it.
+    el.addEventListener('pointerdown', (e) => {
+      if (el.classList.contains('tr-behind')) return;
+      // the hand that touches a pile is the hand the keyboard and the suggestion follow
+      const lane = Number((el.parentElement as HTMLElement | null)?.dataset.lane ?? 0);
+      if (lane !== this.#active) this.active = lane;
+      // A phone scrolls the page with the same swipe that would drag a card. Inline the deck
+      // stays a preview and lets the page scroll; the gesture is ours alone once expanded.
+      if (this.#tapToExpand()) return;
+      if (!this.#doubleTap(e)) this.#startDrag(e, el);
+    });
+    el.addEventListener('click', (e) => {
+      if (!this.#tapToExpand() || (e.target as Element).closest('a, button, input, label')) return;
+      this.expand(true);
+    });
     return el;
+  }
+
+  /** On a touch screen, outside fullscreen, a tap opens rather than sorts. */
+  #tapToExpand(): boolean {
+    return (
+      this.#opts.touchFullscreen !== false &&
+      !this.expanded &&
+      typeof matchMedia === 'function' &&
+      matchMedia('(pointer: coarse)').matches
+    );
   }
 
   // --- multi-zone selection --------------------------------------------------
@@ -521,7 +655,7 @@ export class Deck<T = any> {
    * A ring fills during the hold so the wait is visible, and letting go files the stack.
    */
   #stagePress(e: PointerEvent): void {
-    if (this.#padMode() !== 'dynamic' || this.#multi) return;
+    if (this.#padMode() !== 'dynamic' || this.#multi || this.#tapToExpand()) return;
     if ((e.target as Element).closest('.tr-card, .tr-pad, .tr-bar')) return; // the card has its own gesture
     const r = this.#stage.getBoundingClientRect();
     const pad = this.#padEl;
@@ -587,15 +721,24 @@ export class Deck<T = any> {
           // translate3d keeps the card on its own compositor layer instead of repainting it.
           const k = Math.min(g.dist / (threshold * 2), 1);
           el.style.transform = `translate3d(${g.dx}px, ${g.dy}px, 0) rotate(${(g.dx / 22).toFixed(2)}deg) scale(${(1 - 0.42 * k).toFixed(3)})`;
-          const near = g.dist > 30 ? this.#aim(g.dx, g.dy, ev) : null;
-          const armed = g.dist > threshold;
+          // where a release *now* would land: under the finger, or where the throw carries
+          const thrown = this.#throwTo(g, ev);
+          const near = thrown
+            ? this.#aim(g.dx + thrown.x - ev.clientX, g.dy + thrown.y - ev.clientY, thrown.x, thrown.y)
+            : g.dist > 30
+              ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
+              : null;
+          const armed = thrown !== null || g.dist > threshold;
           this.#highlight(near, armed);
+          if (this.#opts.flick && this.#opts.flickDebug) this.#paintVector(ev, thrown);
           // in multi mode the finger stays down and sweeps: every region it reaches joins the
           // stack, and letting go files them
           if (this.#multi && near && armed) this.#stack(near);
         },
         onEnd: (g, ev) => {
           this.#highlight(null, false);
+          this.#paintVector(null, null);
+          const thrown = this.#throwTo(g, ev);
           this.#rect = null;
           if (this.#multi) {
             el.style.transform = ''; // the card was pointing at zones, not leaving
@@ -607,7 +750,20 @@ export class Deck<T = any> {
             return;
           }
           // a cancelled pointer is not a drop: the system took the touch back
-          const zone = !g.cancelled && g.dist > threshold ? this.#aim(g.dx, g.dy, ev) : null;
+          const zone = g.cancelled
+            ? null
+            : thrown
+              ? this.#aim(g.dx + thrown.x - ev.clientX, g.dy + thrown.y - ev.clientY, thrown.x, thrown.y)
+              : g.dist > threshold
+                ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
+                : null;
+          this.#emit('release', {
+            item: this.current,
+            zone,
+            speed: Math.hypot(g.vx, g.vy),
+            carried: thrown ? Math.hypot(thrown.x - ev.clientX, thrown.y - ev.clientY) : 0,
+            thrown: thrown !== null,
+          });
           if (!zone) return void (el.style.transform = ''); // nothing aimed at: back to the centre
           // A release always resolves. The card only stays out there if a zone actually took
           // it — a free zone, a busy deck or a refused filing all mean it comes home. Without
@@ -621,9 +777,45 @@ export class Deck<T = any> {
     );
   }
 
+  /**
+   * Where a throw lands, or `null` when the release was a drop.
+   *
+   * The card keeps the speed it had and travels `flickMs` more milliseconds at it. That is all
+   * a flick is: a release point plus a vector. It matters where the target is far (the drag no
+   * longer has to *reach* it) and where the targets are small (a direction survives a few
+   * pixels of slop, a coordinate does not).
+   */
+  #throwTo(g: GestureState, ev: PointerEvent): Point | null {
+    if (!this.#opts.flick) return null;
+    const speed = Math.hypot(g.vx, g.vy);
+    if (speed < (this.#opts.flickMin ?? 0.25)) return null;
+    const r = this.#rect ?? this.#stage.getBoundingClientRect();
+    // capped at the stage diagonal: past the edge every extra pixel aims at the same zone,
+    // and an uncapped throw off a fast trackpad lands in another postcode
+    const reach = Math.min(speed * (this.#opts.flickMs ?? 170), Math.hypot(r.width, r.height));
+    return { x: ev.clientX + (g.vx / speed) * reach, y: ev.clientY + (g.vy / speed) * reach };
+  }
+
+  /** The debug view of the throw: the vector, and the point it is aimed at. */
+  #paintVector(from: PointerEvent | null, to: Point | null): void {
+    const svg = this.#vecEl;
+    if (!from || !to) {
+      svg.toggleAttribute('hidden', true);
+      return;
+    }
+    const r = this.#rect ?? this.#stage.getBoundingClientRect();
+    const [x1, y1] = [from.clientX - r.left, from.clientY - r.top];
+    const [x2, y2] = [to.x - r.left, to.y - r.top];
+    svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+    svg.innerHTML =
+      `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="tr-vec-line"/>` +
+      `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="9" class="tr-vec-dot"/>`;
+    svg.toggleAttribute('hidden', false);
+  }
+
   /** Zone being aimed at: the region under the finger; failing a carving, the drag direction. */
-  #aim(dx: number, dy: number, ev: PointerEvent): PlacedZone | null {
-    const byRegion = this.zoneAt(ev.clientX, ev.clientY);
+  #aim(dx: number, dy: number, x: number, y: number): PlacedZone | null {
+    const byRegion = this.zoneAt(x, y);
     if (byRegion) return byRegion;
     const a = angleOf(dx, dy);
     const span = Math.PI / Math.max(this.zones.length, 1) + 0.25;
@@ -742,19 +934,23 @@ export class Deck<T = any> {
 
   async #run(zones: PlacedZone[], fling?: number): Promise<boolean> {
     const item = this.current;
-    const el = this.#cardsEl.lastElementChild as HTMLElement | null;
+    const pile = this.#cardsEl.children[this.#active] as HTMLElement | undefined;
+    const el = pile?.querySelector<HTMLElement>('.tr-card:not(.tr-behind):not(.tr-genie)') ?? null;
     const primary = zones[0];
     if (item === undefined || !el || !primary || this.#busy) return false;
     this.#busy = true;
     const predicted = this.prediction?.id ?? null;
     // the card lands in the primary zone; the others acknowledge without stealing the trip
-    genie(el, primary.pos, fling !== undefined ? fling / 8 : primary.pos.x / 60);
+    const to = { x: primary.pos.x - this.#centre.x, y: primary.pos.y - this.#centre.y };
+    genie(el, to, fling !== undefined ? fling / 8 : to.x / 60);
     for (const z of zones) catchPulse(this.#tile(z));
     let done = false;
     try {
       await this.#dispatch('sort', item, zones);
       done = true;
-      this.items.shift();
+      const at = this.items.indexOf(item);
+      if (at >= 0) this.items.splice(at, 1);
+      this.#lanes[this.#active] = undefined; // this pile draws a new card, the others do not
       this.#history.push({ item, zones });
       // one example per zone: a card filed in three places teaches three times
       for (const z of zones) {
@@ -779,7 +975,10 @@ export class Deck<T = any> {
     const item = this.current;
     if (item === undefined || this.#busy) return;
     this.#clearPicks();
-    this.items.push(this.items.shift()!); // back of the pile, we will see it again
+    const at = this.items.indexOf(item);
+    if (at >= 0) this.items.splice(at, 1);
+    this.items.push(item); // back of the pile, we will see it again
+    this.#lanes[this.#active] = undefined;
     this.#emit('skip', { item });
     this.#opts.onSkip?.(item);
     this.render();
@@ -794,6 +993,7 @@ export class Deck<T = any> {
       await this.#dispatch('undo', last.item, last.zones);
       done = true;
       this.items.unshift(last.item);
+      this.#lanes[this.#active] = last.item; // it comes back where it left from
       for (const z of last.zones) {
         void this.#tell('forget', { item: last.item, meta: this.#meta(last.item), zoneId: z.id, at: Date.now() });
         catchPulse(this.#tile(z)); // the tile spits the card back out

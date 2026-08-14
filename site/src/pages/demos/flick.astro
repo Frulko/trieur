@@ -1,0 +1,129 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
+---
+
+<Base title="Demo — throw, don't drop">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">Throw, don't drop <span class="tag" style="vertical-align:middle">experimental</span></h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      A drop asks you to be accurate about a <em>coordinate</em>: let go over the right cell, or the card is filed in
+      the wrong folder. A throw asks you to be accurate about a <em>direction</em>, which the hand is far better at. The
+      card keeps the speed it had when you released it, travels a little further on its own, and lands where that
+      carries it — so a distant zone no longer has to be reached, and two neighbouring cells no longer share a border
+      you have to hit.
+    </p>
+
+    <div class="grid" style="margin-bottom:26px">
+      <div class="card">
+        <h3>Reach</h3>
+        <p>
+          How many milliseconds of travel the release is worth. At 170&nbsp;ms a flick of 2&nbsp;px/ms carries the card
+          340&nbsp;px past your finger — the far side of the stage, from a gesture that never left the middle.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Floor</h3>
+        <p>
+          Below this speed a release is still an ordinary drop. It is what keeps a careful, slow drag meaning exactly
+          what it looks like: the zone under the card, not the one it was heading towards.
+        </p>
+      </div>
+      <div class="card">
+        <h3>The vector</h3>
+        <p>
+          The dashed line is the throw and the disc is where it lands; the region under the disc is the one that lights
+          up. Turn it off in the settings once the numbers feel right — it is a tuning instrument, not a feature.
+        </p>
+      </div>
+    </div>
+
+    <div class="demo demo-side">
+      <div id="sorter"></div>
+      <div>
+        <div class="panel">
+          <h3>Last release</h3>
+          <dl id="read" class="kv">
+            <div><dt>speed</dt><dd>—</dd></div>
+            <div><dt>carried</dt><dd>—</dd></div>
+            <div><dt>verdict</dt><dd>—</dd></div>
+            <div><dt>filed into</dt><dd>—</dd></div>
+          </dl>
+        </div>
+        <div class="panel">
+          <h3>Why a mosaic</h3>
+          <p style="margin:0;color:var(--dim)">
+            The zones here are deliberately small and adjacent — the case where dropping is a coin toss. Try the same
+            gesture with <b>throw</b> off in the settings: the same flick lands in whichever cell your finger happened
+            to be over when you let go.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:60px">
+      <h2>Turning it on</h2>
+      <pre><code>{`new Deck(el, {
+  items, zones,
+  layout: 'voronoi',
+  flick: true,        // throw instead of drop
+  flickMs: 170,       // how far ahead the release is projected
+  flickMin: 0.25,     // px/ms below which it is an ordinary drop
+  flickDebug: false,  // draw the vector while tuning
+});`}</code></pre>
+      <p>
+        It is marked experimental because the right <code>flickMs</code> depends on your zones: a dock of six columns
+        wants little of it, a mosaic of twenty cells wants a lot. Velocity is sampled on the raw pointer moves rather
+        than the throttled ones — a flick is over in three frames, and averaging it across a frame boundary flattens
+        precisely the peak that made it a flick — then smoothed, and zeroed when the finger rests before letting go: a
+        gesture that stopped has thrown nothing, however fast it arrived.
+      </p>
+      <p>
+        The projection is capped at the stage diagonal. Past the edge, every extra pixel of reach aims at the same zone
+        anyway, and an uncapped throw off a fast trackpad lands in another postcode.
+      </p>
+    </div>
+  </section>
+  <ShortcutsDialog />
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { createRecommender } from '@trieur/learn';
+  import { meta, shuffled, zones, type Link } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+  import { deckGui } from '../../scripts/gui';
+  import { shortcutsButton } from '../../scripts/shortcuts';
+
+  const $ = (s: string) => document.querySelector(s)!;
+  const cells = $('#read').querySelectorAll('dd');
+
+  const deck = new Deck<Link>($('#sorter') as HTMLElement, {
+    items: shuffled(24),
+    zones,
+    meta,
+    renderCard,
+    layout: 'voronoi',
+    flick: true,
+    flickDebug: true,
+    advisor: createRecommender({ key: 'demo-flick' }),
+    onSort: (_item, zone) => {
+      cells[3]!.textContent = zone.id;
+    },
+  });
+
+  // the deck reports every release, thrown or dropped, so the panel can show the difference
+  deck.root.addEventListener('trieur:release', (e) => {
+    const { speed, carried, thrown } = (e as CustomEvent).detail;
+    cells[0]!.textContent = `${speed.toFixed(2)} px/ms`;
+    cells[1]!.textContent = thrown ? `${Math.round(carried)} px` : '—';
+    cells[2]!.textContent = thrown ? 'throw' : 'drop';
+  });
+
+  deckGui(deck, { flick: true });
+  shortcutsButton(deck);
+  deck.focus();
+</script>

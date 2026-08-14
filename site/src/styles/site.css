@@ -168,40 +168,29 @@ td code { white-space: nowrap; }
 .doc aside a[aria-current='page'] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .doc aside strong { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin: 22px 0 6px 10px; }
 
-/* --- demo settings panel (dat.GUI shaped, ours) --- */
+/* --- demo settings panel: a dropdown hung off a button in the deck's own bar --- */
 .gui {
   position: fixed;
-  top: 74px;
-  right: 16px;
-  z-index: 40;
-  width: 232px;
+  z-index: 60;
+  width: 250px;
+  display: none;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
   font-family: var(--mono);
   font-size: 11.5px;
-  overflow: hidden;
-  max-height: 76vh;
 }
-.gui-body { overflow: auto; max-height: 66vh; }
-.gui-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  border: 0;
-  background: none;
-  color: var(--dim);
-  font: inherit;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  cursor: pointer;
+.gui[data-open='true'] { display: block; animation: gui-in 130ms ease-out; }
+.gui.gui-up { transform-origin: bottom right; }
+@keyframes gui-in {
+  from { opacity: 0; transform: translateY(-4px); }
 }
-.gui-head b { font-size: 14px; line-height: 1; }
-.gui[data-open='false'] .gui-body { display: none; }
-.gui-body { padding: 4px 12px 12px; display: grid; gap: 7px; }
+.gui.gui-up[data-open='true'] { animation-name: gui-in-up; }
+@keyframes gui-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+}
+.gui-body { padding: 12px; display: grid; gap: 7px; overflow: auto; max-height: 62vh; }
 /* label | control | readout — the readout column collapses when there is nothing to read */
 .gui-row { display: grid; grid-template-columns: 78px 1fr auto; align-items: center; gap: 8px; }
 .gui-row span { color: var(--dim); }
@@ -220,11 +209,6 @@ td code { white-space: nowrap; }
 .gui-row input[type='color'] { height: 24px; padding: 2px; }
 .gui-row input[type='range'] { width: 100%; accent-color: var(--accent); }
 .gui-row input[type='checkbox'] { grid-column: 2 / -1; justify-self: end; accent-color: var(--accent); width: 15px; height: 15px; }
-@media (max-width: 720px) {
-  /* a sheet at the bottom, never taller than half the screen: the deck is what matters */
-  .gui { top: auto; bottom: 10px; right: 10px; left: 10px; width: auto; max-height: 50vh; }
-  .gui-body { max-height: 40vh; }
-}
 
 /* --- keycaps: a shortcut reads faster as a key than as a word --- */
 .kbds { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
@@ -268,8 +252,42 @@ kbd, .kbd {
   font-weight: 600;
 }
 .shortcuts dl { margin: 0; }
-.sc-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; flex-wrap: wrap; }
-.sc-row dt { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.sc-row { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; flex-wrap: wrap; }
+.sc-row dt { display: flex; align-items: center; gap: 9px; font-size: 13.5px; min-width: 0; flex: 1 1 auto; }
 .sc-row dt svg { color: var(--dim); flex: none; }
-.sc-row dd { margin: 0 0 0 auto; display: flex; align-items: center; gap: 8px; }
-.sc-row dd i { font-style: normal; font-size: 12.5px; color: var(--dim); }
+/* the keys sit on the right, and in a narrow column they drop to their own line rather than
+   squeezing the label into one word per line */
+.sc-row dd { margin: 0 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 1 auto; flex-wrap: wrap; }
+.sc-row dd i { font-style: normal; font-size: 12px; color: var(--dim); text-align: right; }
+
+/* --- phones -----------------------------------------------------------------------------
+   The library shrinks its own card and tiles below 640px (see trieur.css); this is the page
+   around it — margins, headings and the demo chrome — coming down to the same scale. A phone
+   is not a narrow desktop: at 390px, 24px of page padding either side is 12% of the screen
+   spent on nothing. */
+@media (max-width: 640px) {
+  .wrap { padding: 0 14px; }
+  .hero { padding: 40px 0 26px; }
+  .hero p.lead { font-size: 16.5px; }
+  .grid { gap: 12px; }
+  .card { padding: 15px 16px; border-radius: 12px; }
+  .card h3 { font-size: 15px; }
+  .card p, .btn { font-size: 13.5px; }
+  .demo { padding: 10px; border-radius: 14px; }
+  .demo .tr-stage { min-height: 66vh; min-height: 66dvh; }
+  .demo-side { gap: 14px; }
+  .panel + .panel { margin-top: 18px; }
+  /* the card the demos draw: the same text at the same size in 60vw would be four words a line */
+  .link { padding: 13px; gap: 7px; }
+  .link .host { font-size: 10.5px; }
+  .link h4 { font-size: 14.5px; }
+  .link p { font-size: 12px; }
+  .link .tags { font-size: 10px; }
+  .tag { font-size: 10px; padding: 1px 5px; }
+  pre { font-size: 11.5px; padding: 12px 13px; }
+  h1 { font-size: clamp(26px, 7vw, 34px); }
+  h2 { font-size: 21px; }
+  .shortcuts { padding: 14px 15px; }
+  .sc-row dt span { font-size: 12.5px; }
+  table { font-size: 13px; }
+}

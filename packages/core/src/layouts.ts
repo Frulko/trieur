@@ -46,66 +46,148 @@ const circle: Layout = (n, { w, h, clearX, clearY }) => {
 };
 
 /**
- * A radial menu: the stage becomes a pie, one wedge per zone, with the card in the hole.
+ * Wedges on the innermost ring of a full circle, before it spills into a second one.
  *
- * The hole is the circle that just contains the card, so it hugs whatever card you give it
- * rather than drifting with the tile size. Equal wedges are the point — every choice is one
- * flick, and every flick is the same length — which is why it is a circle and not an ellipse.
- *
- * **Past eight zones it grows a second ring**, then a third. Wedges much narrower than that
- * stop being aimable (a pie menu is a Fitts's-law device: the target you cannot miss is one
- * with a wide angle), and every extra ring is longer, so it holds proportionally more. The
- * capacity of ring k is the capacity of ring 0 scaled by its radius — the geometry decides,
- * not a magic number.
+ * The hole of a radial menu is the circle that just contains the card, so it hugs whatever
+ * card you give it. Equal wedges are the point — every choice is one flick, and every flick is
+ * the same length — which is why it is a circle and not an ellipse. Past this many, a wedge
+ * stops being aimable: a pie menu is a Fitts's-law device, and the target you cannot miss is
+ * one with a wide angle.
  */
 const RING_MAX = 8;
 
-const radial: Layout = (n, { w, h, cardW, cardH }): Placement => {
-  const rIn = Math.hypot(cardW / 2, cardH / 2) + 12;
-  const rOut = Math.max(rIn + 76, Math.min(w, h) / 2 - 6);
+export interface RadialOptions {
+  /** where the arc begins, in radians. `-π/2` is the top; angles run clockwise. */
+  start?: number;
+  /** how much of the circle to use: `2π` a full pie, `π` a half, `π/2` a quarter. */
+  sweep?: number;
+  /** space between two rings, in px */
+  ringGap?: number;
+  /** wedges on the innermost ring of a *full* circle — scaled by sweep and by radius */
+  maxPerRing?: number;
+}
 
-  let counts = [n];
-  for (let rings = 1; rings <= 4 && rings <= n; rings++) {
-    const t = (rOut - rIn) / rings;
-    const caps = Array.from({ length: rings }, (_, k) =>
-      Math.max(3, Math.round((RING_MAX * (rIn + (k + 0.5) * t)) / (rIn + 0.5 * t))),
-    );
-    if (caps.reduce((a, b) => a + b, 0) >= n) {
-      counts = share(n, caps);
-      break;
-    }
-  }
+/**
+ * A radial menu, parameterised. `layouts.radial` is `radialLayout()` with the defaults.
+ *
+ * ```js
+ * layout: radialLayout({ start: -Math.PI / 2, sweep: Math.PI })   // the right half
+ * layout: radialLayout({ sweep: Math.PI / 2, start: Math.PI })    // a quarter, top-left
+ * ```
+ *
+ * An arc rather than a full circle is not a decoration: it is what lets the menu live against
+ * an edge, or beside a thumb, without wedges pointing off the screen. The capacity of a ring
+ * scales with the arc it actually covers, so a half menu holds half as many wedges of the same
+ * width rather than the same number of half-width ones.
+ */
+export function radialLayout(opts: RadialOptions = {}): Layout {
+  const sweep = Math.max(0.35, Math.min(opts.sweep ?? TAU, TAU));
+  const start = opts.start ?? -Math.PI / 2;
+  const ringGap = Math.max(0, opts.ringGap ?? 3);
+  const maxFirst = Math.max(2, opts.maxPerRing ?? RING_MAX);
 
-  const thickness = (rOut - rIn) / counts.length;
-  const SAMPLES = 14;
-  const points: Point[] = [];
-  const cells: Polygon[] = [];
-
-  counts.forEach((count, ring) => {
-    const r0 = rIn + ring * thickness;
-    const r1 = r0 + thickness - (ring < counts.length - 1 ? 3 : 0); // a hairline between rings
-    const step = TAU / count;
-    const gap = Math.min(step * 0.04, 0.03); // a hairline between wedges, not a slice of pie
-    for (let i = 0; i < count; i++) {
-      const mid = -Math.PI / 2 + (i + 0.5) * step;
-      const a0 = mid - step / 2 + gap;
-      const a1 = mid + step / 2 - gap;
-      const poly: Polygon = [];
-      for (let s = 0; s <= SAMPLES; s++) {
-        const a = a0 + ((a1 - a0) * s) / SAMPLES;
-        poly.push([Math.cos(a) * r1, Math.sin(a) * r1]);
+  return (n, box): Placement => {
+    const { w, h, cardW, cardH, tile } = box;
+    const rIn = Math.hypot(cardW / 2, cardH / 2) + 12;
+    // An arc does not need the stage centred on it: a half menu against the left edge has the
+    // whole width to grow into. So the *unit* shape of the arc — the wedge fan plus its
+    // vertex — is measured, fitted to the stage, and the hole ends up wherever that puts it.
+    // A full circle measures [-1,1] on both axes and lands exactly where it always did.
+    const xs = [0, Math.cos(start), Math.cos(start + sweep)];
+    const ys = [0, Math.sin(start), Math.sin(start + sweep)];
+    for (let k = -4; k <= 8; k++) {
+      const a = (k * Math.PI) / 2; // a cardinal direction inside the arc reaches the unit circle
+      if (a >= start && a <= start + sweep) {
+        xs.push(Math.cos(a));
+        ys.push(Math.sin(a));
       }
-      for (let s = SAMPLES; s >= 0; s--) {
-        const a = a0 + ((a1 - a0) * s) / SAMPLES;
-        poly.push([Math.cos(a) * r0, Math.sin(a) * r0]);
-      }
-      cells.push(poly);
-      const r = (r0 + r1) / 2;
-      points.push({ x: Math.cos(mid) * r, y: Math.sin(mid) * r });
     }
-  });
-  return { points, cells };
-};
+    const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+    const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+    // The card lives in the hole, so it is part of the shape being fitted: a quarter menu
+    // pushed hard into a corner would otherwise hang half the card off the stage. Three
+    // passes, because shrinking the radius shrinks the arc but never the card.
+    const [availW, availH] = [w - 12, h - 12];
+    let fit = Math.min(availW / (x1 - x0), availH / (y1 - y0));
+    const span = (r: number) => ({
+      lx: Math.min(r * x0, -cardW / 2),
+      rx: Math.max(r * x1, cardW / 2),
+      ty: Math.min(r * y0, -cardH / 2),
+      by: Math.max(r * y1, cardH / 2),
+    });
+    for (let pass = 0; pass < 3; pass++) {
+      const { lx, rx, ty, by } = span(fit);
+      const k = Math.min(1, availW / (rx - lx), availH / (by - ty));
+      if (k > 0.999) break;
+      fit *= k;
+    }
+    const { lx, rx, ty, by } = span(fit);
+    const centre = { x: -(lx + rx) / 2, y: -(ty + by) / 2 };
+    const rOut = Math.max(rIn + 76, fit);
+    const share2 = (caps: number[]) => share(n, caps);
+
+    // A ring thinner than a tile is not a ring: the labels of two of them sit on top of each
+    // other. So the band decides how many rings there is room for, and when that is not enough
+    // to hold every zone at the ideal wedge width, the wedges get narrower rather than the
+    // menu growing a ring it cannot draw.
+    const maxRings = Math.max(1, Math.min(4, n, Math.floor((rOut - rIn) / (tile * 0.85))));
+    const capsFor = (rings: number) => {
+      const t = (rOut - rIn) / rings;
+      return Array.from({ length: rings }, (_, k) =>
+        Math.max(2, Math.round((maxFirst * (sweep / TAU) * (rIn + (k + 0.5) * t)) / (rIn + 0.5 * t))),
+      );
+    };
+    let counts = share2(capsFor(maxRings));
+    for (let rings = 1; rings <= maxRings; rings++) {
+      const caps = capsFor(rings);
+      if (caps.reduce((a, b) => a + b, 0) >= n) {
+        counts = share2(caps);
+        break;
+      }
+    }
+
+    const thickness = (rOut - rIn) / counts.length;
+    const SAMPLES = 14;
+    const points: Point[] = [];
+    const cells: Polygon[] = [];
+
+    counts.forEach((count, ring) => {
+      const r0 = rIn + ring * thickness;
+      const r1 = r0 + thickness - (ring < counts.length - 1 ? ringGap : 0);
+      const step = sweep / count;
+      const gap = Math.min(step * 0.04, 0.03); // a hairline between wedges, not a slice of pie
+      for (let i = 0; i < count; i++) {
+        const mid = start + (i + 0.5) * step;
+        const a0 = mid - step / 2 + gap;
+        const a1 = mid + step / 2 - gap;
+        const poly: Polygon = [];
+        for (let s2 = 0; s2 <= SAMPLES; s2++) {
+          const a = a0 + ((a1 - a0) * s2) / SAMPLES;
+          poly.push([centre.x + Math.cos(a) * r1, centre.y + Math.sin(a) * r1]);
+        }
+        for (let s2 = SAMPLES; s2 >= 0; s2--) {
+          const a = a0 + ((a1 - a0) * s2) / SAMPLES;
+          poly.push([centre.x + Math.cos(a) * r0, centre.y + Math.sin(a) * r0]);
+        }
+        cells.push(poly);
+        // The wedge starts at the card's own circle, but the *label* sits in the middle of it,
+        // and on the first ring that middle can still fall across a corner of the card. So the
+        // tile is pushed out along its own angle — which keeps it inside its own wedge — until
+        // it clears the card's rectangle. A full circle hid this; an arc shows it at once.
+        const mid2 = (r0 + r1) / 2;
+        const clear = clearanceAt(mid, box) + 4;
+        // clamped to the outer edge of its own wedge, not half a tile inside it: on a ring
+        // thinner than a tile no radius keeps the whole label in, and clearing the card is the
+        // one that matters — the same trade the other layouts make.
+        const r = Math.min(Math.max(mid2, clear), Math.max(mid2, r1));
+        points.push({ x: centre.x + Math.cos(mid) * r, y: centre.y + Math.sin(mid) * r });
+      }
+    });
+    return { points, cells, centre };
+  };
+}
+
+const radial = radialLayout();
 
 /**
  * Phyllotactic spiral, then relaxed: the seeds step by the golden angle so they are never
@@ -189,30 +271,77 @@ function slideOut(p: Point, cell: { x0: number; x1: number; y0: number; y1: numb
  * flick, which is the one a thumb makes best. It suits a handful of zones — past what fits
  * along the bottom, the tiles start to touch.
  */
-const dock: Layout = (n, { w, h, tile }): Placement => {
-  const colW = w / n;
-  const y = h / 2 - tile / 2 - 6;
-  const points: Point[] = [];
-  const cells: Polygon[] = [];
-  for (let i = 0; i < n; i++) {
-    const x0 = -w / 2 + i * colW;
-    const x1 = x0 + colW;
-    cells.push([
-      [x0, -h / 2],
-      [x1, -h / 2],
-      [x1, h / 2],
-      [x0, h / 2],
-    ]);
-    points.push({ x: (x0 + x1) / 2, y });
-  }
-  return { points, cells };
-};
+export interface DockOptions {
+  /** put half the zones along the top edge too, which doubles what a dock can hold */
+  split?: boolean;
+  /** rows per edge; by default, as many as the tiles need to fit across the stage */
+  rows?: number;
+}
 
-/** Whatever fits: a dock on a narrow stage that can hold one, a circle everywhere else. */
+/**
+ * A dock: the zones line an edge, and each one owns a column of the stage.
+ *
+ * This is the phone layout. A ring of tiles around a card spends most of a tall screen on
+ * empty corners; a dock spends all of it on the card, and turns the gesture into a flick,
+ * which is the one a thumb makes best. `split` lines the top edge as well: twice the zones,
+ * and the regions become a top half and a bottom half rather than full-height columns.
+ */
+export function dockLayout(opts: DockOptions = {}): Layout {
+  return (n, { w, h, tile }): Placement => {
+    const points: Point[] = [];
+    const cells: Polygon[] = [];
+    const perRow = Math.max(1, Math.floor(w / (tile + 6)));
+    const band = tile + 8;
+
+    /** One edge of the stage: rows of tiles stacked inward from it, columns within each row. */
+    const edge = (count: number, from: number, top: boolean, y0: number, y1: number) => {
+      // six tiles on a phone do not fit across 390px: they wrap into rows instead of spilling
+      // off both sides, which is what a tray does and what a single row cannot
+      const rows = share(count, Array.from({ length: Math.max(1, opts.rows ?? Math.ceil(count / perRow)) }, () => 1));
+      let k = from;
+      rows.forEach((cols, r) => {
+        // the innermost row swallows the rest of the stage, so every drop lands somewhere:
+        // there is no gap between the tray and the card for a card to die in
+        const last = r === rows.length - 1;
+        const near = top ? y0 + r * band : y1 - r * band; // the edge-most side of this row
+        const far = last ? (top ? y1 : y0) : near + (top ? band : -band);
+        const [a, b] = top ? [near, far] : [far, near];
+        const y = top ? near + tile / 2 + 4 : near - tile / 2 - 4;
+        const colW = w / cols;
+        for (let i = 0; i < cols; i++) {
+          const x0 = -w / 2 + i * colW;
+          const x1 = x0 + colW;
+          cells[k] = [
+            [x0, a],
+            [x1, a],
+            [x1, b],
+            [x0, b],
+          ];
+          points[k] = { x: (x0 + x1) / 2, y };
+          k++;
+        }
+      });
+    };
+
+    if (!opts.split || n < 2) edge(n, 0, false, -h / 2, h / 2);
+    else {
+      // the top edge takes the surplus, so an odd count keeps the bottom row easiest to reach
+      const top = Math.ceil(n / 2);
+      edge(top, 0, true, -h / 2, 0);
+      edge(n - top, top, false, 0, h / 2);
+    }
+    return { points, cells };
+  };
+}
+
+const dock = dockLayout();
+
+/** Whatever fits: a dock on a narrow stage, a circle everywhere else. */
 const auto: Layout = (n, box) => {
-  const fitsDock = n <= Math.max(1, Math.floor(box.w / (box.tile + 6)));
+  const perRow = Math.max(1, Math.floor(box.w / (box.tile + 6)));
   const narrow = box.w < 620 || box.h / box.w > 1.15;
-  return (narrow && fitsDock ? dock : circle)(n, box);
+  // past two rows the tray eats the card's room, and a ring is the better spend
+  return (narrow && n <= perRow * 2 ? dock : circle)(n, box);
 };
 
 export const layouts: Record<string, Layout> = { auto, circle, radial, voronoi: mosaic, grid, dock };
@@ -330,7 +459,7 @@ export function resolveLayout(l: Layout | string | undefined): (n: number, box: 
   return (n, box) => {
     const out = place(n, box);
     const raw = Array.isArray(out) ? { points: out } : out;
-    if (raw.cells) return { points: clampToStage(raw.points, box), cells: raw.cells };
+    if (raw.cells) return { points: clampToStage(raw.points, box), cells: raw.cells, ...(raw.centre ? { centre: raw.centre } : {}) };
     // Fit first, clear second, because when the two cannot both hold — a tall card on a short
     // stage — the clearance is the one that must win. A tile poking past the edge is untidy;
     // a tile under the card is invisible and unreachable.

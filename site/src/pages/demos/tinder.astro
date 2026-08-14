@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 ---
 
 <Base title="Demo — two zones, one thumb">
@@ -41,6 +42,7 @@ import Base from '../../layouts/Base.astro';
       </div>
     </div>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <style is:global>
@@ -124,6 +126,7 @@ import Base from '../../layouts/Base.astro';
   import { Deck } from '@trieur/core';
   import { photos } from '../../data/photos';
   import { deckGui } from '../../scripts/gui';
+  import { shortcutsButton } from '../../scripts/shortcuts';
 
   const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   $('#sorter').closest('.demo')!.classList.add('tinder');
@@ -192,5 +195,6 @@ import Base from '../../layouts/Base.astro';
 
   tally();
   deckGui(deck);
+  shortcutsButton(deck);
   deck.focus();
 </script>

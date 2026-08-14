@@ -38,12 +38,16 @@ const pointer = (type: string, x = 0, y = 0, id = 1) => {
 };
 const card = () => root.querySelector<HTMLElement>('.tr-card:not(.tr-behind)')!;
 /** One drag, in as many steps as there are points. Each move waits a frame, like the real one. */
-const drag = async (steps: Array<[number, number]>, end: 'pointerup' | 'pointercancel' = 'pointerup') => {
+const drag = async (
+  steps: Array<[number, number]>,
+  end: 'pointerup' | 'pointercancel' = 'pointerup',
+  step = 24,
+) => {
   const el = card();
   el.dispatchEvent(pointer('pointerdown', 0, 0));
   for (const [x, y] of steps) {
     el.dispatchEvent(pointer('pointermove', x, y));
-    await tick(24);
+    await tick(step);
   }
   const last = steps[steps.length - 1] ?? [0, 0];
   el.dispatchEvent(pointer(end, last[0], last[1]));
@@ -337,4 +341,71 @@ test('removing a zone drops it from the stack instead of filing into nowhere', (
   press(d, 'S', true);
   d.setZones([{ id: 'dev' }, { id: 'home' }]);
   expect(d.picking.map((z) => z.id)).toEqual(['dev']);
+});
+
+test('flick: a fast throw files short of the threshold, a slow nudge does not', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: ZONES,
+    threshold: 300,
+    flick: true,
+    onSort: (_i, z) => void filed.push(z.id),
+  });
+  // 90px, well short of the threshold, but at ~3px/ms — a throw, and it lands
+  await drag([
+    [30, 0],
+    [60, 0],
+    [90, 0],
+  ]);
+  expect(filed.length).toBe(1);
+  expect(d.items.length).toBe(2);
+
+  // the same distance, crawled: a drop, and it is short of the threshold
+  await drag([
+    [30, 0],
+    [60, 0],
+    [90, 0],
+  ], 'pointerup', 200);
+  expect(filed.length).toBe(1);
+  expect(d.items.length).toBe(2);
+});
+
+test('the card behind is promoted, not rebuilt', async () => {
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, renderCard: (i, el) => (el.textContent = String(i.t)) });
+  const behind = root.querySelector('.tr-card.tr-behind')!;
+  press(d, 'a');
+  await tick();
+  const top = [...root.querySelectorAll('.tr-card:not(.tr-genie)')].at(-1);
+  // the same element, or every image it holds reloads — and a reload is a blink
+  expect(top).toBe(behind);
+  expect(behind.classList.contains('tr-behind')).toBe(false);
+});
+
+test('two piles share the zones, and filing one leaves the other alone', async () => {
+  const filed: Array<[string, string]> = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: ZONES,
+    piles: 2,
+    renderCard: (i, el) => (el.textContent = String(i.t)),
+    onSort: (item, z) => void filed.push([String((item as { t: string }).t), z.id]),
+  });
+  const piles = [...root.querySelectorAll('.tr-pile')];
+  expect(piles.length).toBe(2);
+  const tops = () => piles.map((p) => p.querySelector('.tr-card:not(.tr-behind):not(.tr-genie)')!.textContent);
+  expect(tops()).toEqual(['a', 'b']); // two different cards, one per hand
+
+  // the second pile is the active one, and the keyboard files *its* card
+  const right = piles[1]!.querySelector('.tr-card:not(.tr-behind)')!;
+  const el = right as HTMLElement;
+  el.dispatchEvent(pointer('pointerdown', 0, 0));
+  el.dispatchEvent(pointer('pointerup', 0, 0));
+  expect(d.active).toBe(1);
+  press(d, 'a');
+  await tick();
+  expect(filed).toEqual([['b', 'dev']]);
+  // the left pile did not move: same card, same element
+  expect(piles[0]!.querySelector('.tr-card:not(.tr-behind)')!.textContent).toBe('a');
+  expect(d.items).toHaveLength(2);
 });

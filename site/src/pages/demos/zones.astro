@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 import { url } from '../../lib/url';
 
 // A small diagram beats a sentence for "what does this layout look like".
@@ -20,7 +21,7 @@ const layouts = [
   ['radial', 'radial', 'A true pie menu: equal wedges, the card in the hole. Past eight zones it grows a second ring.'],
   ['voronoi', 'mosaic', 'A golden-angle spiral, then Lloyd relaxation — an irregular tiling with cells of comparable size.'],
   ['grid', 'grid', 'Rectangles tiling the stage, no gaps and no leftover cell. Five zones give three over two.'],
-  ['dock', 'dock', 'Zones along the bottom edge, each owning a full-height column. The phone layout: all the room goes to the card.'],
+  ['dock', 'dock', 'Zones along an edge, each owning a column. More than fit across wrap into a tray. The phone layout.'],
 ];
 ---
 
@@ -62,6 +63,22 @@ const layouts = [
           <label class="opt"><input type="checkbox" id="opt-segments" checked /> <span>regions</span></label>
           <label class="opt"><input type="checkbox" id="opt-keys" checked /> <span>key caps</span></label>
           <label class="opt"><input type="checkbox" id="opt-tiles" checked /> <span>tile boxes</span></label>
+        </div>
+        <div class="panel" id="shape" hidden>
+          <h3>Shape</h3>
+          <div id="shape-radial" hidden>
+            <label class="opt slider"><span>sweep</span><input type="range" id="sweep" min="60" max="360" step="15" value="360" /><output>360°</output></label>
+            <label class="opt slider"><span>start</span><input type="range" id="start" min="-180" max="180" step="15" value="-90" /><output>-90°</output></label>
+            <label class="opt slider"><span>ring gap</span><input type="range" id="ring-gap" min="0" max="28" step="1" value="3" /><output>3px</output></label>
+            <p style="margin:8px 0 0;color:var(--dim);font-size:12px">
+              A half or a quarter is not decoration: it is what lets the menu sit against an edge, or beside a thumb,
+              without wedges pointing off the screen.
+            </p>
+          </div>
+          <div id="shape-dock" hidden>
+            <label class="opt"><input type="checkbox" id="dock-split" /> <span>top and bottom</span></label>
+            <label class="opt slider"><span>rows</span><input type="range" id="dock-rows" min="0" max="3" step="1" value="0" /><output>auto</output></label>
+          </div>
         </div>
         <div class="panel">
           <h3>What you built</h3>
@@ -113,6 +130,7 @@ const layouts = [
       </p>
     </div>
   </section>
+  <ShortcutsDialog multi />
 </Base>
 
 <style>
@@ -143,6 +161,10 @@ const layouts = [
   @media (max-width: 700px) { .layout-opt span { display: none; } }
 
   .opt { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13.5px; }
+  .opt.slider { display: grid; grid-template-columns: 62px 1fr 44px; }
+  .opt.slider input { width: 100%; accent-color: var(--accent); }
+  .opt.slider output { text-align: right; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  #shape[hidden], #shape-radial[hidden], #shape-dock[hidden] { display: none; }
 
   .editor { border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; background: var(--panel); color: var(--ink); min-width: 300px; }
   .editor::backdrop { background: rgba(10, 10, 18, 0.34); }
@@ -155,9 +177,10 @@ const layouts = [
 </style>
 
 <script>
-  import { Deck } from '@trieur/core';
+  import { Deck, dockLayout, radialLayout } from '@trieur/core';
   import { shuffled, type Link } from '../../data/links';
   import { renderCard } from '../../scripts/card';
+  import { shortcutsButton } from '../../scripts/shortcuts';
 
   const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
@@ -183,6 +206,21 @@ const layouts = [
   });
 
   // --- layout picker -----------------------------------------------------------
+  const num = (id: string) => Number($<HTMLInputElement>(id).value);
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+
+  /** The layout, with whatever shape controls apply to it. */
+  const shaped = () => {
+    if (layout === 'radial') {
+      return radialLayout({ sweep: rad(num('#sweep')), start: rad(num('#start')), ringGap: num('#ring-gap') });
+    }
+    if (layout === 'dock') {
+      const rows = num('#dock-rows');
+      return dockLayout({ split: $<HTMLInputElement>('#dock-split').checked, ...(rows ? { rows } : {}) });
+    }
+    return layout as 'circle';
+  };
+
   const pickLayout = (name: string) => {
     layout = name;
     for (const b of document.querySelectorAll<HTMLElement>('.layout-opt')) {
@@ -191,9 +229,22 @@ const layouts = [
     // a radial menu wants its hole small, or the ring has nothing left to live in
     deck.root.style.setProperty('--tr-card-w', name === 'radial' ? '190px' : '260px');
     deck.root.style.setProperty('--tr-card-h', name === 'radial' ? '210px' : '300px');
-    deck.setOptions({ layout: name as 'circle' });
+    $('#shape').hidden = name !== 'radial' && name !== 'dock';
+    $('#shape-radial').hidden = name !== 'radial';
+    $('#shape-dock').hidden = name !== 'dock';
+    deck.setOptions({ layout: shaped() });
     sync();
   };
+
+  // every shape control does the same thing: rebuild the layout and relabel its readout
+  for (const el of document.querySelectorAll<HTMLInputElement>('#shape input')) {
+    el.addEventListener('input', () => {
+      const out = el.parentElement?.querySelector('output');
+      if (out) out.textContent = el.id === 'dock-rows' ? (el.value === '0' ? 'auto' : el.value) : `${el.value}${el.id === 'ring-gap' ? 'px' : '°'}`;
+      deck.setOptions({ layout: shaped() });
+      sync();
+    });
+  }
   for (const b of document.querySelectorAll<HTMLElement>('.layout-opt')) {
     b.addEventListener('click', () => pickLayout(b.dataset.layout!));
   }
@@ -275,8 +326,14 @@ const layouts = [
     for (const li of document.querySelectorAll<HTMLElement>('.zone-list li')) {
       li.addEventListener('click', () => open(Number(li.dataset.i)));
     }
+    const shape =
+      layout === 'radial'
+        ? `radialLayout({ sweep: ${num('#sweep')}°, start: ${num('#start')}°, ringGap: ${num('#ring-gap')} })`
+        : layout === 'dock'
+          ? `dockLayout({ split: ${$<HTMLInputElement>('#dock-split').checked}${num('#dock-rows') ? `, rows: ${num('#dock-rows')}` : ''} })`
+          : `'${layout}'`;
     $('#config').textContent =
-      `layout: '${layout}',\nsegments: ${deck.options.segments !== false},\nzones: [\n` +
+      `layout: ${shape},\nsegments: ${deck.options.segments !== false},\nzones: [\n` +
       zones
         .map((z) => `  { id: '${z.id}'${z.key ? `, key: '${z.key}'` : ''}${z.icon ? `, icon: '${z.icon}'` : ''}${z.color ? `, color: '${z.color}'` : ''} },`)
         .join('\n') +
@@ -284,6 +341,7 @@ const layouts = [
   }
 
   sync();
+  shortcutsButton(deck);
   deck.focus();
 </script>
 

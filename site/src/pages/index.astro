@@ -1,6 +1,7 @@
 ---
 import '@trieur/core/trieur.css';
 import Base from '../layouts/Base.astro';
+import Shortcuts from '../components/Shortcuts.astro';
 import { url } from '../lib/url';
 ---
 
@@ -33,13 +34,7 @@ import { url } from '../lib/url';
           <div class="kv"><span>accuracy</span><b id="acc">—</b></div>
           <div class="kv"><span>features</span><b id="vocab">0</b></div>
         </div>
-        <div class="panel">
-          <h3>From the keyboard</h3>
-          <p style="margin:0;color:var(--dim)">
-            a zone letter files the card · <kbd>↵</kbd> accepts the suggestion · <kbd>space</kbd> skips ·
-            <kbd>⌫</kbd> undoes and unlearns · hold <kbd>⇧</kbd> and press several letters to file into several zones.
-          </p>
-        </div>
+        <Shortcuts multi title="From the keyboard" />
       </div>
     </div>
   </section>

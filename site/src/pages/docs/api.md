@@ -22,6 +22,12 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `multi` | `false` | allow a card to be filed into several zones ([details](../multi/)) |
 | `multiPad` | `'auto'` | the held pad: `'auto'` (dynamic on touch), `'dynamic'`, `'left'`, `'right'`, `false` |
 | `holdDelay` | `420` | ms a finger must rest on a card to open the stack; `0` disables it |
+| `touchFullscreen` | `true` | on touch, a tap opens the deck fullscreen instead of dragging ([why](../keyboard/#on-a-phone)) |
+| `piles` | `1` | **experimental** — deal several piles side by side, sharing the zones |
+| `flick` | `false` | **experimental** — throw instead of drop: the release's velocity picks the zone |
+| `flickMs` | `170` | how far ahead a throw is projected, in ms of travel |
+| `flickMin` | `0.25` | px/ms below which a release is an ordinary drop |
+| `flickDebug` | `false` | draw the throw vector and where it lands |
 | `text` | `en` | labels (`fr` provided, or your own) |
 | `onSort(item, zone)` | — | performs the filing; may be `async`, a rejection cancels |
 | `onSortMany(item, zones)` | — | files into several zones at once |
@@ -47,7 +53,8 @@ deck.layout(force?)         // re-places the zones (skipped when nothing moved; 
 deck.zoneAt(x, y)           // zone under a screen point
 deck.destroy()              // removes everything from the DOM, and the listeners
 
-deck.current                // top card
+deck.current                // top card (of the active pile)
+deck.active                 // which pile the keyboard talks to; assignable
 deck.zones                  // placed zones (index, key, angle, pos, cell)
 deck.prediction             // { id, score, why } or null
 deck.picking                // the multi-zone stack, in pick order
@@ -130,7 +137,24 @@ evaluate(name, model, extractor, cards); // → { top1, top3, silent, vocab, ms,
 ## Geometry
 
 `voronoi(points, w, h)` returns the polygons, `inPolygon(poly, x, y)` tests membership, and
-`layouts.circle | voronoi | grid` are the built-in layouts.
+`layouts.auto | circle | radial | voronoi | grid | dock` are the built-in layouts.
+
+Two of them are parameterised, and the factories are exported:
+
+```js
+import { radialLayout, dockLayout } from '@trieur/core';
+
+radialLayout({ sweep: Math.PI, start: -Math.PI / 2 })  // a half menu, opening right
+radialLayout({ sweep: Math.PI / 2, start: Math.PI })   // a quarter, top-left
+radialLayout({ ringGap: 14 })                          // air between the rings
+dockLayout({ split: true })                            // top *and* bottom edge
+dockLayout({ rows: 2 })                                // two rows; by default, as many as fit
+```
+
+An arc rather than a full circle is what lets a radial menu live against an edge, or beside a
+thumb, without wedges pointing off the screen — the capacity of each ring scales with the arc
+it actually covers. A dock wraps on its own when the tiles no longer fit across the stage: six
+tiles on a phone become two rows of three rather than six tiles spilling off both sides.
 
 A layout returns points, or `{ points, cells }` when it wants to describe its own regions —
 that is how `'radial'` draws wedges instead of letting the Voronoi decide.
@@ -158,6 +182,8 @@ own wedges.
 | `space` | skip |
 | `⌫` | undo, and unlearn |
 | `Esc` | drops the stack, then leaves fullscreen |
+
+The full reference, gestures included, is [Keyboard and gestures](../keyboard/).
 
 On a touch screen, **double-tapping a card accepts the suggestion** — the equivalent of `↵`,
 which a thumb cannot press. The browser's own double-tap zoom is turned off across the sorter,

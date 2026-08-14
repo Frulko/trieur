@@ -1,0 +1,49 @@
+---
+// The shortcut sheet, behind a button in the deck's own bar. Every demo gets the same one, so
+// the gestures are one click away from wherever you are rather than a page away.
+import { icon } from './icons';
+import Shortcuts from './Shortcuts.astro';
+
+interface Props {
+  multi?: boolean;
+}
+const { multi = false } = Astro.props;
+---
+
+<dialog id="shortcuts" class="sc-dialog">
+  <form method="dialog" class="sc-close">
+    <button value="close" aria-label="Close">
+      <Fragment set:html={icon('x', 16)} />
+    </button>
+  </form>
+  <Shortcuts multi={multi} title="Keyboard and gestures" />
+</dialog>
+
+<style is:global>
+  .sc-dialog {
+    border: 0;
+    padding: 0;
+    border-radius: 16px;
+    background: transparent;
+    color: var(--ink);
+    max-width: min(560px, 92vw);
+  }
+  .sc-dialog::backdrop {
+    background: rgba(10, 10, 18, 0.4);
+    backdrop-filter: blur(3px);
+  }
+  .sc-dialog .shortcuts { border-radius: 16px; padding: 22px 24px 24px; }
+  .sc-close { position: absolute; top: 14px; right: 14px; margin: 0; }
+  .sc-close button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    background: var(--panel);
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .sc-close button:hover { color: var(--ink); border-color: var(--accent); }
+</style>

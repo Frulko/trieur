@@ -1,10 +1,14 @@
 // A small dat.GUI-shaped settings panel for the demos.
 //
-// It lives in the site, not in the library: a sorting deck has no business shipping a
-// control panel. But a demo you cannot poke at only shows the defaults, and half the
-// questions about this library are "what does `threshold` actually feel like".
+// It lives in the site, not in the library: a sorting deck has no business shipping a control
+// panel. But a demo you cannot poke at only shows the defaults, and half the questions about
+// this library are "what does `threshold` actually feel like".
+//
+// The trigger sits in the deck's own bar, beside Skip and Undo, because that is where the
+// controls for a deck belong. The panel is a dropdown that picks its side from the room it
+// has, rather than a slab floating over the page.
 
-import type { Deck } from '@trieur/core';
+import { dockLayout, radialLayout, type Deck } from '@trieur/core';
 
 export type Control =
   | { key: string; label: string; type: 'select'; value: string; options: Array<[string, string]> }
@@ -14,24 +18,33 @@ export type Control =
 
 export interface Gui {
   el: HTMLElement;
+  trigger: HTMLButtonElement;
   values: Record<string, string | number | boolean>;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-export function createGui(controls: Control[], onChange: (values: Gui['values'], key: string) => void): Gui {
+/** Adds a button to a deck's action bar, styled by the library's own stylesheet. */
+export function barButton(deck: Deck, label: string): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = label;
+  btn.className = 'tr-host-btn';
+  deck.root.querySelector('.tr-actions')?.prepend(btn);
+  return btn;
+}
+
+export function createGui(
+  controls: Control[],
+  onChange: (values: Gui['values'], key: string) => void,
+  trigger: HTMLButtonElement,
+): Gui {
   const values: Gui['values'] = Object.fromEntries(controls.map((c) => [c.key, c.value]));
 
   const el = document.createElement('aside');
   el.className = 'gui';
-  // collapsed where the panel would cover the thing it configures
-  const roomy = () => window.innerWidth > 900;
-  el.dataset.open = String(roomy());
-  el.innerHTML = `
-    <button type="button" class="gui-head" aria-expanded="${el.dataset.open}">
-      <span>settings</span><b>${el.dataset.open === 'true' ? '–' : '+'}</b>
-    </button>
-    <div class="gui-body">
+  el.dataset.open = 'false';
+  el.innerHTML = `<div class="gui-body">
       ${controls
         .map((c) => {
           const id = `gui-${c.key}`;
@@ -50,12 +63,45 @@ export function createGui(controls: Control[], onChange: (values: Gui['values'],
         })
         .join('')}
     </div>`;
+  document.body.append(el);
 
-  el.querySelector('.gui-head')!.addEventListener('click', () => {
-    const open = el.dataset.open !== 'true';
+  /** Below the trigger if there is room, above it otherwise — whichever the scroll allows. */
+  const place = () => {
+    const r = trigger.getBoundingClientRect();
+    const height = el.offsetHeight;
+    const below = window.innerHeight - r.bottom - 12;
+    const up = below < height && r.top > below;
+    el.classList.toggle('gui-up', up);
+    el.style.top = up ? `${Math.max(8, r.top - height - 8)}px` : `${r.bottom + 8}px`;
+    // on a phone it spans the screen instead of hanging off a 40px-wide button
+    if (window.innerWidth < 560) {
+      el.style.left = '8px';
+      el.style.width = `${window.innerWidth - 16}px`;
+      return;
+    }
+    el.style.width = '';
+    el.style.left = `${Math.max(8, Math.min(r.right - el.offsetWidth, window.innerWidth - el.offsetWidth - 8))}px`;
+  };
+
+  const setOpen = (open: boolean) => {
     el.dataset.open = String(open);
-    el.querySelector('.gui-head b')!.textContent = open ? '–' : '+';
-    el.querySelector('.gui-head')!.setAttribute('aria-expanded', String(open));
+    trigger.setAttribute('aria-expanded', String(open));
+    trigger.classList.toggle('tr-on', open);
+    if (open) place();
+  };
+
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOpen(el.dataset.open !== 'true');
+  });
+  // a dropdown follows what it is anchored to, and closes when you look elsewhere
+  for (const ev of ['scroll', 'resize']) addEventListener(ev, () => el.dataset.open === 'true' && place(), true);
+  addEventListener('click', (e) => {
+    if (el.dataset.open === 'true' && !el.contains(e.target as Node)) setOpen(false);
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && el.dataset.open === 'true') setOpen(false);
   });
 
   el.addEventListener('input', (e) => {
@@ -74,64 +120,102 @@ export function createGui(controls: Control[], onChange: (values: Gui['values'],
     onChange(values, key);
   });
 
-  // a narrow window turns the panel into a sheet over the deck: fold it away
-  addEventListener('resize', () => {
-    if (!roomy() && el.dataset.open === 'true') el.querySelector<HTMLElement>('.gui-head')!.click();
-  });
+  return { el, trigger, values };
+}
 
-  document.body.append(el);
-  return { el, values };
+export interface DeckGuiOptions {
+  /** add the radial arc controls — only worth showing where the layout can be radial */
+  radial?: boolean;
+  /** add the throw controls: the experimental flick mode, and its debug vector */
+  flick?: boolean;
 }
 
 /**
  * The standard panel for a deck demo: every option that changes how the thing feels, plus the
  * two CSS variables that change how it looks.
  */
-export function deckGui(deck: Deck): Gui {
-  const opts = deck.options;
+export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
   const root = deck.root;
+  const o = deck.options;
+
+  const controls: Control[] = [
+    {
+      key: 'layout',
+      label: 'layout',
+      type: 'select',
+      value: typeof o.layout === 'string' ? o.layout : 'auto',
+      options: [
+        ['auto', 'auto'],
+        ['circle', 'circle'],
+        ['radial', 'radial'],
+        ['voronoi', 'mosaic'],
+        ['grid', 'grid'],
+        ['dock', 'dock'],
+        ['dock-split', 'dock · split'],
+      ],
+    },
+    ...(opts.radial
+      ? ([
+          { key: 'sweep', label: 'radial sweep', type: 'range', value: 360, min: 60, max: 360, step: 15, unit: '°' },
+          { key: 'start', label: 'radial start', type: 'range', value: -90, min: -180, max: 180, step: 15, unit: '°' },
+          { key: 'ringGap', label: 'ring gap', type: 'range', value: 3, min: 0, max: 24, step: 1, unit: 'px' },
+        ] as Control[])
+      : []),
+    ...(opts.flick
+      ? ([
+          { key: 'flick', label: 'throw', type: 'toggle', value: Boolean(o.flick) },
+          { key: 'flickMs', label: 'throw reach', type: 'range', value: o.flickMs ?? 170, min: 0, max: 500, step: 10, unit: 'ms' },
+          { key: 'flickMin', label: 'throw floor', type: 'range', value: o.flickMin ?? 0.25, min: 0.05, max: 1.5, step: 0.05 },
+          { key: 'flickDebug', label: 'show vector', type: 'toggle', value: o.flickDebug !== false },
+        ] as Control[])
+      : []),
+    { key: 'segments', label: 'regions', type: 'toggle', value: o.segments !== false },
+    { key: 'multi', label: 'multi-zone', type: 'toggle', value: Boolean(o.multi) },
+    {
+      key: 'multiPad',
+      label: 'hold pad',
+      type: 'select',
+      value: String(o.multiPad ?? 'auto'),
+      options: [
+        ['auto', 'auto (touch)'],
+        ['dynamic', 'dynamic'],
+        ['right', 'right'],
+        ['left', 'left'],
+        ['off', 'off'],
+      ],
+    },
+    { key: 'holdDelay', label: 'hold delay', type: 'range', value: o.holdDelay ?? 420, min: 0, max: 1000, step: 20, unit: 'ms' },
+    { key: 'threshold', label: 'drop threshold', type: 'range', value: o.threshold ?? 90, min: 30, max: 200, step: 5, unit: 'px' },
+    { key: 'minConfidence', label: 'min confidence', type: 'range', value: o.minConfidence ?? 0.45, min: 0, max: 1, step: 0.05 },
+    { key: 'cardWidth', label: 'card width', type: 'range', value: 260, min: 190, max: 380, step: 10, unit: 'px' },
+    { key: 'accent', label: 'accent', type: 'color', value: '#4a54f2' },
+    { key: 'multiColor', label: 'multi colour', type: 'color', value: '#f59e0b' },
+  ];
 
   return createGui(
-    [
-      {
-        key: 'layout',
-        label: 'layout',
-        type: 'select',
-        value: typeof opts.layout === 'string' ? opts.layout : 'auto',
-        options: [
-          ['auto', 'auto'],
-          ['circle', 'circle'],
-          ['radial', 'radial'],
-          ['voronoi', 'mosaic'],
-          ['grid', 'grid'],
-          ['dock', 'dock'],
-        ],
-      },
-      { key: 'segments', label: 'regions', type: 'toggle', value: opts.segments !== false },
-      { key: 'multi', label: 'multi-zone', type: 'toggle', value: Boolean(opts.multi) },
-      {
-        key: 'multiPad',
-        label: 'hold pad',
-        type: 'select',
-        value: String(opts.multiPad ?? 'auto'),
-        options: [
-          ['auto', 'auto (touch)'],
-          ['dynamic', 'dynamic'],
-          ['right', 'right'],
-          ['left', 'left'],
-          ['off', 'off'],
-        ],
-      },
-      { key: 'holdDelay', label: 'hold delay', type: 'range', value: opts.holdDelay ?? 420, min: 0, max: 1000, step: 20, unit: 'ms' },
-      { key: 'threshold', label: 'drop threshold', type: 'range', value: opts.threshold ?? 90, min: 30, max: 200, step: 5, unit: 'px' },
-      { key: 'minConfidence', label: 'min confidence', type: 'range', value: opts.minConfidence ?? 0.45, min: 0, max: 1, step: 0.05 },
-      { key: 'cardWidth', label: 'card width', type: 'range', value: 260, min: 190, max: 380, step: 10, unit: 'px' },
-      { key: 'accent', label: 'accent', type: 'color', value: '#4a54f2' },
-      { key: 'multiColor', label: 'multi colour', type: 'color', value: '#f59e0b' },
-    ],
+    controls,
     (v) => {
+      const name = String(v.layout);
+      const layout =
+        name === 'dock-split'
+          ? dockLayout({ split: true })
+          : name === 'radial' && opts.radial
+            ? radialLayout({
+                sweep: (Number(v.sweep) * Math.PI) / 180,
+                start: (Number(v.start) * Math.PI) / 180,
+                ringGap: Number(v.ringGap),
+              })
+            : (name as 'circle');
       deck.setOptions({
-        layout: v.layout as 'circle',
+        layout,
+        ...(opts.flick
+          ? {
+              flick: Boolean(v.flick),
+              flickMs: Number(v.flickMs),
+              flickMin: Number(v.flickMin),
+              flickDebug: Boolean(v.flickDebug),
+            }
+          : {}),
         segments: Boolean(v.segments),
         multi: Boolean(v.multi),
         multiPad: v.multiPad === 'off' ? false : (v.multiPad as 'auto'),
@@ -143,5 +227,6 @@ export function deckGui(deck: Deck): Gui {
       root.style.setProperty('--tr-accent', String(v.accent));
       root.style.setProperty('--tr-multi', String(v.multiColor));
     },
+    barButton(deck, 'Settings'),
   );
 }

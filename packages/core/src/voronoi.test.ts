@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { inPolygon, voronoi } from './voronoi.js';
-import { layouts, resolveLayout } from './layouts.js';
+import { layouts, radialLayout, resolveLayout } from './layouts.js';
 
 const area = (poly: Array<[number, number]>) => {
   let a = 0;
@@ -131,6 +131,30 @@ test('dock: full-height columns, tiles on the bottom edge', () => {
   expect(cells!.length).toBe(4);
   expect(cells!.reduce((s2, c) => s2 + area(c), 0)).toBeCloseTo(BOX.w * BOX.h, 3);
   for (const p of points) expect(p.y).toBeGreaterThan(BOX.h / 2 - BOX.tile - 10);
+});
+
+test('dock: more tiles than fit across wrap into a tray', () => {
+  const phone = { ...BOX, w: 380, h: 640, tile: 80 };
+  const { points, cells } = resolveLayout('dock')(6, phone);
+  // two rows of three rather than six tiles spilling off both edges
+  expect(new Set(points.map((p) => Math.round(p.y))).size).toBe(2);
+  for (const p of points) expect(Math.abs(p.x)).toBeLessThanOrEqual(phone.w / 2 - phone.tile / 2 + 1);
+  // and the tray still carves the whole stage: nowhere to drop a card into nothing
+  expect(cells!.reduce((s2, c) => s2 + area(c), 0)).toBeCloseTo(phone.w * phone.h, 3);
+});
+
+test('radial: an arc moves the hole, and no label lands on the card', () => {
+  // a half menu is where this shows: the wedges no longer surround the card, so the arc takes
+  // the whole stage and the card moves to the hole the layout asked for
+  const half = radialLayout({ sweep: Math.PI, start: -Math.PI / 2 })(6, BOX);
+  expect(half.centre!.x).toBeLessThan(-40); // opening right, so the hole sits left of centre
+  for (const p of half.points) {
+    const d = { x: p.x - half.centre!.x, y: p.y - half.centre!.y };
+    expect(Math.hypot(d.x, d.y)).toBeGreaterThanOrEqual(clearAt(d) - 1);
+  }
+  // a full circle is unchanged: the hole is the middle of the stage
+  const full = radialLayout()(6, BOX).centre!;
+  expect(Math.abs(full.x) + Math.abs(full.y)).toBe(0);
 });
 
 test('voronoi: relaxing evens the cells out', () => {

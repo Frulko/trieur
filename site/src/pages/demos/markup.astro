@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 ---
 
 <Base title="Demo — the markup API">
@@ -64,14 +65,18 @@ import Base from '../../layouts/Base.astro';
       <code>&lt;trieur-zone&gt;</code> elements that are its configuration.
     </p>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <script>
   import '@trieur/core/element';
   import { shuffled } from '../../data/links';
+  import { shortcutsButton } from '../../scripts/shortcuts';
 
   const deck = document.querySelector('trieur-deck')!;
   deck.items = shuffled(5).slice(0, 20);
+  // the element builds its deck on connect, so the bar exists by the next frame
+  requestAnimationFrame(() => deck.deck && shortcutsButton(deck.deck));
 
   const zone = (attrs: Record<string, string>, label: string) => {
     const el = document.createElement('trieur-zone');

@@ -29,6 +29,9 @@ export interface GestureState {
   interactive: boolean;
   /** the system took the touch back — this is not a drop */
   cancelled: boolean;
+  /** pointer velocity, px/ms, smoothed over the last samples. A throw reads this. */
+  vx: number;
+  vy: number;
 }
 
 export interface GestureHandlers {
@@ -64,7 +67,7 @@ export function startGesture(
   if (e.button > 0 || target?.closest('input, select, textarea, [contenteditable]')) return null;
 
   const interactive = Boolean(target?.closest('a, button, [role="button"], label, summary'));
-  const g: GestureState = { dx: 0, dy: 0, dist: 0, engaged: false, interactive, cancelled: false };
+  const g: GestureState = { dx: 0, dy: 0, dist: 0, engaged: false, interactive, cancelled: false, vx: 0, vy: 0 };
   const x0 = e.clientX;
   const y0 = e.clientY;
   const id = e.pointerId;
@@ -93,6 +96,11 @@ export function startGesture(
   let frame = 0;
   let last = e;
   let done = false;
+  /* Velocity is sampled on the raw move, not on the throttled one: a flick is over in three
+     frames, and averaging it across a frame boundary flattens exactly the peak that makes it
+     a flick. Smoothed, because one 2ms sample between two identical positions reads as zero
+     and would swallow a throw that was actually fast. */
+  let prev = { x: e.clientX, y: e.clientY, t: e.timeStamp };
 
   const hold =
     opts.holdDelay && handlers.onHold
@@ -109,6 +117,14 @@ export function startGesture(
   const move = (ev: PointerEvent) => {
     if (done || ev.pointerId !== id) return;
     last = ev;
+    const dt = ev.timeStamp - prev.t;
+    if (dt > 0) {
+      // a finger that stopped moving has thrown nothing, however fast it arrived
+      const decay = dt > 90 ? 0 : Math.exp(-dt / 40);
+      g.vx = g.vx * decay + ((ev.clientX - prev.x) / dt) * (1 - decay);
+      g.vy = g.vy * decay + ((ev.clientY - prev.y) / dt) * (1 - decay);
+      prev = { x: ev.clientX, y: ev.clientY, t: ev.timeStamp };
+    }
     g.dx = ev.clientX - x0;
     g.dy = ev.clientY - y0;
     g.dist = Math.hypot(g.dx, g.dy);
@@ -127,6 +143,8 @@ export function startGesture(
     if (hold) clearTimeout(hold);
     if (frame) cancelAnimationFrame(frame);
     g.cancelled = ev.type === 'pointercancel';
+    // the release itself is a sample: a finger that rested before letting go threw nothing
+    if (ev.timeStamp - prev.t > 90) g.vx = g.vy = 0;
     el.removeEventListener('pointermove', move as EventListener);
     for (const type of ENDERS) {
       el.removeEventListener(type, end);

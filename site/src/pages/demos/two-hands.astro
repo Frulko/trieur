@@ -1,0 +1,232 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
+---
+
+<Base title="Demo — two piles, two hands">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">Two piles, two hands <span class="tag" style="vertical-align:middle">experimental</span></h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      On a big tablet held in two hands, one pile in the middle leaves both thumbs doing the same job in turn. Two
+      piles, one per side, do not: each thumb owns a pile, they never wait for each other, and the queue drains twice
+      as fast. There are two ways to build it, and they feel different enough to be worth trying both.
+    </p>
+
+    <div class="modes">
+      <button type="button" class="btn" data-mode="board" aria-pressed="true">One board, two piles</button>
+      <button type="button" class="btn" data-mode="decks" aria-pressed="false">Two boards</button>
+    </div>
+
+    <div class="grid" style="margin-bottom:26px">
+      <div class="card">
+        <h3>One board, two piles</h3>
+        <p>
+          <code>piles: 2</code> on a single deck. One set of zones, one carving, two cards dealt side by side — the
+          card you touch is the one the keyboard and the suggestion follow. Half the screen furniture, and the aim is
+          shared: both hands throw at the same targets.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Two boards</h3>
+        <p>
+          Two decks, each with its own zones, sharing a queue and a model. More room per hand and independent layouts,
+          at the price of two sets of tiles on screen — and of aiming at a different <em>dev</em> with each hand.
+        </p>
+      </div>
+      <div class="card">
+        <h3>One queue</h3>
+        <p>
+          Both decks pull from the same pile and top themselves back up when a card leaves. Whichever hand is free
+          takes the next card, so a slow decision on the left never idles the right.
+        </p>
+      </div>
+      <div class="card">
+        <h3>One model</h3>
+        <p>
+          A single recommender advises both piles. What the left hand teaches, the right hand's suggestion knows about
+          on the very next card — which is the real argument for sorting with two hands rather than in two sessions.
+        </p>
+      </div>
+    </div>
+
+    <div class="demo hands" id="stage-board"><div id="board"></div></div>
+    <div class="demo hands two" id="stage-decks" hidden>
+      <div class="hand"><span class="hand-tag">left</span><div id="left"></div></div>
+      <div class="hand"><span class="hand-tag">right</span><div id="right"></div></div>
+    </div>
+
+    <div class="demo-side" style="margin-top:24px">
+      <div class="panel">
+        <h3>Session</h3>
+        <div class="kv"><span>filed</span><b id="n">0</b></div>
+        <div class="kv"><span>left / right</span><b id="split">0 / 0</b></div>
+        <div class="kv"><span>queue</span><b id="left-count">—</b></div>
+      </div>
+      <div class="panel">
+        <h3>Why it is experimental</h3>
+        <p style="margin:0;color:var(--dim)">
+          Two stages mean two layouts, two suggestion loops and two sets of zones on screen at once: on a 13-inch
+          tablet that is comfortable, on a phone it is absurd. The library will happily run four — whether a human can
+          is the open question, and the answer is probably two.
+        </p>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:60px">
+      <h2>One board</h2>
+      <pre><code>{`new Deck(el, {
+  items, zones, meta, renderCard,
+  piles: 2,            // two cards dealt side by side, one set of zones
+  advisor: brain,
+  touchFullscreen: false,
+});
+
+// the pile you touch is the one the keyboard talks to
+deck.active           // 0 or 1
+deck.active = 0;      // or set it yourself`}</code></pre>
+      <p>
+        A pile keeps its card until that card actually leaves. Filing on the left never shuffles what the right hand
+        was about to drop — which sounds obvious until you build it the other way and watch a card change under a
+        thumb already moving towards a zone.
+      </p>
+
+      <h2>Two boards</h2>
+      <pre><code>{`const brain = createRecommender({ key: 'two-hands' });
+const queue = shuffled(60);
+
+const make = (el, keys) => new Deck(el, {
+  items: queue.splice(0, 3),
+  zones, meta, renderCard, keys,
+  advisor: brain,                       // one model, both hands
+  touchFullscreen: false,               // side by side, neither deck is the screen
+  onSort: (item, zone) => api.file(item.id, zone.id),
+  onEmpty: () => {},
+});
+
+const left = make(document.querySelector('#left'), 'qweasd');
+const right = make(document.querySelector('#right'), 'uiojkl');
+
+// whichever hand frees up takes the next card
+for (const deck of [left, right]) {
+  deck.root.addEventListener('trieur:sort', () => {
+    if (queue.length) deck.setItems([...deck.items, queue.shift()]);
+  });
+}`}</code></pre>
+      <p>
+        <code>touchFullscreen: false</code> matters here: side by side, neither deck is the screen, and a tap that
+        expanded one of them would break the symmetry the whole idea rests on. The two decks stay inline and take the
+        gesture themselves.
+      </p>
+    </div>
+  </section>
+  <ShortcutsDialog />
+</Base>
+
+<style is:global>
+  .modes { display: flex; gap: 8px; margin: 0 0 20px; }
+  .modes .btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+  .hands { display: grid; gap: 16px; }
+  .hands.two { grid-template-columns: 1fr 1fr; }
+  .hands[hidden] { display: none; }
+  .hands .hand { position: relative; }
+  .hands .hand-tag {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    z-index: 3;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+  }
+  .hands .tr-stage { min-height: 640px; }
+  /* below a tablet, two boards side by side are one board too many */
+  @media (max-width: 820px) {
+    .hands.two { grid-template-columns: 1fr; }
+    .hands .tr-stage { min-height: 60dvh; }
+  }
+</style>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { createRecommender } from '@trieur/learn';
+  import { meta, shuffled, zones, type Link } from '../../data/links';
+  import { renderCard } from '../../scripts/card';
+  import { shortcutsButton } from '../../scripts/shortcuts';
+
+  const $ = (s: string) => document.querySelector(s)!;
+  const brain = createRecommender({ key: 'demo-two-hands' });
+  let queue: Link[] = [];
+  const filed = { left: 0, right: 0 };
+  let live: Deck<Link>[] = [];
+
+  const report = () => {
+    $('#n').textContent = String(filed.left + filed.right);
+    $('#split').textContent = `${filed.left} / ${filed.right}`;
+    $('#left-count').textContent = `${queue.length} waiting`;
+  };
+
+  const common = {
+    zones,
+    meta,
+    renderCard,
+    advisor: brain,
+    // side by side, no deck is the screen: expanding one would break the symmetry
+    touchFullscreen: false,
+    layout: 'dock' as const,
+  };
+
+  /** One board, two piles: `piles: 2` and nothing else. */
+  const board = () => {
+    const deck = new Deck<Link>($('#board') as HTMLElement, { ...common, items: queue.splice(0, 6), piles: 2 });
+    deck.root.addEventListener('trieur:sort', () => {
+      // the pile that filed is the active one, so the tally knows which hand did it
+      filed[deck.active === 0 ? 'left' : 'right']++;
+      if (queue.length) deck.setItems([...deck.items, queue.shift()!]);
+      report();
+    });
+    shortcutsButton(deck);
+    return [deck];
+  };
+
+  /** Two boards: two decks, one queue, one model. */
+  const decks = () => {
+    const make = (sel: string, keys: string, side: 'left' | 'right') => {
+      const deck = new Deck<Link>($(sel) as HTMLElement, { ...common, items: queue.splice(0, 3), keys });
+      deck.root.addEventListener('trieur:sort', () => {
+        filed[side]++;
+        // whichever hand frees up takes the next card — the queue is shared, the pace is not
+        if (queue.length) deck.setItems([...deck.items, queue.shift()!]);
+        report();
+      });
+      shortcutsButton(deck);
+      return deck;
+    };
+    return [make('#left', 'qweasd', 'left'), make('#right', 'uiojkl', 'right')];
+  };
+
+  const start = (mode: string) => {
+    for (const d of live) d.destroy();
+    queue = shuffled(40);
+    filed.left = filed.right = 0;
+    ($('#stage-board') as HTMLElement).hidden = mode !== 'board';
+    ($('#stage-decks') as HTMLElement).hidden = mode === 'board';
+    live = mode === 'board' ? board() : decks();
+    live[0]!.focus();
+    report();
+  };
+
+  for (const b of document.querySelectorAll<HTMLButtonElement>('.modes button')) {
+    b.addEventListener('click', () => {
+      for (const other of document.querySelectorAll('.modes button')) {
+        other.setAttribute('aria-pressed', String(other === b));
+      }
+      start(b.dataset.mode!);
+    });
+  }
+  start('board');
+</script>

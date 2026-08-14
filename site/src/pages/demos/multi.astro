@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 import Kbd from '../../components/Kbd.astro';
 import Shortcuts from '../../components/Shortcuts.astro';
 ---
@@ -92,6 +93,7 @@ el.addEventListener('trieur:pick', (e) => {
       </p>
     </div>
   </section>
+  <ShortcutsDialog multi />
 </Base>
 
 <script>
@@ -99,6 +101,7 @@ el.addEventListener('trieur:pick', (e) => {
   import { createRecommender } from '@trieur/learn';
   import { meta, shuffled, zones, type Link } from '../../data/links';
   import { renderCard } from '../../scripts/card';
+  import { shortcutsButton } from '../../scripts/shortcuts';
   import { deckGui } from '../../scripts/gui';
 
   const $ = (s: string) => document.querySelector(s)!;
@@ -135,5 +138,6 @@ el.addEventListener('trieur:pick', (e) => {
   });
 
   deckGui(deck);
+  shortcutsButton(deck);
   deck.focus();
 </script>

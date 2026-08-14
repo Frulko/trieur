@@ -123,6 +123,25 @@ numbered badge — badge `1` is the primary zone. Amber rather than red: red rea
 destruction, and this is neither. The model learns one example per zone, and undoing unlearns
 all of them.
 
+## On a phone, and in two hands
+
+A sorting swipe and a page scroll are the same gesture, so an inline deck lets the page win:
+vertical swipes scroll, and a **tap on the card opens the deck fullscreen**, where nothing is
+left behind it to scroll and the gesture is its own. `touchFullscreen: false` turns that off
+where the deck already *is* the screen. Below 640px everything comes down a scale — card,
+tiles, type, bar — because a phone is not a narrow desktop, and a dock **wraps into a tray**
+rather than spilling tiles off both edges.
+
+Two experiments live one step further out:
+
+- `piles: 2` deals two cards side by side on one stage, sharing one set of zones — a big tablet
+  held in two hands, one pile per thumb. A pile keeps its card until that card leaves, so
+  filing on the left never shuffles what the right hand was already moving towards.
+- `flick: true` throws instead of dropping: the release keeps its velocity and the zone is
+  where that throw *lands*. It is aimed at zones far from the card, and at mosaics of small
+  adjacent cells where a few pixels either side of a border file the card in the wrong folder.
+  A direction is a much easier thing to be accurate about than a coordinate.
+
 ## What keeps it smooth
 
 The gesture loop was tuned against a 2015 iPad, which is a better judge than a desktop. One

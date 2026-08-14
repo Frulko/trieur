@@ -2,6 +2,7 @@
 import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 ---
 
 <Base title="Demo — a kingdom, two answers">
@@ -40,6 +41,7 @@ import Base from '../../layouts/Base.astro';
       </div>
     </div>
   </section>
+  <ShortcutsDialog />
 </Base>
 
 <style is:global>
@@ -73,7 +75,9 @@ import Base from '../../layouts/Base.astro';
   .demo.reigns .tr-nothing, .demo.reigns .tr-bar { color: rgba(242, 232, 207, 0.62); }
   .demo.reigns .tr-bar button { border-color: rgba(242, 232, 207, 0.22); color: var(--reigns-ink); }
   .demo.reigns .tr-bar button:hover:not(:disabled) { border-color: var(--reigns-gold); color: var(--reigns-gold); }
-  .demo.reigns .tr-card { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); border: 0; }
+  /* the card's own background, not just the inner panel's: a short decree used to leave a
+     white band under it, because `.decree` only stretched as far as its content */
+  .demo.reigns .tr-card { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); border: 0; background: #b99f63; }
 
   /* the answers are text at the edge of the screen, not buttons */
   .demo.reigns .tr-zone {
@@ -91,7 +95,7 @@ import Base from '../../layouts/Base.astro';
   .demo.reigns .tr-zone.tr-near, .demo.reigns .tr-zone.tr-armed { color: var(--reigns-ink); background: none; }
   .demo.reigns .tr-zone kbd { background: none; border-color: rgba(242, 232, 207, 0.28); color: rgba(242, 232, 207, 0.6); }
 
-  .decree { padding: 0; display: flex; flex-direction: column; height: 100%; background: #b99f63; color: #2a2113; }
+  .decree { padding: 0; display: flex; flex-direction: column; flex: 1; background: #b99f63; color: #2a2113; }
   .decree .who { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
   .decree .who i { width: 46px; height: 46px; display: grid; place-items: center; font-size: 24px; background: #a68a4e; color: #2a2113; }
   .decree .who b { font-size: 13px; letter-spacing: 0.02em; }
@@ -100,13 +104,38 @@ import Base from '../../layouts/Base.astro';
   .decree .portrait { flex: 1; margin: 0 16px; background: #a68a4e; display: grid; place-items: center; font-size: 54px; }
   .decree footer { display: flex; justify-content: space-between; gap: 8px; padding: 12px 16px 14px; font-size: 11px; opacity: 0.75; }
 
-  .res { display: grid; gap: 3px; padding: 6px 0; }
-  .res-top { display: flex; justify-content: space-between; font-size: 13px; }
-  .res-top b { font-family: var(--mono); font-weight: 500; font-size: 12px; }
+  /* the side panels belong to the realm too: gold bars on parchment rules, not the site's
+     indigo on white */
+  .demo.reigns .panel h3 { color: var(--reigns-gold); letter-spacing: 0.12em; }
+  .demo.reigns .kv { border-bottom-color: rgba(242, 232, 207, 0.16); }
+  .demo.reigns .kv span { color: rgba(242, 232, 207, 0.66); }
+  .demo.reigns .kv b { color: var(--reigns-ink); }
+  .demo.reigns .btn { background: none; border-color: rgba(242, 232, 207, 0.3); color: var(--reigns-ink); }
+  .demo.reigns .btn:hover { border-color: var(--reigns-gold); color: var(--reigns-gold); }
+  .demo.reigns pre {
+    background: rgba(0, 0, 0, 0.28);
+    border-color: rgba(242, 232, 207, 0.16);
+    color: rgba(242, 232, 207, 0.86);
+  }
+
+  .res { display: grid; gap: 4px; padding: 7px 0; }
+  .res-top { display: flex; justify-content: space-between; font-size: 13px; color: rgba(242, 232, 207, 0.8); }
+  .res-top b { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--reigns-ink); }
+  .demo.reigns .bar {
+    height: 8px;
+    border-radius: 0;
+    background: rgba(242, 232, 207, 0.12);
+    border: 1px solid rgba(242, 232, 207, 0.2);
+  }
+  .demo.reigns .bar i { border-radius: 0; background: var(--reigns-gold); }
+  /* a resource about to end its reign says so before the verdict does */
+  .demo.reigns .res.danger .bar i { background: #d2603f; }
+  .demo.reigns .res.danger .res-top b { color: #eb8a6b; }
 </style>
 
 <script>
   import { Deck } from '@trieur/core';
+  import { shortcutsButton } from '../../scripts/shortcuts';
 
   const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   $('#sorter').closest('.demo')!.classList.add('reigns');
@@ -152,7 +181,7 @@ import Base from '../../layouts/Base.astro';
   function paint() {
     $('#stats').innerHTML = RESOURCES.map(
       ([k, label, glyph]) => `
-        <div class="res">
+        <div class="res${state[k] <= 20 || state[k] >= 80 ? ' danger' : ''}">
           <div class="res-top"><span>${glyph} ${label}</span><b>${state[k]}</b></div>
           <div class="bar"><i style="width:${state[k]}%"></i></div>
         </div>`,
@@ -234,5 +263,6 @@ import Base from '../../layouts/Base.astro';
   for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, relabel);
 
   restart();
+  shortcutsButton(deck);
   deck.focus();
 </script>

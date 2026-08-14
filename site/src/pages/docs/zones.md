@@ -67,17 +67,31 @@ a wedge is not something a set of points can describe. Equal wedges are the poin
 is one flick, and every flick is the same length. The price is the four corners of a wide
 stage, which is why it is a circle and not an ellipse.
 
+An arc is a first-class shape here, not a special case: `radialLayout({ sweep, start, ringGap })`
+gives a half menu, a quarter at whatever angle, and control over the air between rings. That is
+what lets the menu live against an edge, or beside a thumb, without wedges pointing off the
+screen — and a ring's capacity scales with the arc it actually covers, so a half menu holds
+half as many wedges of the same width rather than the same number squeezed.
+
 Past eight zones, `'radial'` **grows a second ring**, then a third. A wedge much narrower than
 that stops being aimable — a pie menu is a Fitts's-law device, and the target you cannot miss is
 one with a wide angle. Each ring is longer than the last, so it holds proportionally more: the
 capacity of ring *k* is the capacity of ring 0 scaled by its radius. The geometry decides, not
 a magic number.
 
-`'dock'` is the phone layout: the zones line the bottom edge and each owns a full-height
-column. A ring of tiles around a card spends most of a tall screen on empty corners; a dock
-spends all of it on the card, and turns the gesture into a horizontal flick — the one a thumb
-makes best. `'auto'`, the default, picks the dock on a narrow stage that can hold one and the
-circle everywhere else.
+`'dock'` is the phone layout: the zones line the bottom edge and each owns a column. A ring of
+tiles around a card spends most of a tall screen on empty corners; a dock spends all of it on
+the card, and turns the gesture into a horizontal flick — the one a thumb makes best. When the
+tiles no longer fit across the stage it **wraps into a tray**: six tiles on a 390px screen
+become two rows of three rather than six tiles spilling off both sides, and the innermost row's
+regions swallow the rest of the stage so there is still nowhere to drop a card into nothing.
+`dockLayout({ split: true })` lines the top edge as well — twice the zones, one edge per thumb —
+and `dockLayout({ rows })` fixes the count yourself. `'auto'`, the default, picks the dock on a
+narrow stage that can hold the zones in two rows, and the circle everywhere else.
+
+Whenever a layout parks every tile along one edge, the deck writes the depth of that band to
+`--tr-tray` and the card centres in what is left. Otherwise the first wrapped row lands on the
+card, which is the sort of thing that looks like a bug in the drag rather than in the layout.
 
 `'voronoi'` places seeds along a phyllotactic spiral — golden angle, so never collinear — and
 then **relaxes them with Lloyd's algorithm**: compute the cells, move each seed to its cell's
@@ -87,14 +101,31 @@ stage. It stays deterministic: same number of zones, same drawing.
 
 ## On a small screen
 
-Everything shrinks rather than scrolling: the card is capped at `78vw` and `46dvh`, tiles drop
-to 78px, keycaps disappear (a phone has no keyboard, so the row of pixels was spent on
-nothing), and the stage takes `62dvh`. That is enough for `'auto'` to fall back to the dock and
-still leave the card the room it needs.
+A phone is not a narrow desktop, so nothing here is merely reflowed: below 640px the card comes
+down to 216px wide (196 below 400) and a third of the screen height, tiles to 72px then 66,
+keycaps disappear — a phone has no keyboard, so the row of pixels was spent on nothing — and
+the stage takes 56dvh. At that scale six zones fit *on* the stage instead of half off it, which
+is the actual failure a smaller card fixes.
 
-The whole sorter also opts out of the browser's own touch behaviour — no text selection, no
+**Scrolling wins over sorting until the deck owns the screen.** A sorting swipe and a page
+scroll are the same gesture; a widget that takes it turns the page into a trap. So an inline
+deck keeps `touch-action: pan-y`, a tap on the card opens it fullscreen, and there — nothing
+behind left to scroll — it takes the whole gesture. The Expand button leaves the bar for the
+corner of the stage, because on a phone it is the thing to press. `touchFullscreen: false`
+turns that off where the deck already *is* the screen: an app view, a phone-sized popup.
+
+Beyond that the sorter opts out of the browser's own touch behaviour — no text selection, no
 double-tap zoom, no long-press callout, no tap highlight — because every one of them fights a
 gesture the deck already uses.
+
+## Two hands
+
+`piles: 2` deals two cards side by side on one stage, sharing one set of zones — the tablet
+case, one pile per hand. A pile keeps its card until that card actually leaves, so filing on
+the left never shuffles what the right hand was already moving towards. The keyboard, the
+suggestion and Undo follow the pile you last touched (`deck.active`). It is experimental, and
+the [demo](/demos/two-hands/) puts it beside the other way of doing it — two decks, one queue,
+one model — which is a handful of lines of host code and no library feature at all.
 
 ## A tile, not a label
 
