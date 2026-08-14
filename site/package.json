@@ -1,0 +1,18 @@
+{
+  "name": "@trieur/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@trieur/core": "workspace:*",
+    "@trieur/learn": "workspace:*"
+  },
+  "devDependencies": {
+    "astro": "^5.0.0"
+  }
+}

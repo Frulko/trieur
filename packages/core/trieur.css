@@ -1,0 +1,234 @@
+/* trieur — feuille de style par défaut.
+
+   Tout est réglable par variables CSS ; l'hôte peut aussi tout réécrire, les classes sont
+   stables (.tr, .tr-stage, .tr-card, .tr-zone, .tr-bar). */
+
+/* éléments de configuration : ils ne s'affichent jamais */
+trieur-zone { display: none; }
+trieur-deck { display: block; }
+
+.tr {
+  --tr-accent: #4a54f2;
+  --tr-ink: currentColor;
+  --tr-line: color-mix(in srgb, currentColor 15%, transparent);
+  --tr-card-bg: #fff;
+  --tr-card-w: 260px;
+  --tr-card-h: 300px;
+  --tr-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  .tr { --tr-card-bg: #22222c; }
+}
+
+.tr-stage {
+  position: relative;
+  min-height: 600px;
+  border-radius: var(--tr-radius);
+  outline: none;
+  touch-action: none; /* sinon le navigateur défile au lieu de laisser glisser la carte */
+}
+.tr-stage:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-accent) 35%, transparent); }
+
+/* --- découpage de la scène : une région par zone, bordure fine --- */
+.tr-segments {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* le glisser passe à travers, la région ne sert qu'à voir */
+}
+.tr-seg {
+  --tr-seg: var(--tr-accent);
+  fill: color-mix(in srgb, var(--tr-seg) 4%, transparent);
+  stroke: var(--tr-line);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  transition: fill 120ms, stroke 120ms;
+}
+.tr-seg.tr-near { stroke: color-mix(in srgb, var(--tr-seg) 55%, transparent); stroke-dasharray: none; }
+.tr-seg.tr-armed { fill: color-mix(in srgb, var(--tr-seg) 14%, transparent); stroke: var(--tr-seg); }
+
+/* --- zones : une tuile façon dossier, pas une étiquette --- */
+.tr-zone {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 104px;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--tr-line);
+  border-radius: 12px;
+  background: var(--tr-card-bg);
+  font-size: 12.5px;
+  line-height: 1.25;
+  text-align: center;
+  transition: transform 120ms, border-color 120ms, background-color 120ms, box-shadow 120ms;
+}
+/* pastille : couleur pleine, ou image, ou emoji */
+.tr-zone .tr-glyph {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--tr-seg, var(--tr-accent));
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  overflow: hidden;
+}
+.tr-zone .tr-glyph svg { width: 28px; height: 28px; }
+.tr-zone .tr-glyph img { width: 100%; height: 100%; object-fit: cover; }
+.tr-zone .tr-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.tr-zone kbd {
+  font: inherit;
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.tr-zone.tr-near { border-color: var(--tr-seg, var(--tr-accent)); }
+/* zone libre : présente mais pas encore attribuée */
+.tr-zone.tr-free { border-style: dashed; opacity: 0.6; }
+.tr-zone.tr-free .tr-glyph { background: none; border: 1px dashed var(--tr-line); }
+/* proposition du modèle : liseré, sans voler la vedette au survol */
+.tr-zone.tr-suggest {
+  border-color: color-mix(in srgb, var(--tr-accent) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-accent) 14%, transparent);
+}
+.tr-zone.tr-suggest::after { content: '↵'; font-size: 10px; opacity: 0.6; }
+.tr-zone.tr-armed {
+  transform: translate(-50%, -50%) scale(1.12);
+  background: color-mix(in srgb, var(--tr-accent) 14%, var(--tr-card-bg));
+}
+
+/* --- pile de cartes --- */
+.tr-cards {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none; /* seules les cartes réagissent */
+}
+.tr-card {
+  pointer-events: auto;
+  position: absolute;
+  width: min(var(--tr-card-w), 78vw);
+  min-height: var(--tr-card-h);
+  display: flex;
+  flex-direction: column;
+  background: var(--tr-card-bg);
+  border: 1px solid var(--tr-line);
+  border-radius: var(--tr-radius);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  cursor: grab;
+  /* la carte se glisse d'un bloc : ni sélection de texte, ni glisser natif d'image, ni
+     menu contextuel à l'appui long — sauf sur ce qui est cliquable */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* transform + opacity : le dépilement et le rempilement passent par la même transition */
+  transition: transform 220ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 220ms ease-out;
+}
+/* la carte en vol reste au-dessus de celle qui remonte de la pile */
+.tr-card.tr-genie { z-index: 3; pointer-events: none; }
+.tr-card.tr-dragging { cursor: grabbing; transition: none; }
+.tr-card img { -webkit-user-drag: none; user-select: none; }
+/* seuls les éléments interactifs récupèrent le curseur et la sélection */
+.tr-card a, .tr-card button { cursor: pointer; }
+.tr-card input, .tr-card textarea, .tr-card [contenteditable] { user-select: text; -webkit-user-select: text; cursor: auto; }
+.tr-card.tr-behind { transform: scale(0.94) translateY(14px); opacity: 0.55; filter: saturate(0.8); }
+/* effet « génie » : la carte est aspirée dans la tuile visée. L'opacité ne tombe qu'en fin
+   de course — sinon la carte disparaît avant d'arriver et on ne voit pas le trajet. */
+.tr-card.tr-genie {
+  /* même sensation qu'au doigt : ça part tout de suite et ça ralentit en arrivant, au lieu
+     du démarrage mou d'un ease-in-out. Le fondu n'occupe que la fin du trajet. */
+  transition: transform 320ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 110ms ease-in 215ms, filter 320ms;
+  opacity: 0;
+  filter: blur(1px);
+}
+/* la tuile accuse réception */
+.tr-zone.tr-catch { animation: tr-catch 300ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes tr-catch {
+  35% { transform: translate(-50%, -50%) scale(1.14); }
+  60% { transform: translate(-50%, -50%) scale(0.97); }
+  to { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* --- plein écran (modale, pas l'API Fullscreen) --- */
+.tr-close { display: none; }
+.tr-full {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  padding: 20px 24px 16px;
+  background: var(--tr-page-bg, var(--tr-card-bg));
+  animation: tr-open 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.tr-full .tr-stage { flex: 1; min-height: 0; } /* la scène prend toute la hauteur restante */
+.tr-full .tr-close {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 99px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tr-full .tr-close:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
+.tr-full [data-tr='expand'] { display: none; } /* la croix suffit une fois agrandi */
+@keyframes tr-open {
+  from { opacity: 0; transform: scale(0.98); }
+}
+/* la page derrière ne défile plus tant que la modale est ouverte */
+html.tr-locked, html.tr-locked body { overflow: hidden; }
+
+/* --- barre du bas --- */
+.tr-bar { display: flex; align-items: center; gap: 12px; font-size: 12px; opacity: 0.85; }
+.tr-actions { margin-left: auto; display: flex; gap: 8px; }
+.tr-bar button {
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--tr-line);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.tr-bar button:hover:not(:disabled) { border-color: var(--tr-accent); color: var(--tr-accent); }
+.tr-bar button:disabled { opacity: 0.4; cursor: default; }
+.tr-bar kbd { font: inherit; font-size: 10px; opacity: 0.7; }
+.tr-nothing { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: 0.6; font-size: 13px; }
+.tr-nothing[hidden] { display: none; } /* display:grid l'emporterait sur [hidden] */
+
+@media (prefers-reduced-motion: reduce) {
+  .tr-card, .tr-zone, .tr-seg { transition: none; }
+  .tr-card.tr-genie { filter: none; }
+  .tr-zone.tr-catch { animation: none; }
+}

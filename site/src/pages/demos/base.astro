@@ -1,0 +1,74 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+
+const source = `import { Deck } from '@trieur/core';
+import '@trieur/core/trieur.css';
+
+new Deck(document.querySelector('#tri'), {
+  items: liens,
+  zones: [
+    { id: 'dev',    label: 'dev',    icon: '⌘' },
+    { id: 'ia',     label: 'ia',     icon: '◑' },
+    null,                                 // zone libre : le dépôt appelle onAssign
+    { id: 'maison', label: 'maison', icon: '⌂' },
+  ],
+  renderCard: (lien, el) => { el.innerHTML = gabarit(lien); },
+  onSort:   (lien, zone) => fetch('/ranger', { method: 'POST', body: JSON.stringify({ lien, zone }) }),
+  onUndo:   (lien, zone) => fetch('/annuler', { method: 'POST', body: JSON.stringify({ lien, zone }) }),
+  onAssign: (index)      => console.log('zone libre', index),
+});`;
+---
+
+<Base title="Démo — l'API JavaScript">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">L'API JavaScript</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      Le chemin le plus direct&nbsp;: un conteneur, des items, des zones. <code>onSort</code> peut être asynchrone et
+      échouer — un rejet remet la carte en place, la lib ne présume jamais que l'hôte a accepté le rangement. La
+      quatrième zone ci-dessous est <em>libre</em>&nbsp;: y déposer une carte ne range rien, ça demande à l'hôte quoi y
+      mettre.
+    </p>
+
+    <div class="demo" style="margin-bottom:26px"><div id="tri"></div></div>
+    <p id="journal" style="font-family:var(--mono);font-size:13px;color:var(--dim);min-height:1.6em"></p>
+
+    <pre style="margin-top:26px"><code>{source}</code></pre>
+  </section>
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { shuffled } from '../../data/liens';
+  import { renderCard } from '../../scripts/card';
+
+  const log = document.querySelector<HTMLElement>('#journal')!;
+
+  const deck = new Deck(document.querySelector<HTMLElement>('#tri')!, {
+    items: shuffled(3).slice(0, 20),
+    zones: [
+      { id: 'dev', label: 'dev', icon: '⌘', color: '#4a54f2' },
+      { id: 'ia', label: 'ia', icon: '◑', color: '#8b5cf6' },
+      null,
+      { id: 'maison', label: 'maison', icon: '⌂', color: '#f59e0b' },
+      { id: 'à lire', label: 'à lire', icon: '▤', color: '#64748b' },
+    ],
+    renderCard,
+    onSort: (lien, zone) => {
+      log.textContent = `onSort → « ${lien.title} » dans ${zone.id}`;
+    },
+    onUndo: (lien) => {
+      log.textContent = `onUndo → « ${lien.title} » revient`;
+    },
+    onAssign: (index) => {
+      log.textContent = `onAssign → zone libre nº ${index} : à l'hôte de décider quoi y mettre`;
+    },
+    onSkip: () => {
+      log.textContent = 'onSkip → la carte repart en fin de pile';
+    },
+  });
+
+  deck.focus();
+</script>

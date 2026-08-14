@@ -1,0 +1,30 @@
+{
+  "name": "@trieur/server",
+  "version": "0.1.0",
+  "description": "Stockage des rangements et modèles lourds (embeddings) pour trieur — Bun + SQLite.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "trieur-server": "./src/serve.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch src/serve.ts",
+    "start": "bun src/serve.ts",
+    "build": "tsc -b",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@trieur/learn": "workspace:*"
+  }
+}

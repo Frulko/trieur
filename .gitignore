@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+site/.astro/
+site/dist/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+.env

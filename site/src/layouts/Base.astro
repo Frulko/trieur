@@ -1,0 +1,55 @@
+---
+import '../styles/site.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = "Trier une pile de cartes dans des zones, et un modèle qui apprend où elles vont." } =
+  Astro.props;
+
+const here = Astro.url.pathname.replace(/\/$/, '');
+const nav = [
+  { href: '/demos/base', label: 'Démos' },
+  { href: '/docs', label: 'Documentation' },
+  { href: 'https://github.com/gdumoulin/trieur', label: 'GitHub' },
+];
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂</text></svg>" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="/">trieur<span>.</span></a>
+        <nav>
+          {
+            nav.map((n) => (
+              <a href={n.href} aria-current={here.startsWith(n.href.replace(/\/$/, '')) && n.href.startsWith('/') ? 'page' : undefined}>
+                {n.label}
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+    </header>
+
+    <slot />
+
+    <footer class="bottom">
+      <div class="wrap">
+        <p>
+          MIT · <code>@trieur/core</code>, <code>@trieur/learn</code>, <code>@trieur/server</code> — aucune dépendance
+          d'exécution.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

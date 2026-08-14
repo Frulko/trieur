@@ -1,0 +1,179 @@
+---
+import '@trieur/core/trieur.css';
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="trieur — trier des cartes, et apprendre où elles vont">
+  <section class="wrap hero">
+    <p class="tagline">tri à la carte · apprentissage en ligne</p>
+    <h1>Trier une pile,<br />et ne plus avoir à le refaire.</h1>
+    <p class="lead">
+      Une pile de cartes, des zones autour, un geste par carte — au doigt, à la souris ou au clavier. Et un modèle qui
+      apprend, à chaque rangement, où la suivante va probablement aller.
+    </p>
+    <p>
+      <a class="btn primary" href="/docs/demarrer">Démarrer</a>
+      <a class="btn" href="/demos/modele">Voir le modèle apprendre</a>
+    </p>
+  </section>
+
+  <section class="wrap">
+    <div class="demo demo-side">
+      <div id="deck"></div>
+      <div>
+        <div class="panel">
+          <h3>Proposition</h3>
+          <p id="guess" style="margin:0 0 6px">Range quelques cartes : le modèle se tait tant qu'il n'a rien appris.</p>
+          <p class="why" id="why"></p>
+        </div>
+        <div class="panel">
+          <h3>Ce qu'il sait</h3>
+          <div class="kv"><span>rangements</span><b id="n">0</b></div>
+          <div class="kv"><span>justesse</span><b id="acc">—</b></div>
+          <div class="kv"><span>traits</span><b id="vocab">0</b></div>
+        </div>
+        <div class="panel">
+          <h3>Au clavier</h3>
+          <p style="margin:0;color:var(--dim)">
+            une lettre range dans sa zone · <kbd>↵</kbd> accepte la proposition · <kbd>espace</kbd> passe ·
+            <kbd>⌫</kbd> annule et désapprend.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" style="margin-top:70px">
+    <h2>Trois paquets, aucune dépendance</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><code>@trieur/core</code></h3>
+        <p>
+          La scène, les zones, le geste. Pointer Events — souris, doigt et clavier au même niveau. La scène est
+          découpée en régions&nbsp;: on dépose dans ce qu'on voit.
+        </p>
+      </div>
+      <div class="card">
+        <h3><code>@trieur/learn</code></h3>
+        <p>
+          Les modèles, les traits, le stockage local et le protocole. Tout est en ligne&nbsp;: aucun entraînement
+          préalable, le modèle apprend de la carte qu'on vient de ranger.
+        </p>
+      </div>
+      <div class="card">
+        <h3><code>@trieur/server</code></h3>
+        <p>
+          Bun + SQLite. Il garde les événements — pas seulement le modèle — pour pouvoir tout rejouer, et fait ce que
+          le navigateur ne peut pas&nbsp;: les embeddings.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap prose" style="margin-top:70px">
+    <h2>L'échelle du modèle</h2>
+    <p>
+      Bayes naïf plafonne quand les traits interagissent&nbsp;: « github <em>et</em> rust » n'est pas la somme de
+      « github » et de « rust ». Les barreaux suivants tiennent tous sur le même jeu de traits, et on peut les monter un
+      par un.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Barreau</th><th>Ce que ça apporte</th><th>Ce que ça coûte</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>Bayes</code></td>
+          <td>Apprend dès le 3ᵉ exemple, s'explique, cent lignes.</td>
+          <td>Suppose les traits indépendants.</td>
+        </tr>
+        <tr>
+          <td><code>crosses()</code></td>
+          <td>Le croisement <code>domaine×tag</code> rend la combinaison visible — sans changer de modèle.</td>
+          <td>Le vocabulaire explose&nbsp;; il faut élaguer.</td>
+        </tr>
+        <tr>
+          <td><code>Linear</code></td>
+          <td>Des poids appris au lieu de comptes&nbsp;; encaisse les traits corrélés.</td>
+          <td>Un pas d'apprentissage — réglé tout seul par AdaGrad.</td>
+        </tr>
+        <tr>
+          <td><code>Knn</code></td>
+          <td>« Ce lien ressemble à ceux-là. » Le meilleur démarrage à froid.</td>
+          <td>Il faut garder le corpus.</td>
+        </tr>
+        <tr>
+          <td><code>embeddings</code></td>
+          <td>Rapproche deux cartes qui ne partagent aucun mot.</td>
+          <td>Un serveur et un appel réseau.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">
+      Aucun de ces barreaux n'est décrété meilleur qu'un autre&nbsp;: ils votent, et leur poids est leur justesse
+      mesurée. Sur un corpus réel de 3&nbsp;412 liens rangés dans 72 dossiers, l'ensemble atteint <b>35,8 % top-1</b> et
+      <b>60,9 % top-3</b>, contre 33,1 / 57,1 pour son meilleur membre pris seul. Le banc d'essai est dans le dépôt —
+      <a href="/docs/mesurer">et il tourne sur ton corpus</a>.
+    </p>
+
+    <h2>Léger, puis complet</h2>
+    <p>
+      Le mode léger garde tout dans le navigateur&nbsp;: rien ne sort, rien n'attend le réseau. Le mode complet ajoute un
+      serveur qui reçoit les rangements, entraîne ce qu'un onglet ne peut pas entraîner, et sert de démarrage à chaud sur
+      une nouvelle machine. Passer de l'un à l'autre, c'est ajouter une ligne&nbsp;:
+    </p>
+    <pre><code>{`import { Deck } from '@trieur/core';
+import { createRecommender } from '@trieur/learn';
+
+const brain = createRecommender({
+  key: 'liens',
+  server: { url: 'https://trieur.chez-moi.fr', token },  // ← retire ceci = mode léger
+});
+
+new Deck(document.querySelector('#tri'), {
+  items, zones,
+  advisor: brain,
+  meta: (lien) => ({ domain: lien.host, tag: lien.tags, title: lien.title }),
+  renderCard: (lien, el) => (el.innerHTML = gabarit(lien)),
+  onSort: (lien, zone) => api.ranger(lien.id, zone.id),
+});`}</code></pre>
+  </section>
+</Base>
+
+<script>
+  import { Deck } from '@trieur/core';
+  import { createRecommender } from '@trieur/learn';
+  import { meta, shuffled, zones } from '../data/liens';
+  import { renderCard } from '../scripts/card';
+
+  const brain = createRecommender({ key: 'demo-accueil' });
+  const $ = (s: string) => document.querySelector(s)!;
+
+  const deck = new Deck(document.querySelector<HTMLElement>('#deck')!, {
+    items: shuffled().slice(0, 24),
+    zones,
+    meta,
+    renderCard,
+    advisor: brain,
+    layout: 'circle',
+  });
+
+  deck.root.addEventListener('trieur:suggest', (e) => {
+    const d = (e as CustomEvent).detail;
+    $('#guess').innerHTML = `→ <b>${d.id}</b> · ${Math.round(d.score * 100)} % de confiance`;
+    $('#why').textContent = d.why.join('  ');
+  });
+
+  const refresh = async () => {
+    const s = await brain.stats();
+    $('#n').textContent = String(s.examples);
+    $('#vocab').textContent = String(s.vocab);
+    $('#acc').textContent = s.accuracy ? `${Math.round(s.accuracy * 100)} %` : '—';
+    if (!deck.prediction) {
+      $('#guess').textContent = s.examples ? 'Rien de tranché sur cette carte — le modèle préfère se taire.' : 'Range quelques cartes : le modèle se tait tant qu’il n’a rien appris.';
+      $('#why').textContent = '';
+    }
+  };
+  for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, () => void refresh());
+  void refresh();
+</script>

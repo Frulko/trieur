@@ -1,0 +1,64 @@
+---
+import Base from './Base.astro';
+
+interface Props {
+  frontmatter?: { title: string; description?: string };
+  title?: string;
+  description?: string;
+}
+const fm = Astro.props.frontmatter ?? Astro.props;
+const here = Astro.url.pathname.replace(/\/$/, '');
+
+const sections = [
+  {
+    title: 'Comprendre',
+    links: [
+      { href: '/docs', label: 'Vue d’ensemble' },
+      { href: '/docs/demarrer', label: 'Démarrer' },
+      { href: '/docs/zones', label: 'Zones et geste' },
+    ],
+  },
+  {
+    title: 'Le modèle',
+    links: [
+      { href: '/docs/modele', label: 'L’échelle' },
+      { href: '/docs/mesurer', label: 'Mesurer' },
+    ],
+  },
+  {
+    title: 'Intégrer',
+    links: [
+      { href: '/docs/integration', label: 'Dans une app' },
+      { href: '/docs/serveur', label: 'Le serveur' },
+      { href: '/docs/api', label: 'Référence' },
+    ],
+  },
+];
+---
+
+<Base title={`${fm.title} — trieur`} description={fm.description}>
+  <div class="wrap doc">
+    <aside>
+      {
+        sections.map((s) => (
+          <>
+            <strong>{s.title}</strong>
+            <ol>
+              {s.links.map((l) => (
+                <li>
+                  <a href={l.href} aria-current={here === l.href.replace(/\/$/, '') ? 'page' : undefined}>
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </>
+        ))
+      }
+    </aside>
+    <article class="prose">
+      <h1>{fm.title}</h1>
+      <slot />
+    </article>
+  </div>
+</Base>

@@ -1,0 +1,41 @@
+{
+  "name": "@trieur/learn",
+  "version": "0.1.0",
+  "description": "Apprentissage en ligne du rangement : bayes, linéaire, kNN, ensemble — sans dépendance.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./protocol": {
+      "bun": "./src/protocol.ts",
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js"
+    },
+    "./bench": {
+      "bun": "./src/bench.ts",
+      "types": "./dist/bench.d.ts",
+      "import": "./dist/bench.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test",
+    "bench": "bun tools/bench.ts"
+  },
+  "keywords": [
+    "online-learning",
+    "naive-bayes",
+    "perceptron",
+    "knn",
+    "recommendation"
+  ]
+}

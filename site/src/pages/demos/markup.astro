@@ -1,0 +1,93 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Démo — en markup">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">En markup, sans écrire de JS</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+      Les zones et le gabarit de carte se déclarent en HTML. Le seul JS qui reste, c'est la pile — et elle vient de tes
+      données de toute façon. Ajoute, modifie ou retire une <code>&lt;trieur-zone&gt;</code> pendant le tri&nbsp;: la
+      scène suit <em>sans</em> repartir de zéro, la pile en cours et l'historique d'annulation survivent.
+    </p>
+
+    <p style="margin:0 0 20px">
+      <button class="btn" id="add">Ajouter une zone « archive »</button>
+      <button class="btn" id="recolor">Changer la couleur de « dev »</button>
+      <button class="btn" id="drop">Retirer la dernière zone</button>
+    </p>
+
+    <div class="demo" style="margin-bottom:26px">
+      <trieur-deck id="tri" layout="voronoi" threshold="80">
+        <trieur-zone value="dev" key="a" icon="⌘" color="#4a54f2">dev</trieur-zone>
+        <trieur-zone value="ia" icon="◑" color="#8b5cf6">ia</trieur-zone>
+        <trieur-zone value="maison" icon="⌂" color="#f59e0b">maison</trieur-zone>
+        <trieur-zone></trieur-zone>
+        <trieur-zone value="à lire" icon="▤" color="#64748b">à lire</trieur-zone>
+
+        <template data-card>
+          <div class="lien">
+            <span class="host" data-field="host"></span>
+            <h4 data-field="title"></h4>
+            <p data-field="excerpt"></p>
+          </div>
+        </template>
+      </trieur-deck>
+    </div>
+
+    <pre><code>{`<trieur-deck id="tri" layout="voronoi" threshold="80">
+  <trieur-zone value="dev" key="a" icon="⌘" color="#4a54f2">dev</trieur-zone>
+  <trieur-zone value="ia" icon="◑">ia</trieur-zone>
+  <trieur-zone></trieur-zone><!-- zone libre : le dépôt émet trieur:assign -->
+
+  <template data-card>
+    <div class="lien">
+      <span class="host" data-field="host"></span>
+      <h4 data-field="title"></h4>
+      <img data-field="image" data-attr="src" alt="" />
+    </div>
+  </template>
+</trieur-deck>
+
+<script type="module">
+  import '@trieur/core/element';
+  tri.items = liens;                       // le JS l'emporte toujours sur le markup
+  tri.addEventListener('trieur:sort', (e) => console.log(e.detail.item, e.detail.zone));
+</script>`}</code></pre>
+
+    <p class="note" style="max-width:70ch">
+      Pas de shadow DOM, volontairement&nbsp;: c'est toi qui dessines les cartes, tes styles doivent les atteindre. La
+      scène vit dans un enfant du custom element, pour que la lib puisse réécrire son conteneur sans effacer les
+      <code>&lt;trieur-zone&gt;</code> qui sont sa configuration.
+    </p>
+  </section>
+</Base>
+
+<script>
+  import '@trieur/core/element';
+  import { shuffled } from '../../data/liens';
+
+  const deck = document.querySelector('trieur-deck')!;
+  deck.items = shuffled(5).slice(0, 20);
+
+  const zone = (attrs: Record<string, string>, label: string) => {
+    const el = document.createElement('trieur-zone');
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    el.textContent = label;
+    return el;
+  };
+
+  document.querySelector('#add')!.addEventListener('click', () => {
+    deck.append(zone({ value: 'archive', icon: '⌸', color: '#10b981' }, 'archive'));
+  });
+  document.querySelector('#recolor')!.addEventListener('click', () => {
+    const dev = deck.querySelector('trieur-zone[value="dev"]');
+    dev?.setAttribute('color', ['#4a54f2', '#ec4899', '#10b981'][Math.floor(Math.random() * 3)]!);
+  });
+  document.querySelector('#drop')!.addEventListener('click', () => {
+    [...deck.querySelectorAll('trieur-zone')].pop()?.remove();
+  });
+</script>

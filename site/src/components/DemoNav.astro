@@ -1,0 +1,19 @@
+---
+const here = Astro.url.pathname.replace(/\/$/, '');
+const tabs = [
+  { href: '/demos/base', label: 'En JavaScript' },
+  { href: '/demos/markup', label: 'En markup' },
+  { href: '/demos/modele', label: 'Le modèle' },
+  { href: '/demos/serveur', label: 'Léger vs complet' },
+];
+---
+
+<nav style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 26px">
+  {
+    tabs.map((t) => (
+      <a class="btn" href={t.href} style={here === t.href ? 'border-color:var(--accent);color:var(--accent)' : ''}>
+        {t.label}
+      </a>
+    ))
+  }
+</nav>
