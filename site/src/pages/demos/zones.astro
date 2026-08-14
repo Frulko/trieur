@@ -56,6 +56,17 @@ const layouts = [
           <h3>Zones</h3>
           <p style="margin:0 0 10px;color:var(--dim)">Click a tile on the stage, or a row here, to edit it.</p>
           <ol id="zone-list" class="zone-list"></ol>
+          <div class="presets">
+            <span>how many</span>
+            <button type="button" class="btn" data-n="4">4</button>
+            <button type="button" class="btn" data-n="6">6</button>
+            <button type="button" class="btn" data-n="10">10</button>
+            <button type="button" class="btn" data-n="16">16</button>
+          </div>
+          <p style="margin:8px 0 0;color:var(--dim);font-size:12px">
+            Ten or sixteen is where the radial menu grows its second and third ring — each one longer than the last, so
+            it holds proportionally more.
+          </p>
           <button class="btn" id="add-zone" style="margin-top:10px;font-size:13px">Add a zone</button>
         </div>
         <div class="panel">
@@ -160,6 +171,9 @@ const layouts = [
   /* the blurb is a hint, not a paragraph: it must not push the row into three lines */
   @media (max-width: 700px) { .layout-opt span { display: none; } }
 
+  .presets { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; }
+  .presets span { color: var(--dim); margin-right: auto; }
+  .presets .btn { padding: 3px 9px; font-size: 12.5px; }
   .opt { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13.5px; }
   .opt.slider { display: grid; grid-template-columns: 62px 1fr 44px; }
   .opt.slider input { width: 100%; accent-color: var(--accent); }
@@ -185,14 +199,26 @@ const layouts = [
   const $ = <T extends Element = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
   type Z = { id: string; label: string; key?: string; icon?: string; color?: string };
-  let zones: Z[] = [
+  // a pool deep enough to push the radial menu into its second and third ring
+  const POOL: Z[] = [
     { id: 'dev', label: 'dev', icon: '⌘', color: '#4a54f2' },
     { id: 'ai', label: 'ai', icon: '◑', color: '#8b5cf6' },
     { id: 'design', label: 'design', icon: '◈', color: '#ec4899' },
     { id: 'home', label: 'home', icon: '⌂', color: '#f59e0b' },
     { id: 'watch', label: 'watch', icon: '◎', color: '#10b981' },
     { id: 'to read', label: 'to read', icon: '▤', color: '#64748b' },
+    { id: 'rust', label: 'rust', icon: '⚙', color: '#b45309' },
+    { id: 'papers', label: 'papers', icon: '✎', color: '#0ea5e9' },
+    { id: 'music', label: 'music', icon: '♪', color: '#d946ef' },
+    { id: 'travel', label: 'travel', icon: '✈', color: '#14b8a6' },
+    { id: 'food', label: 'food', icon: '✿', color: '#f43f5e' },
+    { id: 'money', label: 'money', icon: '◈', color: '#22c55e' },
+    { id: 'games', label: 'games', icon: '◉', color: '#6366f1' },
+    { id: 'shop', label: 'shop', icon: '▣', color: '#eab308' },
+    { id: 'health', label: 'health', icon: '✚', color: '#ef4444' },
+    { id: 'archive', label: 'archive', icon: '▦', color: '#94a3b8' },
   ];
+  let zones: Z[] = POOL.slice(0, 6).map((z) => ({ ...z }));
   let layout = 'auto';
 
   const deck = new Deck<Link>($('#sorter'), {
@@ -302,6 +328,13 @@ const layouts = [
     const tile = (e.target as Element).closest<HTMLElement>('.tr-zone');
     if (tile && !deck.multi) open(Number(tile.dataset.index));
   });
+
+  for (const b of document.querySelectorAll<HTMLElement>('.presets button')) {
+    b.addEventListener('click', () => {
+      zones = POOL.slice(0, Number(b.dataset.n)).map((z) => ({ ...z }));
+      apply();
+    });
+  }
 
   $('#add-zone').addEventListener('click', () => {
     zones = [...zones, { id: `zone ${zones.length + 1}`, label: `zone ${zones.length + 1}`, color: '#94a3b8' }];

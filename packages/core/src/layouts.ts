@@ -401,6 +401,29 @@ export function clearanceAt(a: number, { clearX, clearY }: LayoutBox): number {
 }
 
 /** Pushes any seed that landed inside the card out to the edge of it. */
+/**
+ * The breathing room a tile keeps from the edge of the stage, on top of its own half-width.
+ *
+ * A tile flush against the edge is legal and unpleasant: it reads as clipped, and on a phone
+ * it sits under the browser's own edge gestures. Twelve pixels is the default; `zonePadding`
+ * moves it.
+ */
+const pad = (box: LayoutBox): number => Math.max(0, box.pad ?? 12);
+
+/**
+ * Pulls the tiles in towards the card by `k` of their distance.
+ *
+ * Zones spread to the far corners are all *reachable* and none of them are *readable*: the eye
+ * has to travel to each label in turn. Drawing them in around the pile makes the whole set
+ * take one glance, and — since the carving is derived from where the tiles are — the regions
+ * follow, so the drop targets stay exactly where they look. `clearCentre()` runs after, so
+ * nothing lands on the card.
+ */
+export function pullToCard(pts: Point[], k: number): Point[] {
+  const t = Math.min(Math.max(k, 0), 0.8);
+  return t ? pts.map((p) => ({ x: p.x * (1 - t), y: p.y * (1 - t) })) : pts;
+}
+
 export function clearCentre(pts: Point[], box: LayoutBox): Point[] {
   return pts.map((p, i) => {
     // exactly at the centre there is no direction to push along, so borrow one from the index
@@ -427,8 +450,8 @@ export function clearCentre(pts: Point[], box: LayoutBox): Point[] {
  * where the label goes, and that can sit past the bottom edge.
  */
 export function clampToStage(pts: Point[], box: LayoutBox): Point[] {
-  const maxX = Math.max(box.w / 2 - box.tile / 2, 20);
-  const maxY = Math.max(box.h / 2 - box.tile / 2, 20);
+  const maxX = Math.max(box.w / 2 - box.tile / 2 - pad(box), 20);
+  const maxY = Math.max(box.h / 2 - box.tile / 2 - pad(box), 20);
   return pts.map((p) => ({
     x: Math.min(Math.max(p.x, -maxX), maxX),
     y: Math.min(Math.max(p.y, -maxY), maxY),
@@ -436,8 +459,8 @@ export function clampToStage(pts: Point[], box: LayoutBox): Point[] {
 }
 
 export function fitToStage(pts: Point[], box: LayoutBox): Point[] {
-  const maxX = Math.max(box.w / 2 - box.tile / 2, 20);
-  const maxY = Math.max(box.h / 2 - box.tile / 2, 20);
+  const maxX = Math.max(box.w / 2 - box.tile / 2 - pad(box), 20);
+  const maxY = Math.max(box.h / 2 - box.tile / 2 - pad(box), 20);
   let k = 1;
   for (const p of pts) {
     if (Math.abs(p.x) > maxX) k = Math.min(k, maxX / Math.abs(p.x));
@@ -460,10 +483,11 @@ export function resolveLayout(l: Layout | string | undefined): (n: number, box: 
     const out = place(n, box);
     const raw = Array.isArray(out) ? { points: out } : out;
     if (raw.cells) return { points: clampToStage(raw.points, box), cells: raw.cells, ...(raw.centre ? { centre: raw.centre } : {}) };
-    // Fit first, clear second, because when the two cannot both hold — a tall card on a short
-    // stage — the clearance is the one that must win. A tile poking past the edge is untidy;
-    // a tile under the card is invisible and unreachable.
-    return { points: clearCentre(fitToStage(raw.points, box), box) };
+    // Fit, gather, clear — in that order. When fit and clearance cannot both hold — a tall card
+    // on a short stage — the clearance is the one that must win: a tile poking past the edge is
+    // untidy, a tile under the card is invisible and unreachable. The gathering in between is
+    // what keeps a floating set readable at a glance instead of scattered to the corners.
+    return { points: clearCentre(pullToCard(fitToStage(raw.points, box), box.pull ?? 0), box) };
   };
 }
 

@@ -31,6 +31,11 @@ That region is not only a drawing: **the drop aims at the region under the finge
 approximate angle. What you see is what you touch. (`segments: false` shows only the tiles;
 aiming then falls back to angles.)
 
+Nothing is aimed at until the pointer has **left the card**, all the way round it. The regions
+start at the card's edge — under it, in a dock — so without that dead zone the tile below the
+pile lit up while the finger was still on the card, and in multi-zone mode it joined the stack
+on the smallest movement. `deadZone` grows or shrinks the card's box for that test.
+
 With one caveat, which a dock makes obvious: a region only wins if the drag is not heading
 **away** from its tile. The card sits inside one of the dock's columns, so that column's zone
 owns every pixel behind and above the card — and without the check, a card dragged straight
@@ -53,8 +58,13 @@ layout: (n, box) => ({ points: [...], cells: [[[x, y], …], …] })
 ```
 
 `clearX` and `clearY` are the half-extents to keep free at the centre — the card, plus half a
-tile — and `tile` is the measured size of a zone tile. Margins are worth half a tile: a zone
-spilling off the stage is unreachable by thumb.
+tile — and `tile` is the measured size of a zone tile. `pad` is the safe margin from the edges
+of the stage (`zonePadding`, 12px by default): a tile flush against the edge reads as clipped,
+and on a phone it sits where the browser's own edge gestures live. `pull` (`zonePull`, 0.18)
+is how far floating tiles are drawn back in towards the pile — zones scattered to the far
+corners are all reachable and none of them are readable, and the carving follows the tiles, so
+the regions stay where they look. Layouts that describe their own regions ignore the pull:
+their tiles belong where the geometry puts them.
 
 The card in that box is its **declared** size — `--tr-card-w` / `--tr-card-h` — not the size
 its content happens to make it. A card with one more line of text is still the same card as far

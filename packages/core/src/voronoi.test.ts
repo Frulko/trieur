@@ -39,7 +39,7 @@ test('voronoi : un seul germe possède toute la scène', () => {
   expect(area(cell!)).toBeCloseTo(5000, 3);
 });
 
-const BOX = { w: 760, h: 560, cardW: 260, cardH: 300, clearX: 182, clearY: 202, tile: 104 };
+const BOX = { w: 760, h: 560, cardW: 260, cardH: 300, clearX: 182, clearY: 202, tile: 104, pad: 12, pull: 0.18 };
 const NAMES = ['auto', 'circle', 'radial', 'voronoi', 'grid', 'dock'] as const;
 /** How far the clearance rectangle reaches in the direction of a point. */
 const clearAt = (p: { x: number; y: number }, box = BOX) => {
@@ -155,6 +155,21 @@ test('radial: an arc moves the hole, and no label lands on the card', () => {
   // a full circle is unchanged: the hole is the middle of the stage
   const full = radialLayout()(6, BOX).centre!;
   expect(Math.abs(full.x) + Math.abs(full.y)).toBe(0);
+});
+
+test('tiles keep their safe margin, and gather towards the card', () => {
+  // a stage with room to spare: on a cramped one the clearance still wins over the margin
+  const wide = { ...BOX, h: 760, pad: 40, pull: 0 };
+  for (const p of resolveLayout('circle')(7, wide).points) {
+    expect(Math.abs(p.x)).toBeLessThanOrEqual(wide.w / 2 - wide.tile / 2 - wide.pad + 1);
+    expect(Math.abs(p.y)).toBeLessThanOrEqual(wide.h / 2 - wide.tile / 2 - wide.pad + 1);
+  }
+  // gathering pulls every tile in — but never onto the card, and never past the clearance
+  const loose = resolveLayout('circle')(7, { ...BOX, pull: 0 }).points;
+  const tight = resolveLayout('circle')(7, { ...BOX, pull: 0.4 }).points;
+  const spread = (ps: typeof loose) => ps.reduce((s2, p) => s2 + Math.hypot(p.x, p.y), 0) / ps.length;
+  expect(spread(tight)).toBeLessThan(spread(loose));
+  for (const p of tight) expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(clearAt(p) - 1);
 });
 
 test('voronoi: relaxing evens the cells out', () => {

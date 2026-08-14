@@ -170,6 +170,8 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
         ] as Control[])
       : []),
     { key: 'segments', label: 'regions', type: 'toggle', value: o.segments !== false },
+    { key: 'zonePull', label: 'gather', type: 'range', value: o.zonePull ?? 0.18, min: 0, max: 0.6, step: 0.02 },
+    { key: 'zonePadding', label: 'edge margin', type: 'range', value: o.zonePadding ?? 12, min: 0, max: 60, step: 2, unit: 'px' },
     { key: 'multi', label: 'multi-zone', type: 'toggle', value: Boolean(o.multi) },
     {
       key: 'multiPad',
@@ -186,6 +188,7 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
     },
     { key: 'holdDelay', label: 'hold delay', type: 'range', value: o.holdDelay ?? 420, min: 0, max: 1000, step: 20, unit: 'ms' },
     { key: 'threshold', label: 'drop threshold', type: 'range', value: o.threshold ?? 90, min: 30, max: 200, step: 5, unit: 'px' },
+    { key: 'deadZone', label: 'dead zone', type: 'range', value: o.deadZone ?? 0, min: -60, max: 120, step: 5, unit: 'px' },
     { key: 'minConfidence', label: 'min confidence', type: 'range', value: o.minConfidence ?? 0.45, min: 0, max: 1, step: 0.05 },
     { key: 'cardWidth', label: 'card width', type: 'range', value: 260, min: 190, max: 380, step: 10, unit: 'px' },
     { key: 'accent', label: 'accent', type: 'color', value: '#4a54f2' },
@@ -217,10 +220,13 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
             }
           : {}),
         segments: Boolean(v.segments),
+        zonePull: Number(v.zonePull),
+        zonePadding: Number(v.zonePadding),
         multi: Boolean(v.multi),
         multiPad: v.multiPad === 'off' ? false : (v.multiPad as 'auto'),
         holdDelay: Number(v.holdDelay),
         threshold: Number(v.threshold),
+        deadZone: Number(v.deadZone),
         minConfidence: Number(v.minConfidence),
       });
       root.style.setProperty('--tr-card-w', `${v.cardWidth}px`);

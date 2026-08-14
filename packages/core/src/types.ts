@@ -41,6 +41,10 @@ export interface LayoutBox {
   clearY: number;
   /** largest dimension of a zone tile, measured — so a layout can keep one on the stage */
   tile: number;
+  /** safe margin from the edges of the stage, on top of half a tile (`zonePadding`) */
+  pad: number;
+  /** how far floating tiles are drawn in towards the card, 0–0.8 (`zonePull`) */
+  pull: number;
 }
 
 /**
@@ -128,10 +132,35 @@ export interface DeckOptions<T = any> {
   layout?: Layout | 'auto' | 'circle' | 'radial' | 'voronoi' | 'grid' | 'dock';
   /** carve the stage into regions and aim at the region rather than at an angle */
   segments?: boolean;
+  /**
+   * Safe margin between a zone tile and the edge of the stage, in px, on top of the tile's own
+   * half-width (default 12). A tile flush against the edge reads as clipped, and on a phone it
+   * sits where the browser's own edge gestures live.
+   */
+  zonePadding?: number;
+  /**
+   * How far floating tiles are drawn in towards the pile, 0–0.8 (default 0.18).
+   *
+   * Zones spread to the far corners are all reachable and none of them are readable — the eye
+   * travels to each label in turn. Gathering them around the card makes the set take one
+   * glance. The carving follows the tiles, so the regions stay where they look. Layouts that
+   * describe their own regions (radial, grid, dock) ignore it: their tiles belong where the
+   * geometry puts them.
+   */
+  zonePull?: number;
   /** keys handed to zones, in order */
   keys?: string;
   /** drag distance past which the drop is armed, in px */
   threshold?: number;
+  /**
+   * Grows (or shrinks) the dead zone around the pile, in px, default 0.
+   *
+   * A zone is only aimed at once the pointer has left the card — all the way round it, not
+   * just downwards. The regions begin at the card's edge, and in a dock they begin *under* it,
+   * so without a dead zone the tile below the pile lit up while the finger was still on the
+   * card and, in multi-zone mode, joined the stack on the smallest movement.
+   */
+  deadZone?: number;
   /**
    * Allow a card to be filed into several zones at once. Off by default: it only makes
    * sense when zones are not mutually exclusive (folders, tags), and the host is the only
@@ -163,6 +192,18 @@ export interface DeckOptions<T = any> {
    * Set it to `false` where the deck already *is* the screen: an app view, a phone-sized popup.
    */
   touchFullscreen?: boolean;
+  /**
+   * Where the keyboard shortcuts are listened for (default `'auto'`).
+   *
+   * `'auto'`: the stage always answers when it has focus, and the deck *also* answers keys
+   * pressed anywhere on the page when it is the only deck on screen — half of it visible, and
+   * no other deck alongside. A sorter you must click before the keys work hides its fastest
+   * path behind a step nobody is told about; two sorters on screen fall back to focus, because
+   * the page cannot know which one you meant. Typing in a field always wins.
+   *
+   * `'focus'`: only when the stage has focus. `false`: no shortcuts at all.
+   */
+  keyboard?: 'auto' | 'focus' | false;
   /**
    * **Experimental.** Throw instead of drop: on release the card keeps the speed it had, and
    * the zone is the one where that throw *lands*, not the one under the finger.

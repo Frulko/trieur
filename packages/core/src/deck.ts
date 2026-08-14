@@ -31,6 +31,16 @@ const TILE = 104;
 const AWAY = Math.PI * 0.55;
 
 /**
+ * Decks currently filling enough of the screen to be *the* deck on the page.
+ *
+ * A sorter you have to click before the keyboard works is a sorter whose fastest path is
+ * hidden behind a step nobody is told about. So when exactly one deck is on screen, it takes
+ * the keys from the document — and when there are two, neither does, because the page has no
+ * way of knowing which one you meant. Typing in a field always wins.
+ */
+const onScreen = new Set<Deck<any>>();
+
+/**
  * How the multi-zone stack was opened — which decides how it closes.
  *
  * `shift` and `hold` and `pad` are *held*: letting go files the stack. `latch` is sticky and
@@ -66,6 +76,12 @@ export class Deck<T = any> {
   #ask = 0;
   /** where the card sits, in px from the centre of the stage — a layout may move it */
   #centre: Point = { x: 0, y: 0 };
+  /** the visual shift applied to the whole card layer (`--tr-card-x/y`) */
+  #shift: Point = { x: 0, y: 0 };
+  /** the dragged card's own centre, from the centre of the stage — piles are not centred */
+  #origin: Point = { x: 0, y: 0 };
+  /** the last layout box, so the gesture knows how big the card it is dragging is */
+  #box: LayoutBox | null = null;
   /** stage rect, read once per drag instead of once per move */
   #rect: DOMRect | null = null;
   /** what is currently lit, so a move that changes nothing touches no DOM */
@@ -82,6 +98,8 @@ export class Deck<T = any> {
   #active = 0;
   #onResize: () => void;
   #onEsc: (e: KeyboardEvent) => void;
+  #onDocKey: (e: KeyboardEvent) => void;
+  #seen: IntersectionObserver | null = null;
 
   constructor(root: HTMLElement, opts: DeckOptions<T> = {}) {
     this.root = root;
@@ -168,6 +186,17 @@ export class Deck<T = any> {
       }
     };
     document.addEventListener('keydown', this.#onEsc);
+
+    // Keys without a click: see `onScreen`. The stage keeps its own listener — focus wins
+    // whenever it is inside the deck — and this one only covers the rest of the document.
+    this.#onDocKey = (e) => {
+      if (!this.#claimsKeys(e)) return;
+      if (e.type === 'keyup') this.#onKeyUp(e);
+      else this.#onKey(e);
+    };
+    document.addEventListener('keydown', this.#onDocKey);
+    document.addEventListener('keyup', this.#onDocKey);
+    this.#watch();
     // a resize moves the zones, hence the drop regions
     this.#onResize = () => this.layout(true);
     window.addEventListener('resize', this.#onResize);
@@ -179,6 +208,10 @@ export class Deck<T = any> {
   destroy(): void {
     window.removeEventListener('resize', this.#onResize);
     document.removeEventListener('keydown', this.#onEsc);
+    document.removeEventListener('keydown', this.#onDocKey);
+    document.removeEventListener('keyup', this.#onDocKey);
+    this.#seen?.disconnect();
+    onScreen.delete(this);
     document.documentElement.classList.remove('tr-locked');
     this.root.classList.remove('tr', 'tr-full', 'tr-multi');
     this.root.innerHTML = '';
@@ -320,8 +353,11 @@ export class Deck<T = any> {
       clearX: round(cardW / 2 + tile * 0.5),
       clearY: round(cardH / 2 + tile * 0.5),
       tile,
+      pad: this.#opts.zonePadding ?? 12,
+      pull: this.#opts.zonePull ?? 0.18,
     };
-    const key = `${box.w}×${box.h}:${cardW}×${cardH}:${tile}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}`;
+    this.#box = box;
+    const key = `${box.w}×${box.h}:${cardW}×${cardH}:${tile}:${els.length}:${String(this.#opts.layout)}:${this.#opts.segments !== false}:${box.pad}:${box.pull}`;
     if (!force && key === this.#layoutKey) return;
     this.#layoutKey = key;
 
@@ -338,6 +374,7 @@ export class Deck<T = any> {
     // worse than a tray the card slightly overlaps
     const tray = Math.max(0, Math.min(band, box.h - box.cardH - 12));
     this.#centre = centre ?? { x: 0, y: -tray / 2 };
+    this.#shift = centre ?? { x: 0, y: 0 };
     this.root.style.setProperty('--tr-tray', `${Math.round(tray)}px`);
     this.root.style.setProperty('--tr-card-x', `${Math.round(centre?.x ?? 0)}px`);
     this.root.style.setProperty('--tr-card-y', `${Math.round(centre?.y ?? 0)}px`);
@@ -394,6 +431,24 @@ export class Deck<T = any> {
     );
     this.#lit = '';
     this.#paintPicks();
+  }
+
+  /**
+   * A card's resting centre, in pixels from the centre of the stage.
+   *
+   * Walked from the offset chain rather than from a rectangle: during a drag the card carries
+   * a transform, and the genie has to fly it from where it *belongs* to the tile — otherwise
+   * every offset the layout introduced (a second pile, a tray, an arc's hole) is applied
+   * twice, or not at all.
+   */
+  #restingCentre(el: HTMLElement): Point {
+    let x = el.offsetWidth / 2;
+    let y = el.offsetHeight / 2;
+    for (let n: HTMLElement | null = el; n && n !== this.#stage; n = n.offsetParent as HTMLElement | null) {
+      x += n.offsetLeft;
+      y += n.offsetTop;
+    }
+    return { x: x + this.#shift.x - this.#stage.clientWidth / 2, y: y + this.#shift.y - this.#stage.clientHeight / 2 };
   }
 
   /** Zone under a point of the stage (screen coordinates). */
@@ -730,6 +785,7 @@ export class Deck<T = any> {
     if (this.#busy) return;
     const threshold = this.#opts.threshold!;
     this.#rect = this.#stage.getBoundingClientRect(); // read once, then never during the drag
+    this.#origin = this.#restingCentre(el); // this card's centre, which is not the stage's
     startGesture(
       el,
       e,
@@ -845,14 +901,29 @@ export class Deck<T = any> {
    * away from a tile was never aimed at it, whatever region it happens to be over.
    */
   #aim(dx: number, dy: number, x: number, y: number): PlacedZone | null {
+    // Nothing is aimed at until the pointer has left the card itself. The regions start at the
+    // card's edge — under it, in a dock — so without this the zone below the pile lit up while
+    // the finger was still on the card, and in multi-zone mode it joined the stack on the
+    // smallest movement. The dead zone is the card's own box, all the way round it; `deadZone`
+    // grows or shrinks it.
+    if (this.#box) {
+      const r = this.#rect ?? this.#stage.getBoundingClientRect();
+      const ox = x - r.left - r.width / 2 - this.#origin.x;
+      const oy = y - r.top - r.height / 2 - this.#origin.y;
+      const m = this.#opts.deadZone ?? 0;
+      if (Math.abs(ox) < this.#box.cardW / 2 + m && Math.abs(oy) < this.#box.cardH / 2 + m) return null;
+    }
+    // from the card that is moving, not from the middle of the stage: with two piles the
+    // card is half a stage away from it, and every angle would be someone else's
+    const dir = angleOf(dx, dy);
+    const seen = (z: PlacedZone) => angleOf(z.pos.x - this.#origin.x, z.pos.y - this.#origin.y);
     const byRegion = this.zoneAt(x, y);
-    if (byRegion && (Math.hypot(dx, dy) < 1 || angleGap(angleOf(dx, dy), byRegion.angle) < AWAY)) return byRegion;
-    const a = angleOf(dx, dy);
+    if (byRegion && (Math.hypot(dx, dy) < 1 || angleGap(dir, seen(byRegion)) < AWAY)) return byRegion;
     const span = Math.PI / Math.max(this.zones.length, 1) + 0.25;
     return (
       this.zones
-        .filter((z) => angleGap(a, z.angle) < span)
-        .sort((x, y) => angleGap(a, x.angle) - angleGap(a, y.angle))[0] ?? null
+        .filter((z) => angleGap(dir, seen(z)) < span)
+        .sort((a, b) => angleGap(dir, seen(a)) - angleGap(dir, seen(b)))[0] ?? null
     );
   }
 
@@ -871,6 +942,30 @@ export class Deck<T = any> {
   }
 
   // --- keyboard --------------------------------------------------------------
+
+  /** Watches whether this deck is the one on screen. */
+  #watch(): void {
+    if (typeof IntersectionObserver !== 'function') return void onScreen.add(this); // old Safari
+    this.#seen = new IntersectionObserver(
+      ([entry]) => {
+        // half of it, not a sliver: a deck scrolling past the bottom of a docs page has no
+        // business eating the space bar
+        if (entry && entry.intersectionRatio >= 0.5) onScreen.add(this);
+        else onScreen.delete(this);
+      },
+      { threshold: [0, 0.5, 1] },
+    );
+    this.#seen.observe(this.root);
+  }
+
+  /** Whether a key pressed outside the deck belongs to it. */
+  #claimsKeys(e: KeyboardEvent): boolean {
+    if (this.#opts.keyboard === false || this.#opts.keyboard === 'focus') return false;
+    const t = e.target as Element | null;
+    // someone is typing, or the focus is already inside a deck — its own listener has it
+    if (t?.closest?.('input, textarea, select, [contenteditable], .tr')) return false;
+    return onScreen.has(this) && onScreen.size === 1;
+  }
 
   #onKey(e: KeyboardEvent): void {
     if (e.key === 'Shift') {
@@ -971,7 +1066,8 @@ export class Deck<T = any> {
     this.#busy = true;
     const predicted = this.prediction?.id ?? null;
     // the card lands in the primary zone; the others acknowledge without stealing the trip
-    const to = { x: primary.pos.x - this.#centre.x, y: primary.pos.y - this.#centre.y };
+    const from = this.#restingCentre(el);
+    const to = { x: primary.pos.x - from.x, y: primary.pos.y - from.y };
     genie(el, to, fling !== undefined ? fling / 8 : to.x / 60);
     for (const z of zones) catchPulse(this.#tile(z));
     let done = false;

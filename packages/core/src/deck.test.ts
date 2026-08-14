@@ -431,7 +431,8 @@ test('a drag away from a zone does not file into it, however wide its region', a
   const d = new Deck(root, { items: [...ITEMS], zones: ZONES, onSort: (_i, z) => void filed.push(z.id) });
   // the dock's home column: the zone below the card owns the region the card sits in
   const home = d.zones[0]!;
-  home.angle = Math.PI / 2; // straight down from the card
+  home.pos = { x: 0, y: 300 }; // its tile sits straight below the card
+  home.angle = Math.PI / 2;
   home.cell = [
     [-1e4, -1e4],
     [1e4, -1e4],
