@@ -109,6 +109,20 @@ menu.setItems([file]);
 Nothing there is a special mode. What changes is the pile (one item) and where the aim starts
 (the pointer, not the middle of a stage).
 
+A marking menu has **no drag**: the pointer's position decides and the release commits. The
+demo tracks the pointer itself and tells the deck what is being aimed at —
+
+```js
+const zone = menu.zoneAt(e.clientX, e.clientY);   // the wedge under the pointer
+menu.highlight(zone, Boolean(zone));              // light it, armed
+// …and on pointerup
+if (zone) menu.commit(zone);
+```
+
+— which is what `highlight()` is for: every interface that knows what it is aiming at before
+the deck does. The line drawn from the centre out to the cursor is the ink trail every marking
+menu has had since the eighties, and it is four lines of SVG in the host.
+
 ## Choosing the shape
 
 | You have | Start with |

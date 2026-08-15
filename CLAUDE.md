@@ -139,6 +139,10 @@ bun run dev              # site + demos
 - **The card is not always at the centre of the stage.** A layout may return a `centre` (arc
   menus do), and the deck writes `--tr-card-x/y`; zone angles and the genie target are measured
   from *that* point, not from the stage centre.
+- **`.tr-*` classes land on the element the host passed in.** `.host .tr { … }` matches nothing:
+  the two are the same node, so it is `.host.tr`. Written as a descendant, a card-size override
+  silently loses to the stylesheet's own defaults — and the layout is then placed around a card
+  that is not the one on screen.
 - **`.tr-full` *is* `.tr`.** Any later rule on the bare `.tr` selector — `@media (pointer:
   coarse) { .tr { position: relative } }`, for one — beats `.tr-full { position: fixed }` at
   equal specificity and silently kills fullscreen on exactly the devices that need it. Write

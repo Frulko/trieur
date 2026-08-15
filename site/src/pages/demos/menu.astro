@@ -125,6 +125,18 @@ menu.setItems([file]);`}</code></pre>
   }
   .file b { font-size: 13px; font-weight: 600; word-break: break-all; }
   .file span { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .file .rename {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+    width: 100%;
+    box-sizing: border-box;
+  }
   .file .star { position: absolute; top: 8px; right: 10px; color: #f59e0b; font-size: 13px; }
   .file.gone { opacity: 0.35; filter: grayscale(1); }
 
@@ -137,7 +149,10 @@ menu.setItems([file]);`}</code></pre>
     pointer-events: auto;
   }
   .menu[hidden] { display: none; }
-  .menu .tr { --tr-card-w: 30px; --tr-card-h: 30px; gap: 0; }
+    /* `.menu.tr`, not `.menu .tr`: the deck puts its class on the element it was given, so the
+     two live on the same node. Written as a descendant it matched nothing, and the layout was
+     placed around whatever card width the stylesheet's small-screen defaults had left. */
+  .menu.tr { --tr-card-w: 30px; --tr-card-h: 30px; gap: 0; }
   .menu .tr-stage { min-height: 260px; height: 260px; }
   .menu .tr-bar { display: none; }
   .menu .tr-card {
@@ -162,11 +177,34 @@ menu.setItems([file]);`}</code></pre>
   @keyframes menu-in {
     from { opacity: 0; transform: scale(0.9); }
   }
-  .menu .tr-zone { font-size: 11px; }
+  .menu .tr-zone { font-size: 11px; gap: 3px; }
   .menu .tr-zone .tr-glyph { width: 26px; height: 26px; font-size: 15px; }
+  .menu .tr-zone.tr-near .tr-glyph { transform: scale(1.06); }
+  .menu .tr-card { pointer-events: none; }
   .menu .tr-seg { fill: none; stroke: color-mix(in srgb, var(--ink) 12%, transparent); stroke-width: 1; }
   .menu .tr-seg.tr-near { fill: color-mix(in srgb, var(--accent) 10%, transparent); }
   .menu .tr-seg.tr-armed { fill: color-mix(in srgb, var(--accent) 20%, transparent); stroke: var(--accent); }
+  /* the ink trail: a line from the middle to the pointer, in the colour of what it is over */
+  .menu-trail {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 90ms;
+  }
+  .menu-trail.on { opacity: 1; }
+  .menu-trail line {
+    stroke: var(--trail, var(--accent));
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    /* a white casing, so the line reads over the wedge tint it is pointing into */
+    paint-order: stroke;
+    filter: drop-shadow(0 0 2px var(--panel));
+  }
+  .menu-trail circle { fill: var(--trail, var(--accent)); stroke: var(--panel); stroke-width: 2; }
+
   .menu-scrim { position: fixed; inset: 0; z-index: 89; }
   .menu-scrim[hidden] { display: none; }
 
@@ -258,26 +296,79 @@ menu.setItems([file]);`}</code></pre>
   const close = () => {
     box.hidden = true;
     scrim.hidden = true;
+    aimed = null;
     for (const el of document.querySelectorAll<HTMLElement>('.file')) delete el.dataset.armed;
     target = null;
+    removeEventListener('pointermove', onAim);
+    removeEventListener('pointerup', onRelease);
+    $('#status').textContent = 'Right-click a file to open the menu.';
   };
 
+  const onAim = (e: PointerEvent) => aimAt(e.clientX, e.clientY);
+  const onRelease = () => {
+    // a press-and-release opens and chooses in one motion; a press-and-let-go-at-once leaves
+    // the menu up, so it can also be used as a click-then-click menu
+    if (aimed) commit();
+  };
+
+  const STEP = (Math.PI * 2) / ACTIONS.length;
   const menu = new Deck<FileItem>(box, {
     zones: ACTIONS,
-    layout: radialLayout({ maxPerRing: 6 }),
+    // half a wedge back, so the first action sits at twelve o'clock rather than straddling it
+    layout: radialLayout({ maxPerRing: ACTIONS.length, start: -Math.PI / 2 - STEP / 2 }),
     keys: 'qwertz',
-    // the two ways a marking menu is used: point at a wedge, or flick towards it
     tapZones: true,
-    threshold: 40,
-    deadZone: -6,
     touchPreview: false,
-    keyboard: 'auto',
     renderCard: () => {}, // the card is a dot — the pointer is the card
     onSort: (file, zone) => {
       run(zone.id, file);
       close();
     },
   });
+
+  /* --- pointing, rather than dragging -------------------------------------------------
+     A marking menu has no drag: the pointer's position decides, and releasing commits. So the
+     menu tracks the pointer itself, lights the wedge under it, draws the line from the centre
+     out to the cursor — the ink trail every marking menu has — and files on mouse-up. Inside
+     the dead centre nothing is chosen, which is how you back out without choosing. */
+  const trail = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  trail.setAttribute('class', 'menu-trail');
+  trail.innerHTML = '<line/><circle r="4"/>';
+  box.append(trail);
+  const line = trail.querySelector('line')!;
+  const dot = trail.querySelector('circle')!;
+  const DEAD = 26; // px from the centre: below this, the menu is waiting rather than aiming
+
+  let aimed: { id: string } | null = null;
+
+  const aimAt = (x: number, y: number) => {
+    const r = box.getBoundingClientRect();
+    const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2];
+    const [dx, dy] = [x - cx, y - cy];
+    const far = Math.hypot(dx, dy) > DEAD;
+    // the region under the pointer, which for a radial menu is exactly the wedge it is in
+    const zone = far ? menu.zoneAt(x, y) : null;
+    aimed = zone ? { id: zone.id } : null;
+    menu.highlight(zone, Boolean(zone));
+    trail.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+    const [lx, ly] = [Math.min(Math.max(x - r.left, 0), r.width), Math.min(Math.max(y - r.top, 0), r.height)];
+    line.setAttribute('x1', String(r.width / 2));
+    line.setAttribute('y1', String(r.height / 2));
+    line.setAttribute('x2', String(lx));
+    line.setAttribute('y2', String(ly));
+    dot.setAttribute('cx', String(lx));
+    dot.setAttribute('cy', String(ly));
+    trail.classList.toggle('on', far);
+    if (zone?.color) trail.style.setProperty('--trail', zone.color);
+    else trail.style.removeProperty('--trail');
+    $('#status').textContent = zone ? `Release for ${zone.label ?? zone.id}` : 'Move out to choose · Esc to close';
+  };
+
+  const commit = () => {
+    const zone = aimed ? menu.zones.find((z) => z.id === aimed!.id) : null;
+    if (zone && target) void menu.commit(zone);
+    else close();
+  };
 
   function open(file: FileItem, x: number, y: number) {
     target = file;
@@ -291,6 +382,12 @@ menu.setItems([file]);`}</code></pre>
     menu.setItems([file]);
     menu.layout(true);
     menu.focus();
+    aimed = null;
+    menu.highlight(null);
+    trail.classList.remove('on');
+    $('#status').textContent = 'Move out to choose · Esc to close';
+    addEventListener('pointermove', onAim);
+    addEventListener('pointerup', onRelease);
     const el = document.querySelector<HTMLElement>(`.file[data-id="${file.id}"]`);
     if (el) el.dataset.armed = 'true';
   }
@@ -306,12 +403,11 @@ menu.setItems([file]);`}</code></pre>
         f.starred = !f.starred;
         say(`${f.starred ? 'Starred' : 'Unstarred'} ${f.name}`);
         break;
-      case 'rename': {
-        const name = prompt('Rename to', f.name);
-        if (name) f.name = name;
-        say(`Renamed to ${f.name}`);
+      case 'rename':
+        // inline, never a `prompt()`: a modal dialog freezes the page it is asking about
+        setTimeout(() => rename(f));
+        say(`Renaming ${f.name}…`);
         break;
-      }
       case 'copy':
         files = [...files, { ...f, id: Math.max(...files.map((x) => x.id)) + 1, name: f.name.replace(/(\.\w+)?$/, ' copy$1') }];
         say(`Duplicated ${f.name}`);
@@ -331,6 +427,29 @@ menu.setItems([file]);`}</code></pre>
       }
     }
     paint();
+  }
+
+  /** Renames in place: the tile's own name becomes an input, Enter or blur commits. */
+  function rename(f: FileItem) {
+    const el = document.querySelector<HTMLElement>(`.file[data-id="${f.id}"] b`);
+    if (!el) return;
+    const input = document.createElement('input');
+    input.className = 'rename';
+    input.value = f.name;
+    el.replaceWith(input);
+    input.focus();
+    input.setSelectionRange(0, f.name.replace(/\.[^.]+$/, '').length);
+    const done = (keep: boolean) => {
+      if (keep && input.value.trim()) f.name = input.value.trim();
+      paint();
+      say(keep ? `Renamed to ${f.name}` : 'Renaming cancelled');
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') done(true);
+      if (e.key === 'Escape') done(false);
+      e.stopPropagation();
+    });
+    input.addEventListener('blur', () => done(true), { once: true });
   }
 
   // --- a toast with one undo, because delete without undo is a trap ---------------------
@@ -378,7 +497,11 @@ menu.setItems([file]);`}</code></pre>
     e.preventDefault();
     open(hovered.file, hovered.x, hovered.y);
   });
-  scrim.addEventListener('pointerdown', close);
+  scrim.addEventListener('pointerdown', (e) => {
+    aimAt(e.clientX, e.clientY);
+    if (aimed) commit();
+    else close();
+  });
   scrim.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('keydown', (e) => {
     if (e.key === 'Escape') close();

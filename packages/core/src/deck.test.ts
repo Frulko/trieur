@@ -350,6 +350,9 @@ test('flick: a fast throw files short of the threshold, a slow nudge does not', 
     zones: ZONES,
     threshold: 300,
     flick: true,
+    // the synthetic gesture below runs on wall-clock timers, so the floor is set from what it
+    // can guarantee (~1px/ms) rather than from the default meant for a human hand
+    flickMin: 0.45,
     onSort: (_i, z) => void filed.push(z.id),
   });
   // a stage has no size in a test DOM, so the tiles are placed by hand: one to the right

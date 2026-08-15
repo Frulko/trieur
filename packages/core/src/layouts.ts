@@ -204,7 +204,13 @@ export function radialLayout(opts: RadialOptions = {}): Layout {
         // clamped to the outer edge of its own wedge, not half a tile inside it: on a ring
         // thinner than a tile no radius keeps the whole label in, and clearing the card is the
         // one that matters — the same trade the other layouts make.
-        const r = Math.min(Math.max(mid2, clear), Math.max(mid2, r1));
+        /* …and never further out than the stage can hold a tile. Without that the generic
+           per-axis clamp pulls the label back inside afterwards, and a ring of six comes out
+           as a square of six: every tile on an edge, none at the angle of its own wedge. */
+        const rMax = Math.max(rIn + 4, Math.min(w, h) / 2 - tile / 2 - pad(box));
+        const fit = Math.min(Math.max(mid2, clear), Math.max(mid2, r1));
+        // clearance still wins over the margin, as it does everywhere else
+        const r = Math.max(clear, Math.min(fit, rMax));
         points.push({ x: centre.x + Math.cos(mid) * r, y: centre.y + Math.sin(mid) * r });
       }
     });

@@ -236,20 +236,32 @@ trieur-deck { display: block; }
 .tr-layout-radial .tr-zone .tr-glyph svg { width: 22px; height: 22px; }
 .tr-layout-radial .tr-zone.tr-armed { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.1)); background: none; }
 .tr-layout-radial .tr-zone.tr-picked { box-shadow: none; }
+/* A wedge is a button, so it looks like one: a flat tint, a visible edge, and two states that
+   are unmistakably different — pointing at it, and about to let go into it. */
 .tr-layout-radial .tr-seg {
-  fill: rgba(74, 84, 242, 0.07);
-  fill: color-mix(in srgb, var(--tr-seg) 7%, transparent);
+  fill: rgba(74, 84, 242, 0.06);
+  fill: color-mix(in srgb, var(--tr-seg) 6%, transparent);
+  stroke: rgba(128, 128, 128, 0.22);
+  stroke: color-mix(in srgb, currentColor 11%, transparent);
   stroke-dasharray: none;
-  stroke-width: 1.5;
+  stroke-width: 1;
+  transition: fill 110ms ease-out;
 }
 .tr-layout-radial .tr-seg.tr-near {
-  fill: rgba(74, 84, 242, 0.13);
-  fill: color-mix(in srgb, var(--tr-seg) 13%, transparent);
+  fill: rgba(74, 84, 242, 0.16);
+  fill: color-mix(in srgb, var(--tr-seg) 16%, transparent);
+  stroke: var(--tr-seg);
+  stroke: color-mix(in srgb, var(--tr-seg) 45%, transparent);
 }
 .tr-layout-radial .tr-seg.tr-armed {
-  fill: rgba(74, 84, 242, 0.24);
-  fill: color-mix(in srgb, var(--tr-seg) 24%, transparent);
+  fill: rgba(74, 84, 242, 0.3);
+  fill: color-mix(in srgb, var(--tr-seg) 30%, transparent);
+  stroke: var(--tr-seg);
+  stroke-width: 2;
 }
+/* the label of the wedge you are pointing at comes forward with it */
+.tr-layout-radial .tr-zone.tr-near { color: var(--tr-seg, var(--tr-accent)); }
+.tr-layout-radial .tr-zone.tr-armed { font-weight: 600; }
 
 /* --- the throw vector (debug view of `flick`) --- */
 .tr-vector {

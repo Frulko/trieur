@@ -540,7 +540,18 @@ export class Deck<T = any> {
     else document.removeEventListener('touchmove', this.#block);
   }
 
-  /** Zone under a point of the stage (screen coordinates). */  /** Zone under a point of the stage (screen coordinates). */
+  /** Zone under a point of the stage (screen coordinates). */  /**
+   * Lights a zone as if the gesture were pointing at it — `armed` is the "let go now" state.
+   *
+   * The drag does this for itself. It is public for the interfaces that have no drag: a menu
+   * that follows the pointer, a tap-to-file list with hover, anything where the host knows
+   * what is being aimed at before the deck does.
+   */
+  highlight(zone: PlacedZone | null, armed = false): void {
+    this.#highlight(zone, armed);
+  }
+
+  /** Zone under a point of the stage (screen coordinates). */
   zoneAt(clientX: number, clientY: number): PlacedZone | null {
     // during a drag the rect is the one cached at pointerdown: measuring it on every move is
     // a forced layout per frame, and it is the single most expensive thing a drag can do

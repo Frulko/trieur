@@ -60,6 +60,7 @@ deck.expand(on)             // fullscreen
 deck.play(on)               // touch: take the gesture, or give the page its swipe back
 deck.layout(force?)         // re-places the zones (skipped when nothing moved; force to insist)
 deck.zoneAt(x, y)           // zone under a screen point
+deck.highlight(zone, armed) // light a zone as if the gesture were pointing at it
 deck.destroy()              // removes everything from the DOM, and the listeners
 
 deck.current                // top card (of the active pile)
