@@ -31,6 +31,12 @@ That region is not only a drawing: **the drop aims at the region under the finge
 approximate angle. What you see is what you touch. (`segments: false` shows only the tiles;
 aiming then falls back to angles.)
 
+**A tap can be the whole gesture.** `tapZones: true` files the current card into whatever tile
+you click or tap: dragging is expressive and slow, and when the zones are already on screen and
+within reach, pointing at the answer is faster. The drag, the keys and the throw all still work,
+and in multi-zone mode a tap goes back to meaning *pick* rather than *file*. The
+[mailbox](/demos/mail/) and the [cursor menu](/demos/menu/) are both built on it.
+
 Nothing is aimed at until the pointer has **left the card**, all the way round it. The regions
 start at the card's edge — under it, in a dock — so without that dead zone the tile below the
 pile lit up while the finger was still on the card, and in multi-zone mode it joined the stack

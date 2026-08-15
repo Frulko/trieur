@@ -3,80 +3,100 @@ import '@trieur/core/trieur.css';
 import DemoNav from '../../components/DemoNav.astro';
 import Base from '../../layouts/Base.astro';
 import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
+import { icon } from '../../components/icons';
 ---
 
 <Base title="Demo — an inbox, triaged">
   <section class="wrap" style="padding-top:44px">
     <DemoNav />
     <h1 style="margin:0 0 8px">An inbox, triaged</h1>
-    <p style="color:var(--dim);max-width:70ch;margin:0 0 26px">
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 22px">
       A mailbox is the hardest thing this library gets asked to do, because half the zones are
       <em>folders</em> — clients, finance, team — and the other half are <em>verbs</em>: reply, spam, delete. The
-      gesture is the same; what happens afterwards is not, and that difference lives entirely in the host. Read a
-      message, then file it or act on it, and watch the model start guessing where the next one goes.
+      gesture is the same; what happens next is not, and that difference lives entirely in the host. Read the message,
+      then file it or act on it — by dragging, by pressing a letter, or by simply <b>clicking the folder</b>.
     </p>
 
-    <div class="demo demo-side">
+    <div class="demo mailer">
+      <header class="mbar">
+        <span class="mbrand"><Fragment set:html={icon('inbox', 16)} /> Inbox</span>
+        <span class="mcount" id="left">—</span>
+        <label class="msearch"
+          ><Fragment set:html={icon('search', 14)} /><input placeholder="Search mail" spellcheck="false" /></label
+        >
+        <span class="mchip" id="guess">no suggestion yet</span>
+        <span class="mtools">
+          <button type="button" class="mtool" data-act="archive" title="Archive"
+            ><Fragment set:html={icon('archive', 15)} /></button
+          >
+          <button type="button" class="mtool" data-act="spam" title="Mark as spam"
+            ><Fragment set:html={icon('shield-alert', 15)} /></button
+          >
+          <button type="button" class="mtool" data-act="trash" title="Delete"
+            ><Fragment set:html={icon('trash-2', 15)} /></button
+          >
+          <button type="button" class="mtool" data-act="reply" title="Reply"
+            ><Fragment set:html={icon('reply', 15)} /></button
+          >
+        </span>
+      </header>
+
       <div id="sorter"></div>
-      <div>
-        <div class="panel">
-          <h3>Suggestion</h3>
-          <p id="guess" style="margin:0 0 6px;color:var(--dim)">
-            File a few and the model starts answering. <kbd>↵</kbd> accepts it.
-          </p>
-          <p class="why" id="why"></p>
+
+      <section class="compose" id="compose" hidden>
+        <header>
+          <b id="compose-to">Reply</b>
+          <button type="button" id="discard" aria-label="Discard"><Fragment set:html={icon('x', 15)} /></button>
+        </header>
+        <div class="fields">
+          <label><span>To</span><input id="to" readonly /></label>
+          <label><span>Subject</span><input id="subject" readonly /></label>
         </div>
-        <div class="panel">
-          <h3>Mailbox</h3>
-          <div class="kv"><span>inbox</span><b id="left">—</b></div>
-          <div class="kv"><span>filed</span><b id="filed">0</b></div>
-          <div class="kv"><span>replied</span><b id="replied">0</b></div>
-          <div class="kv"><span>spam · deleted</span><b id="killed">0 · 0</b></div>
-        </div>
-        <div class="panel" id="compose-panel" hidden>
-          <h3>Reply</h3>
-          <p id="compose-to" style="margin:0 0 8px;color:var(--dim);font-size:12.5px"></p>
-          <textarea id="compose" rows="5" spellcheck="false"></textarea>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn" id="send">Send</button>
-            <button class="btn" id="cancel">Cancel</button>
-          </div>
-        </div>
-        <div class="panel">
-          <h3>Log</h3>
-          <ol id="log" class="mlog"></ol>
-        </div>
-      </div>
+        <textarea id="body" rows="6" spellcheck="false"></textarea>
+        <footer>
+          <span class="hint">Nothing leaves this page — it is a drawing of a mail client, not one.</span>
+          <button type="button" class="send" id="send"><Fragment set:html={icon('send', 14)} /> Send</button>
+        </footer>
+      </section>
+
+      <footer class="mfoot">
+        <span id="tally">filed 0 · replied 0 · spam 0 · deleted 0</span>
+        <ol id="log" class="mlog"></ol>
+      </footer>
     </div>
 
-    <div class="prose" style="margin-top:60px">
+    <div class="prose" style="margin-top:56px">
       <h2>Folders and verbs, in the same ring</h2>
       <p>
-        <code>onSort</code> receives the message and the zone; everything after that is the host's business. Four of
-        these zones move a message, three do something to it, and one of the three opens a compose box and refuses the
-        filing until it is sent — the deck accepts that, because a rejected <code>onSort</code> brings the card home.
+        <code>onSort</code> receives the message and the zone; everything after that is the host's business. Five of
+        these zones move a message, three do something to it, and one of the three opens the compose sheet and refuses
+        the filing until it is sent — the deck accepts that, because a rejected <code>onSort</code> brings the card
+        home.
       </p>
       <pre><code>{`onSort: async (mail, zone) => {
   if (zone.id === 'reply') {
-    const sent = await compose(mail);      // opens the panel, resolves on send
-    if (!sent) throw new Error('cancelled'); // the card comes back to the pile
+    const sent = await compose(mail);        // opens the sheet, resolves on send
+    if (!sent) throw new Error('cancelled'); // …and the card comes back to the pile
     return;
   }
   if (zone.id === 'trash') return api.trash(mail.id);
   if (zone.id === 'spam')  return api.spam(mail.id);   // and it teaches the filter
   return api.move(mail.id, zone.id);
 }`}</code></pre>
+      <h2>Click the folder</h2>
       <p>
-        The model sees the envelope — sender, domain, subject, whether anything is attached — and never the folder the
-        message ended up in until you put it there. Two newsletters from the same domain teach it the domain; a client
-        who writes about invoices teaches it that <em>invoice</em> beats <em>the person</em>. That is the whole
-        argument for learning from the gesture: nobody writes those rules down, and everybody has them.
+        This demo turns on <code>tapZones</code>: a click or a tap on a tile files the card straight away, no drag at
+        all. Dragging is expressive and slow; when the zones are already on screen and within reach, pointing at the
+        answer is simply faster. Everything else still works — the keys, the drag, the throw — and in multi-zone mode a
+        tap goes back to meaning <em>pick</em> rather than <em>file</em>. The toolbar buttons are the same thing again:
+        <code>deck.commit(zone)</code>, from a different corner of the interface.
       </p>
-      <h2>Reading, inside a card</h2>
+      <h2>What the model is allowed to see</h2>
       <p>
-        The body is in the card, and the card is a normal piece of DOM: the sender is a <code>mailto:</code> link, the
-        attachments are buttons, and <em>Read the rest</em> expands the message without ending the drag. That works
-        because the gesture only takes the pointer once it has actually moved — a tap on a link stays a tap on a link.
+        The envelope: sender, domain, subject, whether anything is attached. Never the folder a message ended up in
+        until you put it there. Two newsletters from the same domain teach it the domain; a client who writes about
+        invoices teaches it that <em>invoice</em> beats <em>the person</em>. That is the whole argument for learning
+        from the gesture — nobody writes those rules down, and everybody has them.
       </p>
     </div>
   </section>
@@ -84,22 +104,93 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 </Base>
 
 <style is:global>
-  .mail { padding: 0; display: flex; flex-direction: column; height: 100%; }
-  .mail .head { display: flex; gap: 10px; align-items: center; padding: 14px 16px 10px; }
+  /* --- the client around the deck ------------------------------------------------------ */
+  .mailer { padding: 0; overflow: hidden; position: relative; }
+  .mailer #sorter { padding: 10px 14px 0; }
+  .mailer .tr-stage { min-height: 640px; }
+  .mailer .tr { --tr-card-w: 430px; --tr-card-h: 470px; }
+  .mailer .tr-bar { padding: 0 16px 12px; }
+
+  .mbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    font-size: 13px;
+  }
+  .mbrand { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+  .mcount { font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  .msearch {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1;
+    max-width: 260px;
+    padding: 5px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--dim);
+    background: var(--bg);
+  }
+  .msearch input { border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink); width: 100%; outline: none; }
+  .mchip {
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 1px dashed var(--line);
+    border-radius: 99px;
+    font-size: 12px;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .mchip b { color: var(--accent); }
+  .mtools { display: flex; gap: 4px; }
+  .mtool {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .mtool:hover { border-color: var(--line); color: var(--ink); background: var(--panel); }
+  .mtool[data-act='trash']:hover, .mtool[data-act='spam']:hover { color: #ef4444; }
+
+  .mfoot {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 9px 16px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--dim);
+    min-height: 38px;
+  }
+  .mfoot #tally { font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
+  .mlog { display: flex; gap: 14px; margin: 0; padding: 0; list-style: none; overflow: hidden; }
+  .mlog li { white-space: nowrap; }
+  .mlog li b { color: var(--ink); font-weight: 600; }
+
+  /* --- the message, which is the point of the whole page ------------------------------- */
+  .mail { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .mail .head { display: flex; gap: 11px; align-items: flex-start; padding: 16px 18px 12px; }
   .mail .avatar {
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     flex: none;
     border-radius: 50%;
     display: grid;
     place-items: center;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     color: #fff;
-    letter-spacing: 0.02em;
   }
   .mail .who { min-width: 0; flex: 1; }
-  .mail .who b { display: block; font-size: 13.5px; font-weight: 600; }
+  .mail .who b { display: block; font-size: 14px; font-weight: 600; }
   .mail .who a {
     display: block;
     color: var(--dim);
@@ -111,29 +202,29 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
     text-overflow: ellipsis;
   }
   .mail .who a:hover { color: var(--accent); }
-  .mail .at { color: var(--dim); font-size: 11.5px; white-space: nowrap; }
-  .mail h4 { margin: 0; padding: 0 16px 8px; font-size: 15.5px; line-height: 1.25; }
-  .mail .body { padding: 0 16px; font-size: 13px; color: var(--dim); line-height: 1.5; overflow: hidden; }
-  .mail .body p { margin: 0 0 8px; }
-  .mail .more {
-    align-self: flex-start;
-    margin: 2px 16px 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--accent);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
+  .mail .at { color: var(--dim); font-size: 11.5px; white-space: nowrap; padding-top: 2px; }
+  .mail h4 { margin: 0; padding: 0 18px 10px; font-size: 18px; line-height: 1.25; letter-spacing: -0.01em; }
+  .mail .body {
+    flex: 1;
+    min-height: 0;
+    padding: 12px 18px 4px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--dim);
+    line-height: 1.55;
+    overflow: auto;
+    overscroll-behavior: contain;
   }
-  .mail .att { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding: 10px 16px 14px; }
+  .mail .body p { margin: 0 0 10px; }
+  .mail .sig { color: color-mix(in srgb, var(--dim) 70%, transparent); font-size: 12.5px; }
+  .mail .att { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px 16px; }
   .mail .att button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 9px;
+    padding: 5px 10px;
     border: 1px solid var(--line);
-    border-radius: 7px;
+    border-radius: 8px;
     background: none;
     color: var(--dim);
     font: inherit;
@@ -142,21 +233,98 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
     cursor: pointer;
   }
   .mail .att button:hover { border-color: var(--accent); color: var(--accent); }
-  .mail .unread { position: absolute; top: 14px; right: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .mail .unread { position: absolute; top: 16px; right: 16px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 
-  /* the three zones that are verbs rather than folders wear it: dashed, like a hole in a wall */
-  .demo .tr-zone[data-id='reply'],
-  .demo .tr-zone[data-id='spam'],
-  .demo .tr-zone[data-id='trash'] { border-style: dashed; }
-  .demo .tr-seg[data-index='4'],
-  .demo .tr-seg[data-index='6'],
-  .demo .tr-seg[data-index='7'] { stroke-dasharray: 2 3; }
+  /* the three zones that are verbs rather than folders wear it */
+  .mailer .tr-zone[data-id='reply'],
+  .mailer .tr-zone[data-id='spam'],
+  .mailer .tr-zone[data-id='trash'] { border-style: dashed; }
 
-  #compose { width: 100%; font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); resize: vertical; }
-  .mlog { margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
-  .mlog li { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px dotted var(--line); color: var(--dim); }
-  .mlog li b { color: var(--ink); font-weight: 600; }
-  .mlog li i { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; }
+  /* --- the compose sheet ---------------------------------------------------------------- */
+  .compose {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
+    width: min(440px, calc(100% - 32px));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+    animation: compose-in 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .compose[hidden] { display: none; }
+  @keyframes compose-in {
+    from { opacity: 0; transform: translateY(14px); }
+  }
+  .compose > header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .compose > header button {
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .compose > header button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+  .compose .fields { padding: 4px 14px; }
+  .compose .fields label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 12.5px;
+  }
+  .compose .fields span { color: var(--dim); width: 52px; }
+  .compose .fields input { flex: 1; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink); outline: none; }
+  .compose textarea {
+    width: calc(100% - 28px);
+    margin: 10px 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .compose > footer { display: flex; align-items: center; gap: 12px; padding: 0 14px 14px; }
+  .compose .hint { font-size: 11.5px; color: var(--dim); }
+  .compose .send {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .compose .send:hover { filter: brightness(1.08); }
+
+  @media (max-width: 640px) {
+    .mailer .tr-stage { min-height: 70dvh; }
+    .mailer .tr { --tr-card-w: 300px; --tr-card-h: 380px; }
+    .mbar { flex-wrap: wrap; gap: 8px; }
+    .msearch, .mchip, .mlog { display: none; }
+  }
 </style>
 
 <script>
@@ -178,10 +346,10 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 
   const tally = { filed: 0, replied: 0, spam: 0, trash: 0 };
 
-  /** The card *is* the mail reader: a header, the subject, the body, its attachments. */
+  /** The card is the reading pane: header, subject, the whole message, its attachments. */
   function renderCard(m: Mail, el: HTMLElement) {
     el.innerHTML = `
-      <div class="mail">
+      <article class="mail">
         ${m.unread ? '<span class="unread" aria-label="unread"></span>' : ''}
         <div class="head">
           <span class="avatar" style="background:${hue(m.from)}">${esc(initials(m.from))}</span>
@@ -192,8 +360,10 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
           <span class="at">${esc(m.at)}</span>
         </div>
         <h4>${esc(m.subject)}</h4>
-        <div class="body">${m.body.slice(0, 1).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
-        ${m.body.length > 1 ? '<button class="more" type="button">Read the rest ↓</button>' : ''}
+        <div class="body">
+          ${m.body.map((p) => `<p>${esc(p)}</p>`).join('')}
+          <p class="sig">— ${esc(m.from.split(' ')[0] ?? '')}</p>
+        </div>
         ${
           m.attachments
             ? `<div class="att">${m.attachments
@@ -201,50 +371,45 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
                 .join('')}</div>`
             : ''
         }
-      </div>`;
-    // interactive inside a draggable card: the gesture only takes over once it has moved
-    el.querySelector('.more')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      el.querySelector('.body')!.innerHTML = m.body.map((p) => `<p>${esc(p)}</p>`).join('');
-      (e.currentTarget as HTMLElement).remove();
-    });
+      </article>`;
   }
 
-  /** Reply: the compose panel, and a promise that resolves when it is sent or dropped. */
+  /** The compose sheet, and a promise that resolves when it is sent or discarded. */
   const compose = (m: Mail) =>
     new Promise<boolean>((resolve) => {
-      const panel = $('#compose-panel');
-      panel.hidden = false;
-      $('#compose-to').textContent = `To ${m.from} · Re: ${m.subject}`;
-      const box = $<HTMLTextAreaElement>('#compose');
-      box.value = `Hi ${m.from.split(' ')[0]},\n\n\n\n— sent from a card sorter`;
-      box.focus();
-      box.setSelectionRange(box.value.indexOf('\n\n') + 2, box.value.indexOf('\n\n') + 2);
+      const sheet = $('#compose');
+      sheet.hidden = false;
+      $('#compose-to').textContent = `Reply to ${m.from.split(' ')[0]}`;
+      ($('#to') as HTMLInputElement).value = `${m.from} <${m.email}>`;
+      ($('#subject') as HTMLInputElement).value = m.subject.startsWith('Re:') ? m.subject : `Re: ${m.subject}`;
+      const body = $('#body') as HTMLTextAreaElement;
+      body.value = `Hi ${m.from.split(' ')[0]},\n\n\n\nBest,\n`;
+      body.focus();
+      const caret = body.value.indexOf('\n\n') + 2;
+      body.setSelectionRange(caret, caret);
       const done = (sent: boolean) => {
-        panel.hidden = true;
+        sheet.hidden = true;
         $('#send').removeEventListener('click', ok);
-        $('#cancel').removeEventListener('click', no);
+        $('#discard').removeEventListener('click', no);
+        deck.focus();
         resolve(sent);
       };
       const ok = () => done(true);
       const no = () => done(false);
       $('#send').addEventListener('click', ok);
-      $('#cancel').addEventListener('click', no);
+      $('#discard').addEventListener('click', no);
     });
 
-  const log = (verb: string, m: Mail, where: string) => {
+  const log = (verb: string, m: Mail) => {
     const li = document.createElement('li');
-    li.innerHTML = `<b>${esc(verb)}</b> ${esc(m.subject.slice(0, 26))}… <i>${esc(where)}</i>`;
+    li.innerHTML = `<b>${esc(verb)}</b> ${esc(m.subject.slice(0, 22))}…`;
     $('#log').prepend(li);
-    while ($('#log').children.length > 8) $('#log').lastElementChild!.remove();
+    while ($('#log').children.length > 4) $('#log').lastElementChild!.remove();
   };
 
-  // the deck removes the card *after* onSort resolves, so the count is read from the event
   const report = () => {
-    $('#left').textContent = String(deck.items.length);
-    $('#filed').textContent = String(tally.filed);
-    $('#replied').textContent = String(tally.replied);
-    $('#killed').textContent = `${tally.spam} · ${tally.trash}`;
+    $('#left').textContent = `${deck.items.length} message${deck.items.length === 1 ? '' : 's'}`;
+    $('#tally').textContent = `filed ${tally.filed} · replied ${tally.replied} · spam ${tally.spam} · deleted ${tally.trash}`;
   };
 
   const brain = createRecommender({ key: 'demo-mail' });
@@ -257,41 +422,48 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
     advisor: brain,
     minConfidence: 0.4,
     keys: 'asdfghjk',
+    layout: 'dock',
+    // the point of this demo: no drag needed, the folder is a button
+    tapZones: true,
     onSort: async (mail, zone) => {
       if (zone.id === 'reply') {
-        // the compose box decides: a cancelled reply rejects, and the card comes home
         const sent = await compose(mail);
-        if (!sent) throw new Error('reply cancelled');
+        if (!sent) throw new Error('reply cancelled'); // the card comes home
         tally.replied++;
-        log('Replied to', mail, 'sent');
+        log('Replied to', mail);
       } else if (zone.id === 'spam') {
         tally.spam++;
-        log('Spam', mail, mail.email.split('@')[1] ?? '');
+        log('Spam', mail);
       } else if (zone.id === 'trash') {
         tally.trash++;
-        log('Deleted', mail, 'trash');
+        log('Deleted', mail);
       } else {
         tally.filed++;
-        log('Filed', mail, zone.label ?? zone.id);
+        log(`Filed in ${zone.label ?? zone.id}:`, mail);
       }
-      report();
     },
     onUndo: (mail, zone) => {
       const key = zone.id === 'reply' ? 'replied' : zone.id === 'spam' ? 'spam' : zone.id === 'trash' ? 'trash' : 'filed';
       tally[key as keyof typeof tally] = Math.max(0, tally[key as keyof typeof tally] - 1);
-      log('Undid', mail, zone.label ?? zone.id);
-      report();
+      log('Undid', mail);
     },
   });
 
+  // the toolbar does what the zones do — same deck, same model, a different way in
+  for (const b of document.querySelectorAll<HTMLElement>('.mtool')) {
+    b.addEventListener('click', () => {
+      const zone = deck.zones.find((z) => z.id === b.dataset.act);
+      if (zone) void deck.commit(zone);
+    });
+  }
+
   for (const ev of ['trieur:sort', 'trieur:undo', 'trieur:skip']) deck.root.addEventListener(ev, report);
   deck.root.addEventListener('trieur:suggest', (e) => {
-    const { id, score, why } = (e as CustomEvent).detail;
+    const { id, score } = (e as CustomEvent).detail;
     const zone = folders.find((f) => f.id === id);
-    $('#guess').innerHTML = `<b>${esc(zone?.label ?? id)}</b> · ${(score * 100).toFixed(0)}% ${
-      actions.has(id) ? '<span style="color:var(--dim)">(an action, not a folder)</span>' : ''
+    $('#guess').innerHTML = `suggests <b>${esc(zone?.label ?? id)}</b> · ${(score * 100).toFixed(0)}%${
+      actions.has(id) ? ' (an action)' : ''
     }`;
-    $('#why').textContent = why.slice(0, 6).join(' · ');
   });
   deck.root.addEventListener('trieur:empty', () => {
     $('#guess').textContent = 'Inbox zero. The model kept what it learned.';

@@ -14,6 +14,14 @@ import x from 'lucide-static/icons/x.svg?raw';
 import undo2 from 'lucide-static/icons/undo-2.svg?raw';
 import sparkles from 'lucide-static/icons/sparkles.svg?raw';
 import mousePointerClick from 'lucide-static/icons/mouse-pointer-click.svg?raw';
+import inbox from 'lucide-static/icons/inbox.svg?raw';
+import search from 'lucide-static/icons/search.svg?raw';
+import archive from 'lucide-static/icons/archive.svg?raw';
+import shieldAlert from 'lucide-static/icons/shield-alert.svg?raw';
+import trash2 from 'lucide-static/icons/trash-2.svg?raw';
+import reply from 'lucide-static/icons/reply.svg?raw';
+import send from 'lucide-static/icons/send.svg?raw';
+import mouse from 'lucide-static/icons/mouse.svg?raw';
 
 export const icons: Record<string, string> = {
   'corner-down-left': cornerDownLeft,
@@ -28,6 +36,14 @@ export const icons: Record<string, string> = {
   'undo-2': undo2,
   sparkles,
   'mouse-pointer-click': mousePointerClick,
+  inbox,
+  search,
+  archive,
+  'shield-alert': shieldAlert,
+  'trash-2': trash2,
+  reply,
+  send,
+  mouse,
 };
 
 /** The raw Lucide SVG, resized and stripped of the attributes the page should control. */

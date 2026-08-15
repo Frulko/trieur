@@ -149,7 +149,9 @@ pattern the library had to survive. A **mailbox** where half the zones are folde
 other half are verbs — reply opens a compose box and refuses the filing until it is sent.
 **Flashcards** where nothing is ever filed: grading a card schedules it, the pile writes
 itself, and the deck is handed no model at all, because a card's grade lives in your head
-rather than in the card. **Reigns** and **Tinder**, which are two zones and a threshold.
+rather than in the card. A **cursor menu** — right-click a file and the zones open around the pointer, a marking menu
+that is the same deck with a pile one item deep. **Reigns** and **Tinder**, which are two zones
+and a threshold.
 **Photos**, which is EXIF and a lot of pixels. They are collected in
 [Recipes](https://frulko.github.io/trieur/docs/recipes/).
 

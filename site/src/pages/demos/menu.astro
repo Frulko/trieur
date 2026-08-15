@@ -1,0 +1,389 @@
+---
+import '@trieur/core/trieur.css';
+import DemoNav from '../../components/DemoNav.astro';
+import Base from '../../layouts/Base.astro';
+import Kbd from '../../components/Kbd.astro';
+import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
+import { icon } from '../../components/icons';
+---
+
+<Base title="Demo — a radial menu at the cursor">
+  <section class="wrap" style="padding-top:44px">
+    <DemoNav />
+    <h1 style="margin:0 0 8px">A menu at the cursor</h1>
+    <p style="color:var(--dim);max-width:70ch;margin:0 0 22px">
+      Same deck, same zones, one card — except the card is the thing you right-clicked and the pile is one deep. Press
+      <Kbd keys="e" /> or right-click a file and the zones appear <em>around the pointer</em>: a marking menu, the kind
+      3D and audio software has used for thirty years, because a direction is faster to aim than a list is to read.
+      Click a wedge, flick towards it, or press its letter.
+    </p>
+
+    <div class="demo files">
+      <header class="fbar">
+        <span class="fbrand"><Fragment set:html={icon('archive', 15)} /> Project · assets</span>
+        <span class="fhint">right-click a file, or hover one and press <kbd>E</kbd></span>
+        <span class="fcount" id="count"></span>
+      </header>
+      <ul class="grid-files" id="files"></ul>
+      <footer class="ffoot"><span id="status">Ready.</span></footer>
+    </div>
+
+    <div id="menu" class="menu" hidden></div>
+
+    <div class="prose" style="margin-top:56px">
+      <h2>How small a deck can be</h2>
+      <p>
+        Nothing here is a new feature. The menu is a <code>Deck</code> in a 260px fixed box, moved to the pointer, with
+        a card the size of a full stop:
+      </p>
+      <pre><code>{`const menu = new Deck(el, {
+  zones: ACTIONS,
+  layout: radialLayout({ maxPerRing: 6 }),
+  tapZones: true,          // click the wedge — no drag needed
+  threshold: 40,           // …but a flick towards it works too
+  renderCard: () => {},    // the card is a dot: the cursor is the card
+  onSort: (file, zone) => run(zone.id, file),
+});
+
+el.style.left = (e.clientX - 130) + 'px';
+el.style.top  = (e.clientY - 130) + 'px';
+menu.setItems([file]);`}</code></pre>
+      <p>
+        The wedges are the same annulus sectors as the <a href="/docs/zones/">radial layout</a> uses, and the same rule keeps them
+        legible: crowded tiles drop their keycap and shrink their glyph before the tile itself scales. At this size
+        that happens immediately, which is why the menu shows icons and short words rather than the folder tiles the
+        other demos use.
+      </p>
+      <h2>Why a menu is a sorting gesture</h2>
+      <p>
+        Because it is the same question — <em>which of these, for this one thing</em> — and the same answer: a
+        direction. What changes is the pile (one item instead of hundreds) and the aim (from the pointer instead of
+        from the middle of a stage). Everything else, including the keyboard, the throw and the model, is unchanged.
+        The model is switched off here: six actions on a file it has never seen is not a prediction problem.
+      </p>
+    </div>
+  </section>
+  <ShortcutsDialog />
+</Base>
+
+<style is:global>
+  .files { padding: 0; overflow: hidden; }
+  .fbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    font-size: 13px;
+  }
+  .fbrand { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+  .fhint { color: var(--dim); font-size: 12px; }
+  .fhint kbd {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+  }
+  .fcount { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  .ffoot { padding: 9px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--dim); font-family: var(--mono); }
+
+  .grid-files {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 16px;
+    list-style: none;
+    min-height: 340px;
+    align-content: start;
+  }
+  .file {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    cursor: default;
+    user-select: none;
+    transition: border-color 120ms, transform 120ms;
+  }
+  .file:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .file[data-armed='true'] { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+  .file .thumb {
+    height: 66px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    color: #fff;
+  }
+  .file b { font-size: 13px; font-weight: 600; word-break: break-all; }
+  .file span { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .file .star { position: absolute; top: 8px; right: 10px; color: #f59e0b; font-size: 13px; }
+  .file.gone { opacity: 0.35; filter: grayscale(1); }
+
+  /* --- the menu itself: a deck in a box, at the pointer -------------------------------- */
+  .menu {
+    position: fixed;
+    z-index: 90;
+    width: 260px;
+    height: 260px;
+    pointer-events: auto;
+  }
+  .menu[hidden] { display: none; }
+  .menu .tr { --tr-card-w: 30px; --tr-card-h: 30px; gap: 0; }
+  .menu .tr-stage { min-height: 260px; height: 260px; }
+  .menu .tr-bar { display: none; }
+  .menu .tr-card {
+    width: 26px;
+    min-height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--panel);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    cursor: grab;
+  }
+  /* the menu is a disc: the wedges carry the colour, the labels sit inside them */
+  .menu .tr-stage {
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--panel) 96%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--line);
+    animation: menu-in 130ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .menu .tr-stage:focus-visible { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--line); }
+  @keyframes menu-in {
+    from { opacity: 0; transform: scale(0.9); }
+  }
+  .menu .tr-zone { font-size: 11px; }
+  .menu .tr-zone .tr-glyph { width: 26px; height: 26px; font-size: 15px; }
+  .menu .tr-seg { fill: none; stroke: color-mix(in srgb, var(--ink) 12%, transparent); stroke-width: 1; }
+  .menu .tr-seg.tr-near { fill: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .menu .tr-seg.tr-armed { fill: color-mix(in srgb, var(--accent) 20%, transparent); stroke: var(--accent); }
+  .menu-scrim { position: fixed; inset: 0; z-index: 89; }
+  .menu-scrim[hidden] { display: none; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    z-index: 95;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #17171f;
+    color: #fff;
+    font-size: 13px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  }
+  .toast[hidden] { display: none; }
+  .toast button { border: 0; background: none; color: #a5b4fc; font: inherit; font-size: 13px; cursor: pointer; }
+</style>
+
+<script>
+  import { Deck, radialLayout } from '@trieur/core';
+
+  interface FileItem {
+    id: number;
+    name: string;
+    kind: string;
+    size: string;
+    tint: string;
+    glyph: string;
+    starred?: boolean;
+    gone?: boolean;
+  }
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+  let files: FileItem[] = [
+    { id: 1, name: 'hero-final-v4.png', kind: 'PNG image', size: '2.4 MB', tint: '#4a54f2', glyph: '▣' },
+    { id: 2, name: 'contract.pdf', kind: 'PDF document', size: '184 KB', tint: '#ef4444', glyph: '▤' },
+    { id: 3, name: 'palette.sketch', kind: 'Sketch file', size: '5.1 MB', tint: '#ec4899', glyph: '◈' },
+    { id: 4, name: 'notes.md', kind: 'Markdown', size: '12 KB', tint: '#64748b', glyph: '✎' },
+    { id: 5, name: 'launch.mp4', kind: 'Video', size: '84 MB', tint: '#0ea5e9', glyph: '▶' },
+    { id: 6, name: 'budget-q4.numbers', kind: 'Spreadsheet', size: '96 KB', tint: '#10b981', glyph: '▦' },
+    { id: 7, name: 'logo.svg', kind: 'Vector', size: '8 KB', tint: '#8b5cf6', glyph: '✦' },
+    { id: 8, name: 'backup.zip', kind: 'Archive', size: '312 MB', tint: '#f59e0b', glyph: '▧' },
+  ];
+
+  const ACTIONS = [
+    { id: 'open', label: 'Open', icon: '▷', color: '#4a54f2' },
+    { id: 'star', label: 'Star', icon: '★', color: '#f59e0b' },
+    { id: 'rename', label: 'Rename', icon: '✎', color: '#0ea5e9' },
+    { id: 'copy', label: 'Duplicate', icon: '⧉', color: '#10b981' },
+    { id: 'share', label: 'Share', icon: '↗', color: '#8b5cf6' },
+    { id: 'delete', label: 'Delete', icon: '✕', color: '#ef4444' },
+  ];
+
+  const paint = () => {
+    $('#files').innerHTML = files
+      .map(
+        (f) => `
+        <li class="file${f.gone ? ' gone' : ''}" data-id="${f.id}">
+          ${f.starred ? '<span class="star">★</span>' : ''}
+          <span class="thumb" style="background:${f.tint}">${f.glyph}</span>
+          <b>${esc(f.name)}</b>
+          <span>${esc(f.kind)} · ${esc(f.size)}</span>
+        </li>`,
+      )
+      .join('');
+    $('#count').textContent = `${files.filter((f) => !f.gone).length} items`;
+  };
+
+  const say = (msg: string) => {
+    $('#status').textContent = msg;
+  };
+
+  // --- the menu ------------------------------------------------------------------------
+  const box = $('#menu');
+  const scrim = document.createElement('div');
+  scrim.className = 'menu-scrim';
+  scrim.hidden = true;
+  document.body.append(scrim);
+
+  let target: FileItem | null = null;
+
+  const close = () => {
+    box.hidden = true;
+    scrim.hidden = true;
+    for (const el of document.querySelectorAll<HTMLElement>('.file')) delete el.dataset.armed;
+    target = null;
+  };
+
+  const menu = new Deck<FileItem>(box, {
+    zones: ACTIONS,
+    layout: radialLayout({ maxPerRing: 6 }),
+    keys: 'qwertz',
+    // the two ways a marking menu is used: point at a wedge, or flick towards it
+    tapZones: true,
+    threshold: 40,
+    deadZone: -6,
+    touchPreview: false,
+    keyboard: 'auto',
+    renderCard: () => {}, // the card is a dot — the pointer is the card
+    onSort: (file, zone) => {
+      run(zone.id, file);
+      close();
+    },
+  });
+
+  function open(file: FileItem, x: number, y: number) {
+    target = file;
+    // clamped so the ring never opens half off the window
+    const left = Math.min(Math.max(x - 130, 8), innerWidth - 268);
+    const top = Math.min(Math.max(y - 130, 8), innerHeight - 268);
+    box.style.left = `${left}px`;
+    box.style.top = `${top}px`;
+    box.hidden = false;
+    scrim.hidden = false;
+    menu.setItems([file]);
+    menu.layout(true);
+    menu.focus();
+    const el = document.querySelector<HTMLElement>(`.file[data-id="${file.id}"]`);
+    if (el) el.dataset.armed = 'true';
+  }
+
+  function run(action: string, file: FileItem) {
+    const f = files.find((x) => x.id === file.id);
+    if (!f) return;
+    switch (action) {
+      case 'open':
+        say(`Opened ${f.name} — or would have, in an application that had somewhere to open it.`);
+        break;
+      case 'star':
+        f.starred = !f.starred;
+        say(`${f.starred ? 'Starred' : 'Unstarred'} ${f.name}`);
+        break;
+      case 'rename': {
+        const name = prompt('Rename to', f.name);
+        if (name) f.name = name;
+        say(`Renamed to ${f.name}`);
+        break;
+      }
+      case 'copy':
+        files = [...files, { ...f, id: Math.max(...files.map((x) => x.id)) + 1, name: f.name.replace(/(\.\w+)?$/, ' copy$1') }];
+        say(`Duplicated ${f.name}`);
+        break;
+      case 'share':
+        say(`Share link copied for ${f.name} (not really — nothing here leaves the page)`);
+        break;
+      case 'delete': {
+        f.gone = true;
+        say(`Deleted ${f.name}`);
+        toast(`${f.name} deleted`, () => {
+          f.gone = false;
+          paint();
+          say(`Restored ${f.name}`);
+        });
+        break;
+      }
+    }
+    paint();
+  }
+
+  // --- a toast with one undo, because delete without undo is a trap ---------------------
+  let toastTimer = 0;
+  function toast(text: string, undo: () => void) {
+    let el = document.querySelector<HTMLElement>('.toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'toast';
+      document.body.append(el);
+    }
+    el.innerHTML = `<span></span><button type="button">Undo</button>`;
+    el.querySelector('span')!.textContent = text;
+    el.hidden = false;
+    el.querySelector('button')!.addEventListener('click', () => {
+      undo();
+      el!.hidden = true;
+    });
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => (el!.hidden = true), 4000);
+  }
+
+  // --- opening it ----------------------------------------------------------------------
+  const fileAt = (t: EventTarget | null) => {
+    const li = (t as Element | null)?.closest?.('.file') as HTMLElement | null;
+    return li ? files.find((f) => f.id === Number(li.dataset.id)) ?? null : null;
+  };
+
+  $('#files').addEventListener('contextmenu', (e) => {
+    const f = fileAt(e.target);
+    if (!f || f.gone) return;
+    e.preventDefault();
+    open(f, e.clientX, e.clientY);
+  });
+
+  // hover + a key: the same menu without leaving the keyboard
+  let hovered: { file: FileItem | null; x: number; y: number } = { file: null, x: 0, y: 0 };
+  $('#files').addEventListener('pointermove', (e) => {
+    hovered = { file: fileAt(e.target), x: e.clientX, y: e.clientY };
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'e' || box.hidden === false) return;
+    if ((e.target as Element)?.closest?.('input, textarea')) return;
+    if (!hovered.file || hovered.file.gone) return;
+    e.preventDefault();
+    open(hovered.file, hovered.x, hovered.y);
+  });
+  scrim.addEventListener('pointerdown', close);
+  scrim.addEventListener('contextmenu', (e) => e.preventDefault());
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+
+  paint();
+  say('Right-click a file to open the menu.');
+</script>

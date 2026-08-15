@@ -17,6 +17,7 @@ export {
 export { voronoi, inPolygon, pathOf } from './voronoi.js';
 export { defaultTile } from './tile.js';
 export { startGesture } from './drag.js';
+export { resolveThrow, fitVelocity, throwDefaults, type ThrowInput, type ThrowResult, type ThrowOptions } from './throw.js';
 export { animateFrom } from './anim.js';
 export { en, fr } from './text.js';
 export type {

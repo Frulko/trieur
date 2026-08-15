@@ -352,22 +352,31 @@ test('flick: a fast throw files short of the threshold, a slow nudge does not', 
     flick: true,
     onSort: (_i, z) => void filed.push(z.id),
   });
-  // 90px, well short of the threshold, but at ~3px/ms — a throw, and it lands
+  // a stage has no size in a test DOM, so the tiles are placed by hand: one to the right
+  d.zones[0]!.pos = { x: 300, y: 0 };
+  d.zones[1]!.pos = { x: 0, y: 300 };
+  d.zones[2]!.pos = { x: -300, y: 0 };
+
+  // 90px, well short of the threshold, but at ~1.25px/ms — a throw, and it lands
   await drag([
     [30, 0],
     [60, 0],
     [90, 0],
   ]);
-  expect(filed.length).toBe(1);
+  expect(filed).toEqual(['dev']);
   expect(d.items.length).toBe(2);
 
   // the same distance, crawled: a drop, and it is short of the threshold
-  await drag([
-    [30, 0],
-    [60, 0],
-    [90, 0],
-  ], 'pointerup', 200);
-  expect(filed.length).toBe(1);
+  await drag(
+    [
+      [30, 0],
+      [60, 0],
+      [90, 0],
+    ],
+    'pointerup',
+    200,
+  );
+  expect(filed).toEqual(['dev']);
   expect(d.items.length).toBe(2);
 });
 
@@ -446,4 +455,27 @@ test('a drag away from a zone does not file into it, however wide its region', a
 
   await drag([[0, 220]]); // and towards it
   expect(filed).toEqual(['dev']);
+});
+
+test('tapZones: a tap on a tile files the card, and still picks in multi mode', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: ZONES,
+    tapZones: true,
+    multi: true,
+    onSort: (_i, z) => void filed.push(z.id),
+    onSortMany: () => {},
+  });
+  const tile = (i: number) => root.querySelectorAll('.tr-zone')[i] as HTMLElement;
+
+  tile(1).click();
+  await tick();
+  expect(filed).toEqual(['ia']);
+
+  // multi mode latched: the same tap picks instead of filing
+  tap('Shift');
+  tile(0).click();
+  expect(d.picking.map((z) => z.id)).toEqual(['dev']);
+  expect(filed).toEqual(['ia']);
 });

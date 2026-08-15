@@ -163,6 +163,16 @@ bun run dev              # site + demos
 - **On touch, the page owns the vertical swipe until the deck is fullscreen.** `touch-action:
   pan-y` inline, `none` expanded, and a tap opens it. A widget that takes the scroll gesture
   turns the page into a trap.
+- **The release is not a velocity sample.** It carries the position of the last move, so a fit
+  centred on it reads "no movement in the last few ms" and calls a fast flick a standstill. What
+  the release contributes is *how long ago* the last real movement was.
+- **A throw aims at the ray, not at the landing point.** A projection that overshoots by 400px
+  still points at the same tile; nearest-to-point picks whatever sits near the end of the line.
+- **`flickMin` is a floor on intent, not on noise.** At 0.25 px/ms an ordinary careful drag is a
+  throw and the deck feels possessed. 0.6 is a flick.
+- **Never freeze the page with `overflow: hidden` on the root.** It relayouts the document twice
+  per drag and drops the scroll position. A non-passive `touchmove` listener costs nothing — and
+  do not add a non-passive `wheel` one, which taxes every scroll for the life of the page.
 - **Velocity is sampled on the raw pointer move, not the throttled one.** A flick is over in
   three frames; averaging it across a frame boundary flattens the peak that made it a flick.
 

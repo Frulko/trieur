@@ -86,6 +86,29 @@ onSort: (decree, zone) => {
 enough that a flick is enough, and a card that is mostly photograph. Neither needed a library
 feature — they needed a library that gets out of the way.
 
+## A menu at the cursor
+
+A marking menu is a sorting gesture with a pile one item deep. [The cursor menu](/demos/menu/)
+puts a 260px deck at the pointer, gives it a card the size of a full stop, and lets the wedges
+be actions:
+
+```js
+const menu = new Deck(el, {
+  zones: ACTIONS,
+  layout: radialLayout({ maxPerRing: 6 }),
+  tapZones: true,            // click the wedge…
+  threshold: 40,             // …or flick towards it
+  renderCard: () => {},      // the card is a dot: the pointer is the card
+  onSort: (file, zone) => run(zone.id, file),
+});
+
+el.style.left = (e.clientX - 130) + 'px';
+menu.setItems([file]);
+```
+
+Nothing there is a special mode. What changes is the pile (one item) and where the aim starts
+(the pointer, not the middle of a stage).
+
 ## Choosing the shape
 
 | You have | Start with |
@@ -95,3 +118,4 @@ feature — they needed a library that gets out of the way.
 | Zones that are not mutually exclusive | `multi: true`, and read [Several zones at once](../multi/) |
 | Targets small enough to miss | `flick: true`, and read [The throw](../throw/) |
 | A tablet held in two hands | `piles: 2`, and read [Two hands](../piles/) |
+| Zones on screen and a mouse in hand | `tapZones: true` — point at the answer |

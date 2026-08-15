@@ -19,6 +19,8 @@
 // - **A cancelled pointer is not a drop.** `pointercancel` fires when the system takes the
 //   touch back; filing on it would file cards the user never let go of.
 
+import { fitVelocity } from './throw.js';
+
 export interface GestureState {
   dx: number;
   dy: number;
@@ -53,57 +55,9 @@ const ENGAGE = 6;
 const HORIZON = 100;
 /** And no more samples than that, so a slow drag cannot fill the window with stale points. */
 const SAMPLES = 20;
+/** A pause longer than this before letting go means the gesture stopped: nothing was thrown. */
+const REST = 60;
 
-/**
- * Velocity at the last sample, from a weighted quadratic fit of position against time.
- *
- * Degree two, not one: a fling is usually still accelerating when the finger lifts, and a
- * straight line through the window reports the speed of its middle. The fit is centred on the
- * newest sample, so the slope at zero *is* the lift-off velocity. Weights fall off with age so
- * a stale sample cannot drag the answer back. Falls back to the plain two-point estimate when
- * there is not enough to fit — three samples do not determine a parabola.
- */
-function velocity(samples: Array<{ t: number; x: number; y: number }>, key: 'x' | 'y'): number {
-  const n = samples.length;
-  const last = samples[n - 1]!;
-  if (n < 2) return 0;
-  if (n < 4) {
-    const first = samples[0]!;
-    const dt = last.t - first.t;
-    return dt > 0 ? (last[key] - first[key]) / dt : 0;
-  }
-  // normal equations for w·(a + b·t + c·t²), t relative to the last sample (so t ≤ 0)
-  let s0 = 0;
-  let s1 = 0;
-  let s2 = 0;
-  let s3 = 0;
-  let s4 = 0;
-  let y0 = 0;
-  let y1 = 0;
-  let y2 = 0;
-  for (const s of samples) {
-    const t = s.t - last.t;
-    const w = 1 + t / HORIZON; // 1 at the newest sample, 0 at the edge of the window
-    const v = s[key] - last[key];
-    const t2 = t * t;
-    s0 += w;
-    s1 += w * t;
-    s2 += w * t2;
-    s3 += w * t2 * t;
-    s4 += w * t2 * t2;
-    y0 += w * v;
-    y1 += w * t * v;
-    y2 += w * t2 * v;
-  }
-  // solve the 3×3 system by Cramer's rule; b is the slope at t = 0
-  const det =
-    s0 * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2);
-  if (Math.abs(det) < 1e-9) return 0;
-  const detB =
-    s0 * (y1 * s4 - y2 * s3) - y0 * (s1 * s4 - s3 * s2) + s2 * (s1 * y2 - y1 * s2);
-  const b = detB / det;
-  return Number.isFinite(b) ? b : 0;
-}
 
 /** Everything that can finish a gesture. `lostpointercapture` catches the cases where iOS
  *  hands the pointer back without ever sending `pointerup`. */
@@ -167,8 +121,8 @@ export function startGesture(
     if (last && t - last.t > HORIZON) samples.length = 0; // a pause ends the throw
     samples.push({ t, x, y });
     while (samples.length > SAMPLES || (samples.length > 2 && t - samples[0]!.t > HORIZON)) samples.shift();
-    g.vx = velocity(samples, 'x');
-    g.vy = velocity(samples, 'y');
+    g.vx = fitVelocity(samples, 'x', HORIZON);
+    g.vy = fitVelocity(samples, 'y', HORIZON);
   };
 
   const hold =
@@ -205,8 +159,12 @@ export function startGesture(
     if (hold) clearTimeout(hold);
     if (frame) cancelAnimationFrame(frame);
     g.cancelled = ev.type === 'pointercancel';
-    // the release is a sample like any other, and the one that matters most
-    if (typeof ev.clientX === 'number') push(ev.timeStamp, ev.clientX, ev.clientY);
+    /* The release is deliberately *not* a sample. It carries the same position as the last
+       move — the finger was already there — so a fit centred on it reads "no movement in the
+       last few milliseconds" and calls a fast flick a standstill. What the release does say is
+       how long ago the last real movement was: rest before letting go, and nothing was thrown. */
+    const seen = samples[samples.length - 1];
+    if (!seen || ev.timeStamp - seen.t > REST) g.vx = g.vy = 0;
     el.removeEventListener('pointermove', move as EventListener);
     for (const type of ENDERS) {
       el.removeEventListener(type, end);

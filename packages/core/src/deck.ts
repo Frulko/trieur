@@ -5,6 +5,7 @@
 
 import { catchPulse, enterBehind, enterTop, genie, type Enter } from './anim.js';
 import { startGesture, type GestureState } from './drag.js';
+import { resolveThrow, throwDefaults, type ThrowResult } from './throw.js';
 import { angleGap, angleOf, resolveLayout } from './layouts.js';
 import { en } from './text.js';
 import { defaultTile } from './tile.js';
@@ -84,6 +85,12 @@ export class Deck<T = any> {
   #origin: Point = { x: 0, y: 0 };
   /** the last layout box, so the gesture knows how big the card it is dragging is */
   #box: LayoutBox | null = null;
+  /** whether the page is currently held still under a drag */
+  #frozen = false;
+  #block = (e: Event) => {
+    // a card in the air holds the page still; a text field being scrolled is not our business
+    if (!(e.target as Element | null)?.closest?.('input, textarea, [contenteditable]')) e.preventDefault();
+  };
   /** stage rect, read once per drag instead of once per move */
   #rect: DOMRect | null = null;
   /** what is currently lit, so a move that changes nothing touches no DOM */
@@ -182,10 +189,12 @@ export class Deck<T = any> {
       }
       // in multi mode the tiles become tappable: pick, pick, pick, confirm — no keyboard
       const tile = target.closest<HTMLElement>('.tr-zone');
-      if (tile && this.#multi) {
-        const zone = this.zones[Number(tile.dataset.index)];
-        if (zone) this.#togglePick(zone);
-      }
+      if (!tile) return;
+      const zone = this.zones[Number(tile.dataset.index)];
+      if (!zone) return;
+      if (this.#multi) return void this.#togglePick(zone);
+      // and with `tapZones`, tapping one *is* the gesture: no drag, no aim, no throw
+      if (this.#opts.tapZones && !this.#idle()) void this.commit(zone);
     });
     // Esc unwinds one layer at a time, from anywhere: focus may sit on a card
     this.#onEsc = (e) => {
@@ -225,6 +234,7 @@ export class Deck<T = any> {
     document.removeEventListener('keydown', this.#onDocKey);
     document.removeEventListener('keyup', this.#onDocKey);
     this.#seen?.disconnect();
+    this.#freeze(false);
     onScreen.delete(this);
     document.documentElement.classList.remove('tr-locked');
     this.root.classList.remove('tr', 'tr-full', 'tr-multi');
@@ -510,7 +520,27 @@ export class Deck<T = any> {
     return { x: x + this.#shift.x - this.#stage.clientWidth / 2, y: y + this.#shift.y - this.#stage.clientHeight / 2 };
   }
 
-  /** Zone under a point of the stage (screen coordinates). */
+  /**
+   * Freezes the page under a drag, and lets it go afterwards.
+   *
+   * Not with `overflow: hidden` on the root: that relayouts the whole document twice per drag
+   * and, in every browser, throws away the scroll position on the way in. A non-passive
+   * listener that cancels `touchmove` and `wheel` costs nothing, changes no layout, and is the
+   * documented way to stop a scroll that the CSS did not already prevent. The class is left on
+   * the document element so a host can style around it.
+   */
+  #freeze(on: boolean): void {
+    if (typeof document === 'undefined' || this.#frozen === on) return;
+    this.#frozen = on;
+    document.documentElement.classList.toggle('tr-holding', on);
+    // touchmove only. A non-passive `wheel` listener makes the browser wait for JavaScript on
+    // every notch of every wheel event for as long as it exists — a real cost, for a problem
+    // (the page scrolling under a mouse drag) that nobody has.
+    if (on) document.addEventListener('touchmove', this.#block, { passive: false });
+    else document.removeEventListener('touchmove', this.#block);
+  }
+
+  /** Zone under a point of the stage (screen coordinates). */  /** Zone under a point of the stage (screen coordinates). */
   zoneAt(clientX: number, clientY: number): PlacedZone | null {
     // during a drag the rect is the one cached at pointerdown: measuring it on every move is
     // a forced layout per frame, and it is the single most expensive thing a drag can do
@@ -900,28 +930,30 @@ export class Deck<T = any> {
           if (this.#opts.multi && !this.#multi) this.#setMulti('hold');
         },
         onMove: (g, ev) => {
+          // A drag has begun, so the page stops moving under it — and only now: freezing the
+          // document for as long as a deck is on screen would take the scroll from a page the
+          // user has every right to scroll. `touch-action` stops the browser *starting* a
+          // scroll from a touch inside a live deck; this stops one that something else began.
+          if (ev.pointerType === 'touch') this.#freeze(true);
           // the closer to a zone, the smaller the card: it "enters" the zone before release.
           // translate3d keeps the card on its own compositor layer instead of repainting it.
           const k = Math.min(g.dist / (threshold * 2), 1);
           el.style.transform = `translate3d(${g.dx}px, ${g.dy}px, 0) rotate(${(g.dx / 22).toFixed(2)}deg) scale(${(1 - 0.42 * k).toFixed(3)})`;
           // where a release *now* would land: under the finger, or where the throw carries
-          const thrown = this.#throwTo(g, ev);
-          const near = thrown
-            ? this.#landing(thrown, angleOf(g.vx, g.vy))
-            : g.dist > 30
-              ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
-              : null;
-          const armed = thrown !== null || g.dist > threshold;
+          const t = this.#throw(g, ev);
+          const near = t?.thrown ? this.#thrownZone(t) : g.dist > 30 ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY) : null;
+          const armed = Boolean(t?.thrown) || g.dist > threshold;
           this.#highlight(near, armed);
-          if (this.#opts.flick && this.#opts.flickDebug) this.#paintVector(ev, thrown);
+          if (this.#opts.flickDebug) this.#paintVector(ev, t);
           // in multi mode the finger stays down and sweeps: every region it reaches joins the
           // stack, and letting go files them
           if (this.#multi && near && armed) this.#stack(near);
         },
         onEnd: (g, ev) => {
+          this.#freeze(false);
           this.#highlight(null, false);
           this.#paintVector(null, null);
-          const thrown = this.#throwTo(g, ev);
+          const t = this.#throw(g, ev);
           this.#rect = null;
           if (this.#multi) {
             el.style.transform = ''; // the card was pointing at zones, not leaving
@@ -935,17 +967,18 @@ export class Deck<T = any> {
           // a cancelled pointer is not a drop: the system took the touch back
           const zone = g.cancelled
             ? null
-            : thrown
-              ? this.#landing(thrown, angleOf(g.vx, g.vy))
+            : t?.thrown
+              ? this.#thrownZone(t)
               : g.dist > threshold
                 ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
                 : null;
           this.#emit('release', {
             item: this.current,
             zone,
-            speed: Math.hypot(g.vx, g.vy),
-            carried: thrown ? Math.hypot(thrown.x - ev.clientX, thrown.y - ev.clientY) : 0,
-            thrown: thrown !== null,
+            speed: t?.speed ?? Math.hypot(g.vx, g.vy),
+            carried: t?.carried ?? 0,
+            thrown: Boolean(t?.thrown),
+            why: t?.why ?? 'slow',
           });
           if (!zone) return void (el.style.transform = ''); // nothing aimed at: back to the centre
           // A release always resolves. The card only stays out there if a zone actually took
@@ -961,77 +994,60 @@ export class Deck<T = any> {
   }
 
   /**
-   * Where a throw lands, or `null` when the release was a drop.
-   *
-   * The card keeps the speed it had and travels `flickMs` more milliseconds at it. That is all
-   * a flick is: a release point plus a vector. It matters where the target is far (the drag no
-   * longer has to *reach* it) and where the targets are small (a direction survives a few
-   * pixels of slop, a coordinate does not).
+   * Resolves a release as a throw: the physics, the aim and the model's pull all live in
+   * `throw.ts`, which knows nothing about the DOM and can therefore be tested. This is the
+   * bridge — pixels in, a zone out.
    */
-  #throwTo(g: GestureState, ev: PointerEvent): Point | null {
+  #throw(g: GestureState, ev: PointerEvent): ThrowResult | null {
     if (!this.#opts.flick) return null;
-    const speed = Math.hypot(g.vx, g.vy);
-    if (speed < (this.#opts.flickMin ?? 0.25)) return null;
     const r = this.#rect ?? this.#stage.getBoundingClientRect();
-    /* Where the card *would come to rest*, the way a scroll view works it out: velocity decays
-       exponentially at λ per millisecond, and the whole trip integrates to `v · λ/(1 − λ)`.
-       That fraction has units of milliseconds, which is why the knob is one — `flickMs` is
-       λ/(1 − λ), so 170ms is λ ≈ 0.994, between iOS's fast (0.99) and normal (0.998) scrolling.
-       A card is lighter than a scroll view; it should not sail for half a second. */
     const decay = this.#opts.flickDecay;
-    const ms = decay !== undefined ? decay / Math.max(1 - decay, 1e-4) : (this.#opts.flickMs ?? 170);
-    // capped at the stage diagonal: past the edge every extra pixel aims at the same zone,
-    // and an uncapped throw off a fast trackpad lands in another postcode
-    const reach = Math.min(speed * ms, Math.hypot(r.width, r.height));
-    return { x: ev.clientX + (g.vx / speed) * reach, y: ev.clientY + (g.vy / speed) * reach };
+    const guess = this.prediction;
+    return resolveThrow({
+      at: { x: ev.clientX - r.left - r.width / 2, y: ev.clientY - r.top - r.height / 2 },
+      from: this.#origin,
+      v: { x: g.vx, y: g.vy },
+      zones: this.zones.map((z) => ({
+        index: z.index,
+        pos: z.pos,
+        score: guess && guess.id === z.id ? guess.score : 0,
+      })),
+      stage: { w: r.width, h: r.height },
+      opts: throwDefaults({
+        ...(this.#opts.flickMin !== undefined ? { min: this.#opts.flickMin } : {}),
+        ...(decay !== undefined
+          ? { ms: decay / Math.max(1 - decay, 1e-4) }
+          : this.#opts.flickMs !== undefined
+            ? { ms: this.#opts.flickMs }
+            : {}),
+        ...(this.#opts.flickBias !== undefined ? { bias: this.#opts.flickBias } : {}),
+        ...(this.#box ? { tile: this.#box.tile } : {}),
+      }),
+      // the carving is in screen coordinates, the throw is in stage ones
+      regionAt: (p) => this.zoneAt(r.left + r.width / 2 + p.x, r.top + r.height / 2 + p.y)?.index ?? null,
+    });
   }
 
-  /**
-   * Which zone a throw lands in.
-   *
-   * Not the region under the landing point, but the **nearest tile** — with the zone the model
-   * suggests pulling harder in proportion to how sure it is. That is the iPhone keyboard's
-   * oldest trick: after "kno", the `w` key's *hit area* grows while the key itself does not
-   * move a pixel. Here the same thing: the tiles stay where they are, and a confident
-   * suggestion quietly catches throws that land up to `flickBias` of a tile wide of it.
-   *
-   * A throw resolves to a tile rather than to a region because the landing point is a
-   * prediction, not a touch: past the edge of the stage there are no regions left, and "the
-   * nearest tile in the direction you threw" is the answer every time.
-   */
-  #landing(at: Point, dir: number): PlacedZone | null {
-    const r = this.#rect ?? this.#stage.getBoundingClientRect();
-    const [x, y] = [at.x - r.left - r.width / 2, at.y - r.top - r.height / 2];
-    const bias = this.#opts.flickBias ?? 0.5;
-    const tile = this.#box?.tile ?? 104;
-    let best: PlacedZone | null = null;
-    let bestCost = Infinity;
-    for (const z of this.zones) {
-      if (angleGap(dir, angleOf(z.pos.x - this.#origin.x, z.pos.y - this.#origin.y)) >= AWAY) continue;
-      const pull = this.prediction?.id === z.id ? bias * this.prediction.score * tile : 0;
-      const cost = Math.hypot(z.pos.x - x, z.pos.y - y) - pull;
-      if (cost < bestCost) {
-        bestCost = cost;
-        best = z;
-      }
-    }
-    return best;
+  /** The zone a resolved throw points at, if any. */
+  #thrownZone(t: ThrowResult | null): PlacedZone | null {
+    if (!t?.thrown || t.index === null) return null;
+    return this.zones.find((z) => z.index === t.index) ?? null;
   }
 
   /** The debug view of the throw: the vector, and the point it is aimed at. */
-  #paintVector(from: PointerEvent | null, to: Point | null): void {
+  #paintVector(from: PointerEvent | null, t: ThrowResult | null): void {
     const svg = this.#vecEl;
-    if (!from || !to) {
+    if (!from || !t?.thrown) {
       svg.toggleAttribute('hidden', true);
       return;
     }
     const r = this.#rect ?? this.#stage.getBoundingClientRect();
     const [x1, y1] = [from.clientX - r.left, from.clientY - r.top];
-    const [x2, y2] = [to.x - r.left, to.y - r.top];
+    const [x2, y2] = [t.landing.x + r.width / 2, t.landing.y + r.height / 2];
     svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
     // the suggestion's gravity well, drawn where it actually applies
     const guess = this.prediction ? this.zones.find((z) => z.id === this.prediction!.id) : null;
-    const pull = guess ? (this.#opts.flickBias ?? 0.5) * (this.prediction?.score ?? 0) * (this.#box?.tile ?? 104) : 0;
+    const pull = guess ? (this.#opts.flickBias ?? 0.4) * (this.prediction?.score ?? 0) * (this.#box?.tile ?? 104) : 0;
     svg.innerHTML =
       `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="tr-vec-line"/>` +
       `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="9" class="tr-vec-dot"/>` +

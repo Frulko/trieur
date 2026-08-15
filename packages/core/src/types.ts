@@ -142,6 +142,15 @@ export interface DeckOptions<T = any> {
   /** carve the stage into regions and aim at the region rather than at an angle */
   segments?: boolean;
   /**
+   * Tapping a zone files the current card into it — no drag at all (default `false`).
+   *
+   * Dragging is expressive and slow; on a big screen with a mouse, and on a touch screen where
+   * the zones are within thumb reach, pointing at the answer is simply faster. The two live
+   * together: the drag, the keys and the throw all still work, and multi-zone mode still turns
+   * a tap into a pick rather than a filing.
+   */
+  tapZones?: boolean;
+  /**
    * Safe margin between a zone tile and the edge of the stage, in px, on top of the tile's own
    * half-width (default 12). A tile flush against the edge reads as clipped, and on a phone it
    * sits where the browser's own edge gestures live.
@@ -276,7 +285,15 @@ export interface DeckEventMap<T = unknown> {
   assign: { index: number; item: T };
   suggest: { item: T } & Prediction;
   /** a drag ended: what the release was worth, and what it aimed at. See `flick`. */
-  release: { item: T | undefined; zone: PlacedZone | null; speed: number; carried: number; thrown: boolean };
+  release: {
+    item: T | undefined;
+    zone: PlacedZone | null;
+    speed: number;
+    carried: number;
+    thrown: boolean;
+    /** how it resolved: too slow, the region under the landing point, the nearest ray, nothing */
+    why: 'slow' | 'region' | 'ray' | 'nothing';
+  };
   /** the multi-zone selection changed */
   pick: { item: T | undefined; zones: PlacedZone[]; multi: boolean };
   expand: { expanded: boolean };

@@ -73,6 +73,7 @@ half the ways into fullscreen here are not gestures.
 | double tap | accept the suggestion, the touch equivalent of <kbd>↵</kbd> |
 | press and hold a card | open the multi-zone stack, then sweep across zones |
 | press and hold the stage | summon the round pad under the thumb (`multiPad: 'dynamic'`) |
+| tap a zone | file into it, with `tapZones` — no drag at all |
 
 The stage is carved into regions and **the drop aims at the region under the pointer**, not at
 an approximate angle — what you see is what you hit. Where there is no carving

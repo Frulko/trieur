@@ -19,8 +19,8 @@ new Deck(el, {
   flick: true,        // throw instead of drop
   flickMs: 170,       // how far ahead the release is projected
   flickDecay: 0.994,  // the same number as a deceleration rate, if you prefer
-  flickMin: 0.25,     // px/ms below which a release is an ordinary drop
-  flickBias: 0.5,     // how much wider the model's suggestion catches, in tiles
+  flickMin: 0.6,      // px/ms below which a release is an ordinary drop
+  flickBias: 0.4,     // how much wider the model's suggestion catches, in tiles
   flickDebug: false,  // draw the vector and the gravity well while tuning
 });
 ```
@@ -69,19 +69,31 @@ throws that land wide of it, in proportion to how sure it is:
 cost(zone) = distance(landing, tile) − flickBias × score × tileSize
 ```
 
-At `flickBias: 0.5`, a suggestion the model is certain of quietly widens by half a tile. At `0`
-there is no magic left, only nearest-tile. The debug view draws the well as a dashed circle, so
+At `flickBias: 0.4`, a suggestion the model is certain of quietly widens by nearly half a tile.
+At `0` there is no magic left, only geometry. The debug view draws the well as a dashed circle, so
 you can see exactly how much help you are getting.
 
-## Nearest tile, not the region under the point
+## What the throw is aimed at
 
-A drop resolves to the **region** under the pointer, because that is what you are looking at. A
-throw resolves to the **nearest tile**, because the landing point is a prediction rather than a
-touch: past the edge of the stage there are no regions left to be in, and "the nearest tile in
-the direction you threw" always has an answer.
+Three rules, in order, and the order is the whole design:
 
-One rule survives both: a zone the gesture was heading **away** from is never a candidate. A
-card thrown upwards is not filed into the folder below it, whatever the arithmetic says.
+1. **Below `flickMin`, it is a drop.** Nothing else applies. The default is 0.6 px/ms — a
+   deliberate flick, not a careful drag that happened to still be moving. Set it too low and
+   every release becomes a throw, which is the fastest way to make a sorter feel possessed.
+2. **If the projection lands on the stage, the region under it wins.** The carving is what you
+   are looking at, and a short throw is a drop with follow-through — it should file where the
+   card visibly went.
+3. **Past the edge, the nearest tile to the _ray_.** Not to the landing point: a projection
+   that overshoots by 400px is still pointing at the same tile, and measuring to the point is
+   what makes a fast flick pick a corner instead of the target it was aimed at.
+
+One rule survives all three: a zone the gesture is heading **away** from is never a candidate.
+A card thrown upwards is not filed into the folder below it, whatever the arithmetic says.
+
+The whole resolution lives in `throw.ts`, away from the DOM, and is exported —
+`resolveThrow(input)` takes points and velocities and returns a zone with a reason
+(`'slow' | 'region' | 'ray' | 'nothing'`). It has its own tests, which is the only way to know
+that a projection is right rather than plausible.
 
 ## Tuning it
 
