@@ -16,9 +16,14 @@ export interface StoredEvent extends SortEvent {
   deck: string;
 }
 
-export function openDb(path = 'trieur.sqlite'): Database {
-  const db = new Database(path, { create: true });
-  db.exec('PRAGMA journal_mode = WAL');
+/**
+ * Creates the tables in a database somebody else opened.
+ *
+ * Split out from `openDb` because a host with its own SQLite file — an app that already has
+ * one — should be able to keep the model beside its own data rather than run a second
+ * database and a second process. One file to back up.
+ */
+export function createTables(db: Database): Database {
   db.exec(`
     CREATE TABLE IF NOT EXISTS events (
       id        TEXT PRIMARY KEY,
@@ -50,6 +55,12 @@ export function openDb(path = 'trieur.sqlite'): Database {
     );
   `);
   return db;
+}
+
+export function openDb(path = 'trieur.sqlite'): Database {
+  const db = new Database(path, { create: true });
+  db.exec('PRAGMA journal_mode = WAL');
+  return createTables(db);
 }
 
 export function insertEvent(db: Database, deck: string, e: SortEvent): boolean {
