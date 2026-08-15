@@ -151,12 +151,15 @@ export interface DeckOptions<T = any> {
   /** carve the stage into regions and aim at the region rather than at an angle */
   segments?: boolean;
   /**
-   * Tapping a zone files the current card into it — no drag at all (default `false`).
+   * Tapping a zone files the current card into it — no drag at all (default `true`).
    *
-   * Dragging is expressive and slow; on a big screen with a mouse, and on a touch screen where
-   * the zones are within thumb reach, pointing at the answer is simply faster. The two live
-   * together: the drag, the keys and the throw all still work, and multi-zone mode still turns
-   * a tap into a pick rather than a filing.
+   * This is native behaviour, not a mode: dragging is expressive and slow, and when the zones
+   * are already on screen and within reach, pointing at the answer is simply faster. The drag,
+   * the keys and the throw all still work, and multi-zone mode still turns a tap into a pick
+   * rather than a filing.
+   *
+   * Turn it off where a tile click already means something else to the host — a zone editor,
+   * for instance, where clicking a zone opens its settings.
    */
   tapZones?: boolean;
   /**

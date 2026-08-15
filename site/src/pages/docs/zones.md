@@ -31,11 +31,15 @@ That region is not only a drawing: **the drop aims at the region under the finge
 approximate angle. What you see is what you touch. (`segments: false` shows only the tiles;
 aiming then falls back to angles.)
 
-**A tap can be the whole gesture.** `tapZones: true` files the current card into whatever tile
-you click or tap: dragging is expressive and slow, and when the zones are already on screen and
-within reach, pointing at the answer is faster. The drag, the keys and the throw all still work,
-and in multi-zone mode a tap goes back to meaning *pick* rather than *file*. The
-[mailbox](/demos/mail/) and the [cursor menu](/demos/menu/) are both built on it.
+**A tap is the whole gesture, and it is on by default.** Clicking or tapping a tile files the
+current card into it — no drag. Dragging is expressive and slow, and when the zones are already
+on screen and within reach, pointing at the answer is faster; every demo on this site works that
+way. The drag, the keys and the throw all still work alongside it, and in multi-zone mode a tap
+goes back to meaning *pick* rather than *file*.
+
+`tapZones: false` gives the click back to a host that means something else by it — the
+[zones demo](/demos/zones/) does exactly that, because there a click on a tile opens its
+settings.
 
 Nothing is aimed at until the pointer has **left the card**, all the way round it. The regions
 start at the card's edge — under it, in a dock — so without that dead zone the tile below the
@@ -141,6 +145,12 @@ stage should be on a phone (56dvh) — and that stayed a media query.
 
 Fullscreen flips it: the deck *is* the screen now, so `.tr-full.tr-sm` gives the card back the
 room it gave up as a preview — up to 300px wide and half the height, with the same small tiles.
+
+One rule to know about if you embed a *small* deck: below 640px an inline stage takes `56dvh`,
+written as `.tr:not(.tr-full) .tr-stage`. That outranks a plain `.my-widget .tr-stage`, so a
+260px menu on a phone will grow to half the screen unless you set the height inline or match
+the specificity. The [cursor menu](/demos/menu/) sets it inline, from the same place it sets
+its width.
 
 Crowded tiles give up their **chrome** before their words: past a certain density the keycap
 goes and the glyph shrinks, and only then does the tile itself scale down. Sixteen zones on a

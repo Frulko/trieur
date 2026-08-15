@@ -89,7 +89,7 @@ import { url } from '../../lib/url';
   const KEY = 'demo-model';
 
   let brain = createRecommender({ key: KEY }) as LocalRecommender;
-  const deck = new Deck<Link>($('#deck'), { items: shuffled(7), zones, meta, renderCard, advisor: brain });
+  const deck = new Deck<Link>($('#deck'), { items: shuffled(7), zones, meta, renderCard, advisor: brain, touchPreview: false });
   shortcutsButton(deck);
 
   deck.root.addEventListener('trieur:suggest', (e) => {

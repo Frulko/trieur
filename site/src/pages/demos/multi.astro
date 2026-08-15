@@ -107,6 +107,9 @@ el.addEventListener('trieur:pick', (e) => {
   const $ = (s: string) => document.querySelector(s)!;
 
   const deck = new Deck<Link>($('#sorter') as HTMLElement, {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items: shuffled(21),
     zones,
     meta,

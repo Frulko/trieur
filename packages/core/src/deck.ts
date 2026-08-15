@@ -195,8 +195,9 @@ export class Deck<T = any> {
       const zone = this.zones[Number(tile.dataset.index)];
       if (!zone) return;
       if (this.#multi) return void this.#togglePick(zone);
-      // and with `tapZones`, tapping one *is* the gesture: no drag, no aim, no throw
-      if (this.#opts.tapZones && !this.#idle()) void this.commit(zone);
+      // tapping a tile *is* the gesture: no drag, no aim, no throw. `tapZones: false` gives
+      // the click back to a host that means something else by it.
+      if (this.#opts.tapZones !== false && !this.#idle()) void this.commit(zone);
     });
     // Esc unwinds one layer at a time, from anywhere: focus may sit on a card
     this.#onEsc = (e) => {

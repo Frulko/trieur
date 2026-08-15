@@ -8,6 +8,7 @@ const source = `import { Deck } from '@trieur/core';
 import '@trieur/core/trieur.css';
 
 new Deck(document.querySelector('#sorter'), {
+    touchPreview: false,
   items: links,
   zones: [
     { id: 'dev',  label: 'dev',  icon: '⌘' },
@@ -50,6 +51,7 @@ new Deck(document.querySelector('#sorter'), {
   const log = document.querySelector<HTMLElement>('#log')!;
 
   const deck = new Deck(document.querySelector<HTMLElement>('#sorter')!, {
+    touchPreview: false,
     items: shuffled(3).slice(0, 20),
     zones: [
       { id: 'dev', label: 'dev', icon: '⌘', color: '#4a54f2' },

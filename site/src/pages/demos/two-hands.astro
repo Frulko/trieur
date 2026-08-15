@@ -78,6 +78,7 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
     <div class="prose" style="margin-top:60px">
       <h2>One board</h2>
       <pre><code>{`new Deck(el, {
+    touchPreview: false,
   items, zones, meta, renderCard,
   piles: 2,            // two cards dealt side by side, one set of zones
   advisor: brain,
@@ -98,6 +99,7 @@ deck.active = 0;      // or set it yourself`}</code></pre>
 const queue = shuffled(60);
 
 const make = (el, keys) => new Deck(el, {
+    touchPreview: false,
   items: queue.splice(0, 3),
   zones, meta, renderCard, keys,
   advisor: brain,                       // one model, both hands

@@ -17,7 +17,7 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `minConfidence` | `0.45` | minimum score for a zone to be suggested |
 | `layout` | `'auto'` | `'auto'`, `'circle'`, `'radial'`, `'voronoi'`, `'grid'`, `'dock'`, or `(n, box) => …` |
 | `segments` | `true` | carve the stage into regions and aim at the region |
-| `tapZones` | `false` | a tap on a tile files the card — no drag at all |
+| `tapZones` | `true` | a tap on a tile files the card — no drag at all |
 | `keys` | `'asdfghjkl…'` | keys handed to zones, in order |
 | `threshold` | `90` | drag distance past which the drop is armed, in px |
 | `multi` | `false` | allow a card to be filed into several zones ([details](../multi/)) |

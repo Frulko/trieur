@@ -91,7 +91,7 @@ const brain = createRecommender({
     });
 
   let brain = make('demo-server');
-  const deck = new Deck<Link>($('#deck'), { items: shuffled(13), zones, meta, renderCard, advisor: brain });
+  const deck = new Deck<Link>($('#deck'), { items: shuffled(13), zones, meta, renderCard, advisor: brain, touchPreview: false });
   shortcutsButton(deck);
 
   async function refresh() {

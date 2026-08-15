@@ -160,6 +160,9 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
   };
 
   const deck = new Deck<Face>($('#sorter'), {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items,
     zones: [
       { id: 'nope', label: 'nope', icon: '✕', color: '#fd5068', key: 'j' },

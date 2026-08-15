@@ -222,11 +222,16 @@ const layouts = [
   let layout = 'auto';
 
   const deck = new Deck<Link>($('#sorter'), {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items: shuffled(4),
     zones,
     layout,
     multi: true,
     multiPad: 'dynamic',
+    // this page means "edit this zone" by a tile click, so the deck must not mean "file here"
+    tapZones: false,
     renderCard,
     onSort: () => {},
   });

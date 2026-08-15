@@ -50,7 +50,16 @@ export class TrieurZoneElement extends HTMLElement {
 }
 
 export class TrieurDeckElement extends HTMLElement {
-  static observedAttributes = ['layout', 'threshold', 'keys', 'min-confidence', 'segments', 'multi'];
+  static observedAttributes = [
+    'layout',
+    'threshold',
+    'keys',
+    'min-confidence',
+    'segments',
+    'multi',
+    'tap-zones',
+    'touch-preview',
+  ];
 
   #deck: Deck | null = null;
   #opts: DeckOptions = {};
@@ -184,6 +193,9 @@ export class TrieurDeckElement extends HTMLElement {
       minConfidence: num('min-confidence'),
       segments: this.getAttribute('segments') === 'false' ? false : undefined,
       multi: this.hasAttribute('multi') ? this.getAttribute('multi') !== 'false' : undefined,
+      // both default to on, so the attributes exist to turn them off
+      tapZones: this.getAttribute('tap-zones') === 'false' ? false : undefined,
+      touchPreview: this.getAttribute('touch-preview') === 'false' ? false : undefined,
       zones: this.#zonesFromMarkup() ?? undefined,
       renderCard: tpl ? this.#renderFromTemplate(tpl) : undefined,
       // JS wins over markup: a data-driven host keeps control

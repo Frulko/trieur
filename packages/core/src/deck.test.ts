@@ -465,12 +465,11 @@ test('a drag away from a zone does not file into it, however wide its region', a
   expect(filed).toEqual(['dev']);
 });
 
-test('tapZones: a tap on a tile files the card, and still picks in multi mode', async () => {
+test('a tap on a tile files the card, and still picks in multi mode', async () => {
   const filed: string[] = [];
   const d = new Deck(root, {
     items: [...ITEMS],
     zones: ZONES,
-    tapZones: true,
     multi: true,
     onSort: (_i, z) => void filed.push(z.id),
     onSortMany: () => {},
@@ -493,7 +492,6 @@ test('a disabled zone keeps its place and refuses the card', async () => {
   const d = new Deck(root, {
     items: [...ITEMS],
     zones: [{ id: 'dev' }, { id: 'ia', disabled: true }, { id: 'home' }],
-    tapZones: true,
     onSort: (_i, z) => void filed.push(z.id),
   });
   const tiles = [...root.querySelectorAll('.tr-zone')] as HTMLElement[];
@@ -509,4 +507,13 @@ test('a disabled zone keeps its place and refuses the card', async () => {
   tiles[0]!.click();
   await tick();
   expect(filed).toEqual(['dev']);
+});
+
+test('tapZones: false gives the click back to the host', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, { items: [...ITEMS], zones: ZONES, tapZones: false, onSort: (_i, z) => void filed.push(z.id) });
+  (root.querySelectorAll('.tr-zone')[0] as HTMLElement).click();
+  await tick();
+  expect(filed).toEqual([]);
+  expect(d.items.length).toBe(3);
 });

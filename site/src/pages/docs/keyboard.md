@@ -73,7 +73,8 @@ half the ways into fullscreen here are not gestures.
 | double tap | accept the suggestion, the touch equivalent of <kbd>↵</kbd> |
 | press and hold a card | open the multi-zone stack, then sweep across zones |
 | press and hold the stage | summon the round pad under the thumb (`multiPad: 'dynamic'`) |
-| tap a zone | file into it, with `tapZones` — no drag at all |
+| tap a zone | file into it — no drag at all, on by default (`tapZones`) |
+| hold a card | open the multi-zone stack, then sweep |
 
 The stage is carved into regions and **the drop aims at the region under the pointer**, not at
 an approximate angle — what you see is what you hit. Where there is no carving
@@ -91,6 +92,10 @@ view, a phone-sized popup) and it takes the gesture inline from the start.
 new Deck(el, { touchPreview: false });
 deck.play(true);   // or take it yourself, whenever you like
 ```
+
+The demos on this site all pass `touchPreview: false`, so that a phone can try the gestures
+without a step in the way. That is the right setting for a page whose whole subject is the
+deck, and the wrong one for a page where the deck is a section among others.
 
 ## Showing them
 

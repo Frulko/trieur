@@ -203,6 +203,9 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
   let top: Decree | undefined;
 
   const deck = new Deck<Decree>($('#sorter'), {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items: Array.from({ length: 3 }, next),
     zones: [
       { id: 'left', label: '', icon: '←', color: '#64748b', key: 'j' },

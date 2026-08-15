@@ -81,6 +81,9 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
   $('#sorter').closest('.demo')!.classList.add('photos');
 
   const deck = new Deck<Photo>($('#sorter'), {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items: [...photos],
     zones: albums,
     layout: 'circle',

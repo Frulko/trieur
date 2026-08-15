@@ -192,6 +192,9 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
   };
 
   const deck = new Deck<Flashcard>($('#sorter'), {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items: [...cards],
     zones: grades,
     renderCard,

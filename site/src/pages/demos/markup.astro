@@ -22,7 +22,7 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
     </p>
 
     <div class="demo" style="margin-bottom:26px">
-      <trieur-deck id="sorter" layout="voronoi" threshold="80">
+      <trieur-deck id="sorter" layout="voronoi" threshold="80" touch-preview="false">
         <trieur-zone value="dev" key="a" icon="⌘" color="#4a54f2">dev</trieur-zone>
         <trieur-zone value="ai" icon="◑" color="#8b5cf6">ai</trieur-zone>
         <trieur-zone value="home" icon="⌂" color="#f59e0b">home</trieur-zone>
@@ -39,7 +39,8 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
       </trieur-deck>
     </div>
 
-    <pre><code>{`<trieur-deck id="sorter" layout="voronoi" threshold="80" multi>
+    <pre><code>{`<trieur-deck id="sorter" layout="voronoi" threshold="80" multi
+             tap-zones="false" touch-preview="false">
   <trieur-zone value="dev" key="a" icon="⌘" color="#4a54f2">dev</trieur-zone>
   <trieur-zone value="ai" icon="◑">ai</trieur-zone>
   <trieur-zone></trieur-zone><!-- free zone: dropping fires trieur:assign -->

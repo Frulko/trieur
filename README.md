@@ -123,6 +123,13 @@ numbered badge — badge `1` is the primary zone. Amber rather than red: red rea
 destruction, and this is neither. The model learns one example per zone, and undoing unlearns
 all of them.
 
+## Three ways to file the same card
+
+A **drag** into the zone, a **key** (`a`, `s`, `d`…), or simply a **tap on the zone** — that
+last one is the default, not a mode: dragging is expressive and slow, and when the tiles are on
+screen and within reach, pointing at the answer is faster. `tapZones: false` gives the click
+back to a host that means something else by it.
+
 ## On a phone, and in two hands
 
 A sorting swipe and a page scroll are the same gesture, so an inline deck lets the page win:

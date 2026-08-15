@@ -85,11 +85,12 @@ import { icon } from '../../components/icons';
 }`}</code></pre>
       <h2>Click the folder</h2>
       <p>
-        This demo turns on <code>tapZones</code>: a click or a tap on a tile files the card straight away, no drag at
-        all. Dragging is expressive and slow; when the zones are already on screen and within reach, pointing at the
-        answer is simply faster. Everything else still works — the keys, the drag, the throw — and in multi-zone mode a
-        tap goes back to meaning <em>pick</em> rather than <em>file</em>. The toolbar buttons are the same thing again:
-        <code>deck.commit(zone)</code>, from a different corner of the interface.
+        A click or a tap on a folder files the message straight away — no drag. That is the default everywhere
+        (<code>tapZones</code>), because dragging is expressive and slow, and when the zones are on screen and within
+        reach, pointing at the answer is simply faster. Everything else still works alongside it — the keys, the drag,
+        the throw — and in multi-zone mode a tap goes back to meaning <em>pick</em> rather than <em>file</em>. The
+        toolbar buttons are the same thing again: <code>deck.commit(zone)</code>, from another corner of the
+        interface.
       </p>
       <h2>What the model is allowed to see</h2>
       <p>
@@ -415,6 +416,9 @@ import { icon } from '../../components/icons';
   const brain = createRecommender({ key: 'demo-mail' });
 
   const deck = new Deck<Mail>($('#sorter'), {
+    // live on touch straight away: this is a demo, and the play button is what it is
+    // demonstrating everywhere else
+    touchPreview: false,
     items: [...mails],
     zones: folders,
     meta,
