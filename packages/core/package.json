@@ -1,19 +1,41 @@
 {
   "name": "@trieur/core",
   "version": "0.1.0",
-  "description": "Trier une pile de cartes dans des zones — souris, doigt et clavier, sans dépendance.",
+  "description": "Sort a pile of cards into zones \u2014 mouse, thumb and keyboard, no dependencies.",
   "license": "MIT",
   "type": "module",
-  "sideEffects": ["./dist/element.js", "*.css"],
-  "files": ["dist", "trieur.css"],
+  "sideEffects": [
+    "./dist/element.js",
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "trieur.css"
+  ],
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./element": { "types": "./dist/element.d.ts", "import": "./dist/element.js" },
-    "./trieur.css": "./trieur.css"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "import": "./dist/element.js"
+    },
+    "./trieur.css": "./trieur.css",
+    "./flick": {
+      "types": "./dist/flick.d.ts",
+      "import": "./dist/flick.js"
+    }
   },
   "scripts": {
     "build": "tsc -b",
     "test": "bun test"
   },
-  "keywords": ["card-sort", "triage", "swipe", "voronoi", "pointer-events"]
+  "keywords": [
+    "card-sort",
+    "triage",
+    "swipe",
+    "voronoi",
+    "pointer-events"
+  ]
 }

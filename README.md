@@ -137,10 +137,11 @@ Two experiments live one step further out:
 - `piles: 2` deals two cards side by side on one stage, sharing one set of zones — a big tablet
   held in two hands, one pile per thumb. A pile keeps its card until that card leaves, so
   filing on the left never shuffles what the right hand was already moving towards.
-- `flick: true` throws instead of dropping: the release keeps its velocity and the zone is
-  where that throw *lands*. It is aimed at zones far from the card, and at mosaics of small
+- `plugins: [flick()]` throws instead of dropping: the release keeps its velocity and the zone
+  is where that throw *lands*. It is aimed at zones far from the card, and at mosaics of small
   adjacent cells where a few pixels either side of a border file the card in the wrong folder.
-  A direction is a much easier thing to be accurate about than a coordinate.
+  A direction is a much easier thing to be accurate about than a coordinate — and it lives
+  outside the core, which is what `plugins` is for.
 
 ## What it looks like on something real
 

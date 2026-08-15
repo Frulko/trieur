@@ -23,6 +23,12 @@ import { icon } from '../../components/icons';
         <span class="fbrand"><Fragment set:html={icon('archive', 15)} /> Project · assets</span>
         <span class="fhint">right-click a file, or hover one and press <kbd>E</kbd></span>
         <span class="fcount" id="count"></span>
+        <span class="fset">
+          <label>size <input type="range" id="set-size" min="200" max="400" step="20" value="260" /><output>260</output></label>
+          <label>centre <input type="range" id="set-dead" min="10" max="70" step="4" value="26" /><output>26</output></label>
+          <label><input type="checkbox" id="set-labels" checked /> labels</label>
+          <label><input type="checkbox" id="set-on" checked /> menu</label>
+        </span>
       </header>
       <ul class="grid-files" id="files"></ul>
       <footer class="ffoot"><span id="status">Ready.</span></footer>
@@ -88,6 +94,14 @@ menu.setItems([file]);`}</code></pre>
     border-radius: 5px;
   }
   .fcount { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  .fset { display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: var(--dim); }
+  .fset label { display: flex; align-items: center; gap: 5px; }
+  .fset input[type='range'] { width: 74px; accent-color: var(--accent); }
+  .fset output { font-family: var(--mono); width: 22px; }
+  .fset input[type='checkbox'] { accent-color: var(--accent); }
+  @media (max-width: 900px) { .fset { display: none; } }
+  /* labels off: the icons alone, which is what a menu you know by heart wants */
+  .menu.bare .tr-zone .tr-label, .menu.bare .tr-zone kbd { display: none; }
   .ffoot { padding: 9px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--dim); font-family: var(--mono); }
 
   .grid-files {
@@ -337,7 +351,8 @@ menu.setItems([file]);`}</code></pre>
   box.append(trail);
   const line = trail.querySelector('line')!;
   const dot = trail.querySelector('circle')!;
-  const DEAD = 26; // px from the centre: below this, the menu is waiting rather than aiming
+  // px from the centre: below this the menu is waiting rather than aiming, and a click there
+  // is how you close it without choosing (`dead`, a setting)
 
   let aimed: { id: string } | null = null;
 
@@ -345,9 +360,12 @@ menu.setItems([file]);`}</code></pre>
     const r = box.getBoundingClientRect();
     const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2];
     const [dx, dy] = [x - cx, y - cy];
-    const far = Math.hypot(dx, dy) > DEAD;
+    const far = Math.hypot(dx, dy) > dead;
     // the region under the pointer, which for a radial menu is exactly the wedge it is in
-    const zone = far ? menu.zoneAt(x, y) : null;
+    const under = far ? menu.zoneAt(x, y) : null;
+    // `zoneAt` is a hit test, not a verdict: an action that does not apply to this file is
+    // pointed at like any other and chosen like none
+    const zone = under?.disabled ? null : under;
     aimed = zone ? { id: zone.id } : null;
     menu.highlight(zone, Boolean(zone));
     trail.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
@@ -361,7 +379,11 @@ menu.setItems([file]);`}</code></pre>
     trail.classList.toggle('on', far);
     if (zone?.color) trail.style.setProperty('--trail', zone.color);
     else trail.style.removeProperty('--trail');
-    $('#status').textContent = zone ? `Release for ${zone.label ?? zone.id}` : 'Move out to choose · Esc to close';
+    $('#status').textContent = zone
+      ? `Release for ${zone.label ?? zone.id}`
+      : under?.disabled
+        ? `${under.label ?? under.id} does not apply to this file`
+        : 'Move out to choose · click the middle to close';
   };
 
   const commit = () => {
@@ -379,6 +401,14 @@ menu.setItems([file]);`}</code></pre>
     box.style.top = `${top}px`;
     box.hidden = false;
     scrim.hidden = false;
+    // an action that does not apply to this file stays where it is, greyed: a menu whose
+    // items move is a menu you have to read again
+    menu.setZones(
+      ACTIONS.map((a) => ({
+        ...a,
+        ...(a.id === 'open' && /\.(zip|sketch)$/.test(file.name) ? { disabled: true } : {}),
+      })),
+    );
     menu.setItems([file]);
     menu.layout(true);
     menu.focus();
@@ -472,6 +502,43 @@ menu.setItems([file]);`}</code></pre>
     toastTimer = window.setTimeout(() => (el!.hidden = true), 4000);
   }
 
+  // --- display settings ------------------------------------------------------------------
+  // Everything a menu like this is argued about: how big, how much dead centre, labels or
+  // not, and whether it exists at all. All four are one line each because the deck reads its
+  // size from the box and its shape from the layout.
+  let size = 260;
+  let dead = 26;
+  let enabled = true;
+
+  const resize = (px: number) => {
+    size = px;
+    box.style.width = `${px}px`;
+    box.style.height = `${px}px`;
+    const stage = box.querySelector<HTMLElement>('.tr-stage');
+    if (stage) stage.style.height = `${px}px`;
+    if (!box.hidden) menu.layout(true);
+  };
+
+  const setting = <T extends HTMLElement>(id: string) => $<T>(id);
+  setting<HTMLInputElement>('#set-size').addEventListener('input', (e) => {
+    const v = Number((e.target as HTMLInputElement).value);
+    (e.target as HTMLInputElement).nextElementSibling!.textContent = String(v);
+    resize(v);
+  });
+  setting<HTMLInputElement>('#set-dead').addEventListener('input', (e) => {
+    dead = Number((e.target as HTMLInputElement).value);
+    (e.target as HTMLInputElement).nextElementSibling!.textContent = String(dead);
+  });
+  setting<HTMLInputElement>('#set-labels').addEventListener('change', (e) => {
+    box.classList.toggle('bare', !(e.target as HTMLInputElement).checked);
+    if (!box.hidden) menu.layout(true);
+  });
+  setting<HTMLInputElement>('#set-on').addEventListener('change', (e) => {
+    enabled = (e.target as HTMLInputElement).checked;
+    if (!enabled) close();
+    say(enabled ? 'Right-click a file to open the menu.' : 'Menu disabled — right-click is the browser\'s again.');
+  });
+
   // --- opening it ----------------------------------------------------------------------
   const fileAt = (t: EventTarget | null) => {
     const li = (t as Element | null)?.closest?.('.file') as HTMLElement | null;
@@ -479,6 +546,7 @@ menu.setItems([file]);`}</code></pre>
   };
 
   $('#files').addEventListener('contextmenu', (e) => {
+    if (!enabled) return; // disabled: the browser's own menu comes back
     const f = fileAt(e.target);
     if (!f || f.gone) return;
     e.preventDefault();
@@ -491,12 +559,21 @@ menu.setItems([file]);`}</code></pre>
     hovered = { file: fileAt(e.target), x: e.clientX, y: e.clientY };
   });
   addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() !== 'e' || box.hidden === false) return;
+    if (!enabled || e.key.toLowerCase() !== 'e' || box.hidden === false) return;
     if ((e.target as Element)?.closest?.('input, textarea')) return;
     if (!hovered.file || hovered.file.gone) return;
     e.preventDefault();
     open(hovered.file, hovered.x, hovered.y);
   });
+  // a click in the dead centre is the way out: the menu closes, nothing is chosen
+  box.addEventListener('pointerdown', (e) => {
+    const r = box.getBoundingClientRect();
+    if (Math.hypot(e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2) <= dead) {
+      e.preventDefault();
+      close();
+    }
+  });
+
   scrim.addEventListener('pointerdown', (e) => {
     aimAt(e.clientX, e.clientY);
     if (aimed) commit();

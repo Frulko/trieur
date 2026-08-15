@@ -9,7 +9,7 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | Option | Default | Role |
 |---|---|---|
 | `items` | `[]` | the pile to sort; the first element is the top card |
-| `zones` | `[]` | zones: `{ id, label?, key?, color?, icon?, image? }`, or `null` for a free zone |
+| `zones` | `[]` | zones: `{ id, label?, key?, color?, icon?, image?, disabled? }`, or `null` for a free zone |
 | `renderCard(item, el)` | — | draws the card (required in practice) |
 | `renderZone(zone, el)` | folder tile | draws a zone |
 | `meta(item)` | the item | what the model is allowed to look at |
@@ -29,7 +29,7 @@ description: Options, methods and types of @trieur/core and @trieur/learn.
 | `zonePadding` | `12` | safe margin between a tile and the edge of the stage |
 | `zonePull` | `0.18` | how far floating tiles gather back in towards the pile |
 | `piles` | `1` | **experimental** — deal several piles side by side, sharing the zones |
-| `flick` | `false` | **experimental** — throw instead of drop: the release's velocity picks the zone |
+
 | `flickMs` | `170` | how far ahead a throw is projected, in ms of travel |
 | `flickDecay` | — | the same projection as a deceleration rate per ms (`0.99` = iOS fast) |
 | `flickBias` | `0.4` | how much wider the model's suggestion catches a throw, in tiles |

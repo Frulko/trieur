@@ -54,5 +54,6 @@ their observed accuracy, measured before learning. No magic coefficient anywhere
 - [The throw](./throw/) — flick a card and let the physics land it.
 - [Two hands, two piles](./piles/) — one stage, one set of zones, two thumbs.
 - [Recipes](./recipes/) — verbs as zones, a pile that writes itself, a game loop.
+- [Plugins & weight](./plugins/) — the two hooks, and what every kilobyte is doing.
 - [The model ladder](./model/) — from Bayes to embeddings, and when to climb a rung.
 - [In an app](./integration/) — light mode, full mode, offline.

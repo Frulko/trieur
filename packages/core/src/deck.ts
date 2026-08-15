@@ -5,7 +5,7 @@
 
 import { catchPulse, enterBehind, enterTop, genie, type Enter } from './anim.js';
 import { startGesture, type GestureState } from './drag.js';
-import { resolveThrow, throwDefaults, type ThrowResult } from './throw.js';
+import type { AimContext, DeckPlugin } from './plugin.js';
 import { angleGap, angleOf, resolveLayout } from './layouts.js';
 import { en } from './text.js';
 import { defaultTile } from './tile.js';
@@ -85,6 +85,8 @@ export class Deck<T = any> {
   #origin: Point = { x: 0, y: 0 };
   /** the last layout box, so the gesture knows how big the card it is dragging is */
   #box: LayoutBox | null = null;
+  /** what the plugins asked to run when the deck goes away */
+  #undo: Array<() => void> = [];
   /** whether the page is currently held still under a drag */
   #frozen = false;
   #block = (e: Event) => {
@@ -226,9 +228,17 @@ export class Deck<T = any> {
 
     this.setZones(opts.zones ?? []);
     this.render();
+
+    // Plugins last: everything they can reach is built by now, and what they reach for is the
+    // public surface — the same one a host has.
+    for (const plugin of this.#opts.plugins ?? []) {
+      const off = plugin.setup?.(this);
+      if (off) this.#undo.push(off);
+    }
   }
 
   destroy(): void {
+    for (const off of this.#undo.splice(0)) off();
     window.removeEventListener('resize', this.#onResize);
     document.removeEventListener('keydown', this.#onEsc);
     document.removeEventListener('keydown', this.#onDocKey);
@@ -320,7 +330,8 @@ export class Deck<T = any> {
     this.#zonesEl.replaceChildren();
     for (const z of this.zones) {
       const el = document.createElement('div');
-      el.className = 'tr-zone' + (z.empty ? ' tr-free' : '');
+      el.className = 'tr-zone' + (z.empty ? ' tr-free' : '') + (z.disabled ? ' tr-off' : '');
+      el.setAttribute('aria-disabled', String(Boolean(z.disabled)));
       el.dataset.index = String(z.index);
       if (z.id) el.dataset.id = z.id;
       if (z.color) el.style.setProperty('--tr-seg', z.color);
@@ -492,7 +503,7 @@ export class Deck<T = any> {
         z.cell = cell;
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', pathOf(cell));
-        path.setAttribute('class', 'tr-seg');
+        path.setAttribute('class', 'tr-seg' + (z.disabled ? ' tr-off' : ''));
         path.dataset.index = String(i);
         if (z.color) path.style.setProperty('--tr-seg', z.color);
         return path;
@@ -693,7 +704,7 @@ export class Deck<T = any> {
     const advisor = this.#opts.advisor;
     const item = this.current;
     if (!advisor || item === undefined) return;
-    const ids = this.zones.filter((z) => !z.empty).map((z) => z.id);
+    const ids = this.zones.filter((z) => !z.empty && !z.disabled).map((z) => z.id);
     if (!ids.length) return;
     let top: Prediction | null = null;
     try {
@@ -790,7 +801,7 @@ export class Deck<T = any> {
 
   /** Adds or removes a zone from the stack. The first one picked stays the primary zone. */
   #togglePick(zone: PlacedZone): void {
-    if (zone.empty) return; // a free zone has nothing to file into yet
+    if (zone.empty || zone.disabled) return; // nothing to file into
     const i = this.#picks.findIndex((z) => z.index === zone.index);
     if (i >= 0) this.#picks.splice(i, 1);
     else this.#picks.push(zone);
@@ -950,12 +961,12 @@ export class Deck<T = any> {
           // translate3d keeps the card on its own compositor layer instead of repainting it.
           const k = Math.min(g.dist / (threshold * 2), 1);
           el.style.transform = `translate3d(${g.dx}px, ${g.dy}px, 0) rotate(${(g.dx / 22).toFixed(2)}deg) scale(${(1 - 0.42 * k).toFixed(3)})`;
-          // where a release *now* would land: under the finger, or where the throw carries
-          const t = this.#throw(g, ev);
-          const near = t?.thrown ? this.#thrownZone(t) : g.dist > 30 ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY) : null;
-          const armed = Boolean(t?.thrown) || g.dist > threshold;
+          // where a release *now* would land: under the finger, unless a plugin says otherwise
+          const own = g.dist > 30 ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY) : null;
+          const said = this.#askPlugins('move', g, ev, own);
+          const near = said === undefined ? own : said;
+          const armed = (said !== undefined && near !== null) || g.dist > threshold;
           this.#highlight(near, armed);
-          if (this.#opts.flickDebug) this.#paintVector(ev, t);
           // in multi mode the finger stays down and sweeps: every region it reaches joins the
           // stack, and letting go files them
           if (this.#multi && near && armed) this.#stack(near);
@@ -963,9 +974,6 @@ export class Deck<T = any> {
         onEnd: (g, ev) => {
           this.#freeze(false);
           this.#highlight(null, false);
-          this.#paintVector(null, null);
-          const t = this.#throw(g, ev);
-          this.#rect = null;
           if (this.#multi) {
             el.style.transform = ''; // the card was pointing at zones, not leaving
             // the pad decides when a pad-held stack goes; this finger only pointed
@@ -976,21 +984,11 @@ export class Deck<T = any> {
             return;
           }
           // a cancelled pointer is not a drop: the system took the touch back
-          const zone = g.cancelled
-            ? null
-            : t?.thrown
-              ? this.#thrownZone(t)
-              : g.dist > threshold
-                ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY)
-                : null;
-          this.#emit('release', {
-            item: this.current,
-            zone,
-            speed: t?.speed ?? Math.hypot(g.vx, g.vy),
-            carried: t?.carried ?? 0,
-            thrown: Boolean(t?.thrown),
-            why: t?.why ?? 'slow',
-          });
+          const own = !g.cancelled && g.dist > threshold ? this.#aim(g.dx, g.dy, ev.clientX, ev.clientY) : null;
+          const said = g.cancelled ? undefined : this.#askPlugins('end', g, ev, own);
+          const zone = g.cancelled ? null : said === undefined ? own : said;
+          this.#rect = null;
+          this.#emit('release', { item: this.current, zone, dist: g.dist, cancelled: g.cancelled });
           if (!zone) return void (el.style.transform = ''); // nothing aimed at: back to the centre
           // A release always resolves. The card only stays out there if a zone actually took
           // it — a free zone, a busy deck or a refused filing all mean it comes home. Without
@@ -1004,68 +1002,30 @@ export class Deck<T = any> {
     );
   }
 
+
   /**
-   * Resolves a release as a throw: the physics, the aim and the model's pull all live in
-   * `throw.ts`, which knows nothing about the DOM and can therefore be tested. This is the
-   * bridge — pixels in, a zone out.
+   * Asks the plugins where the gesture is pointing. The first with an opinion wins;
+   * `undefined` from all of them leaves the deck's own answer standing.
    */
-  #throw(g: GestureState, ev: PointerEvent): ThrowResult | null {
-    if (!this.#opts.flick) return null;
+  #askPlugins(phase: 'move' | 'end', g: GestureState, ev: PointerEvent, fallback: PlacedZone | null): PlacedZone | null | undefined {
+    const plugins = this.#opts.plugins;
+    if (!plugins?.length) return undefined;
     const r = this.#rect ?? this.#stage.getBoundingClientRect();
-    const decay = this.#opts.flickDecay;
-    const guess = this.prediction;
-    return resolveThrow({
-      at: { x: ev.clientX - r.left - r.width / 2, y: ev.clientY - r.top - r.height / 2 },
+    const ctx: AimContext<T> = {
+      phase,
       from: this.#origin,
+      at: { x: ev.clientX - r.left - r.width / 2, y: ev.clientY - r.top - r.height / 2 },
       v: { x: g.vx, y: g.vy },
-      zones: this.zones.map((z) => ({
-        index: z.index,
-        pos: z.pos,
-        score: guess && guess.id === z.id ? guess.score : 0,
-      })),
-      stage: { w: r.width, h: r.height },
-      opts: throwDefaults({
-        ...(this.#opts.flickMin !== undefined ? { min: this.#opts.flickMin } : {}),
-        ...(decay !== undefined
-          ? { ms: decay / Math.max(1 - decay, 1e-4) }
-          : this.#opts.flickMs !== undefined
-            ? { ms: this.#opts.flickMs }
-            : {}),
-        ...(this.#opts.flickBias !== undefined ? { bias: this.#opts.flickBias } : {}),
-        ...(this.#box ? { tile: this.#box.tile } : {}),
-      }),
-      // the carving is in screen coordinates, the throw is in stage ones
-      regionAt: (p) => this.zoneAt(r.left + r.width / 2 + p.x, r.top + r.height / 2 + p.y)?.index ?? null,
-    });
-  }
-
-  /** The zone a resolved throw points at, if any. */
-  #thrownZone(t: ThrowResult | null): PlacedZone | null {
-    if (!t?.thrown || t.index === null) return null;
-    return this.zones.find((z) => z.index === t.index) ?? null;
-  }
-
-  /** The debug view of the throw: the vector, and the point it is aimed at. */
-  #paintVector(from: PointerEvent | null, t: ThrowResult | null): void {
-    const svg = this.#vecEl;
-    if (!from || !t?.thrown) {
-      svg.toggleAttribute('hidden', true);
-      return;
+      dist: g.dist,
+      cancelled: g.cancelled,
+      fallback,
+      item: this.current,
+    };
+    for (const plugin of plugins) {
+      const said = plugin.aim?.(ctx, this);
+      if (said !== undefined) return said;
     }
-    const r = this.#rect ?? this.#stage.getBoundingClientRect();
-    const [x1, y1] = [from.clientX - r.left, from.clientY - r.top];
-    const [x2, y2] = [t.landing.x + r.width / 2, t.landing.y + r.height / 2];
-    svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
-    // the suggestion's gravity well, drawn where it actually applies
-    const guess = this.prediction ? this.zones.find((z) => z.id === this.prediction!.id) : null;
-    const pull = guess ? (this.#opts.flickBias ?? 0.4) * (this.prediction?.score ?? 0) * (this.#box?.tile ?? 104) : 0;
-    svg.innerHTML =
-      `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="tr-vec-line"/>` +
-      `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="9" class="tr-vec-dot"/>` +
-      (pull > 4
-        ? `<circle cx="${(r.width / 2 + guess!.pos.x).toFixed(1)}" cy="${(r.height / 2 + guess!.pos.y).toFixed(1)}" r="${pull.toFixed(1)}" class="tr-vec-well"/>`
-        : '');
-    svg.toggleAttribute('hidden', false);
+    return undefined;
   }
 
   /**
@@ -1095,11 +1055,12 @@ export class Deck<T = any> {
     const dir = angleOf(dx, dy);
     const seen = (z: PlacedZone) => angleOf(z.pos.x - this.#origin.x, z.pos.y - this.#origin.y);
     const byRegion = this.zoneAt(x, y);
+    if (byRegion?.disabled) return null; // pointing at something unavailable is pointing at nothing
     if (byRegion && (Math.hypot(dx, dy) < 1 || angleGap(dir, seen(byRegion)) < AWAY)) return byRegion;
     const span = Math.PI / Math.max(this.zones.length, 1) + 0.25;
     return (
       this.zones
-        .filter((z) => angleGap(dir, seen(z)) < span)
+        .filter((z) => !z.disabled && angleGap(dir, seen(z)) < span)
         .sort((a, b) => angleGap(dir, seen(a)) - angleGap(dir, seen(b)))[0] ?? null
     );
   }
@@ -1213,6 +1174,7 @@ export class Deck<T = any> {
    * `false`, which is what tells the gesture to bring the card home.
    */
   async commit(zone: PlacedZone, fling?: number): Promise<boolean> {
+    if (zone.disabled) return false; // present, and not available
     if (this.#multi && !zone.empty) {
       this.#togglePick(zone);
       return false;

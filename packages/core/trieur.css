@@ -170,6 +170,11 @@ trieur-deck { display: block; }
   opacity: 0.9;
 }
 .tr-zone.tr-near { border-color: var(--tr-seg, var(--tr-accent)); }
+/* disabled: still there, still in its place, simply not available */
+.tr-zone.tr-off { opacity: 0.38; cursor: not-allowed; filter: grayscale(0.6); }
+.tr-zone.tr-off .tr-glyph { background: rgba(128, 128, 128, 0.12); }
+.tr-seg.tr-off { fill: none; }
+
 /* free zone: present but not assigned yet */
 .tr-zone.tr-free { border-style: dashed; opacity: 0.6; }
 .tr-zone.tr-free .tr-glyph { background: none; border: 1px dashed var(--tr-line); }

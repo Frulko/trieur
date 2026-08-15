@@ -19,6 +19,7 @@ export default defineConfig({
       alias: [
         { find: /^@trieur\/core\/trieur\.css$/, replacement: src('../packages/core/trieur.css') },
         { find: /^@trieur\/core\/element$/, replacement: src('../packages/core/src/element.ts') },
+        { find: /^@trieur\/core\/flick$/, replacement: src('../packages/core/src/flick.ts') },
         { find: /^@trieur\/core$/, replacement: src('../packages/core/src/index.ts') },
         { find: /^@trieur\/learn\/bench$/, replacement: src('../packages/learn/src/bench.ts') },
         { find: /^@trieur\/learn$/, replacement: src('../packages/learn/src/index.ts') },

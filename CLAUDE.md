@@ -180,6 +180,17 @@ bun run dev              # site + demos
 - **Velocity is sampled on the raw pointer move, not the throttled one.** A flick is over in
   three frames; averaging it across a frame boundary flattens the peak that made it a flick.
 
+## The seam
+
+`plugins: [flick()]` — two hooks, `setup(deck) => teardown` and `aim(ctx) => zone | null |
+undefined`, and nothing else. A plugin sees only the public surface. The throw lives there
+(`src/flick.ts`, exported as `@trieur/core/flick`), which is what keeps its projection, its
+velocity fit and its debug renderer out of every page that never throws a card.
+
+The rule for adding a hook: something has to be blocked without it. `aim` exists because no
+event can decide *before* the deck acts. Nothing else has needed one yet — multi-zone would
+need two (keys, and a place to draw the badges), which is why it is still inside.
+
 ## Deliberately absent
 
 - No virtualisation: two cards are rendered, the pile can hold ten thousand.

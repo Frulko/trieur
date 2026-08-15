@@ -59,9 +59,9 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
         <div class="panel">
           <h3>Why a mosaic</h3>
           <p style="margin:0;color:var(--dim)">
-            The zones here are deliberately small and adjacent — the case where dropping is a coin toss. Try the same
-            gesture with <b>throw</b> off in the settings: the same flick lands in whichever cell your finger happened
-            to be over when you let go.
+            The zones here are deliberately small and adjacent — the case where dropping is a coin toss. A careful
+            drag still drops exactly where you leave it; only a deliberate flick is projected, which is what the floor
+            below 0.6&nbsp;px/ms is for.
           </p>
         </div>
       </div>
@@ -69,16 +69,25 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 
     <div class="prose" style="margin-top:60px">
       <h2>Turning it on</h2>
-      <pre><code>{`new Deck(el, {
+      <pre><code>{`import { flick } from '@trieur/core/flick';
+
+new Deck(el, {
   items, zones,
   layout: 'voronoi',
-  flick: true,        // throw instead of drop
-  flickMs: 170,       // how far ahead the release is projected
-  flickDecay: 0.994,  // the same thing as a deceleration rate, if you prefer
-  flickMin: 0.25,     // px/ms below which it is an ordinary drop
-  flickBias: 0.5,     // how much wider the suggestion catches, in tiles
-  flickDebug: false,  // draw the vector while tuning
+  plugins: [flick({
+    ms: 170,       // how far ahead the release is projected
+    decay: 0.994,  // the same thing as a deceleration rate, if you prefer
+    min: 0.6,      // px/ms below which it is an ordinary drop
+    bias: 0.4,     // how much wider the suggestion catches, in tiles
+    debug: false,  // draw the vector while tuning
+  })],
 });`}</code></pre>
+      <p>
+        It is a <a href="/docs/plugins/">plugin</a>, not an option: the projection, the velocity fit and the debug
+        renderer are about a kilobyte gzipped that a page which never throws a card should not be carrying. The deck
+        knows nothing about any of it — it asks whoever is listening where the gesture is pointing, and the first
+        answer wins.
+      </p>
       <p>
         A throw resolves to the <b>nearest tile</b>, not to the region under the landing point: the landing point is a
         prediction, not a touch, and past the edge of the stage there are no regions left to be in. "The nearest tile in
@@ -104,6 +113,7 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
 
 <script>
   import { Deck } from '@trieur/core';
+  import { flick } from '@trieur/core/flick';
   import { createRecommender } from '@trieur/learn';
   import { meta, shuffled, zones, type Link } from '../../data/links';
   import { renderCard } from '../../scripts/card';
@@ -119,23 +129,22 @@ import ShortcutsDialog from '../../components/ShortcutsDialog.astro';
     meta,
     renderCard,
     layout: 'voronoi',
-    flick: true,
-    flickDebug: true,
+    plugins: [flick({ debug: true })],
     advisor: createRecommender({ key: 'demo-flick' }),
     onSort: (_item, zone) => {
       cells[3]!.textContent = zone.id;
     },
   });
 
-  // the deck reports every release, thrown or dropped, so the panel can show the difference
-  deck.root.addEventListener('trieur:release', (e) => {
+  // the plugin reports every release it looked at, thrown or dropped
+  deck.root.addEventListener('trieur:throw', (e) => {
     const { speed, carried, thrown } = (e as CustomEvent).detail;
     cells[0]!.textContent = `${speed.toFixed(2)} px/ms`;
     cells[1]!.textContent = thrown ? `${Math.round(carried)} px` : '—';
     cells[2]!.textContent = thrown ? 'throw' : 'drop';
   });
 
-  deckGui(deck, { flick: true });
+  deckGui(deck);
   shortcutsButton(deck);
   deck.focus();
 </script>

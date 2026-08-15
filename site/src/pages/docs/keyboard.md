@@ -69,7 +69,7 @@ half the ways into fullscreen here are not gestures.
 | | |
 |---|---|
 | drag past `threshold` | file into the region under the card |
-| a throw | file where the throw lands — see `flick`, [Throw, don't drop](/demos/flick/) |
+| a throw | file where the throw lands — the [flick plugin](/docs/throw/) |
 | double tap | accept the suggestion, the touch equivalent of <kbd>↵</kbd> |
 | press and hold a card | open the multi-zone stack, then sweep across zones |
 | press and hold the stage | summon the round pad under the thumb (`multiPad: 'dynamic'`) |

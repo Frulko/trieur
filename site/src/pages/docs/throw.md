@@ -4,7 +4,7 @@ title: The throw
 description: Flick a card and it lands where the throw carries it — the physics, the velocity, and the model's thumb on the scale.
 ---
 
-**Experimental.** `flick: true` turns a release into a throw: the card keeps the speed it had,
+**Experimental.** The `flick` plugin turns a release into a throw: the card keeps the speed it had,
 travels a little further on its own, and is filed where that carries it. See it in
 [Throw, don't drop](/demos/flick/).
 
@@ -14,14 +14,20 @@ cases where dropping is a coin toss: zones far from the card, where the drag has
 whole stage, and a mosaic of small adjacent cells, where a few pixels either side of a border
 file the card in the wrong folder.
 
+It is a [plugin](../plugins/), not an option — the projection, the velocity fit and the debug
+renderer are a kilobyte that a page which never throws a card should not be carrying:
+
 ```js
+import { flick } from '@trieur/core/flick';
+
 new Deck(el, {
-  flick: true,        // throw instead of drop
-  flickMs: 170,       // how far ahead the release is projected
-  flickDecay: 0.994,  // the same number as a deceleration rate, if you prefer
-  flickMin: 0.6,      // px/ms below which a release is an ordinary drop
-  flickBias: 0.4,     // how much wider the model's suggestion catches, in tiles
-  flickDebug: false,  // draw the vector and the gravity well while tuning
+  plugins: [flick({
+    ms: 170,       // how far ahead the release is projected
+    decay: 0.994,  // the same number as a deceleration rate, if you prefer
+    min: 0.6,      // px/ms below which a release is an ordinary drop
+    bias: 0.4,     // how much wider the model's suggestion catches, in tiles
+    debug: false,  // draw the vector and the gravity well while tuning
+  })],
 });
 ```
 
@@ -108,10 +114,14 @@ and throw thirty cards. What you are looking for:
 | Distant zones still need a long drag | raise `flickMs` |
 | The suggestion catches too much | lower `flickBias` |
 
-Every release, thrown or dropped, is reported so you can measure rather than guess:
+Every release the plugin looks at is reported, thrown or not, so you can measure rather than
+guess:
 
 ```js
-el.addEventListener('trieur:release', (e) => {
-  const { speed, carried, thrown, zone } = e.detail;
+el.addEventListener('trieur:throw', (e) => {
+  const { speed, carried, thrown, why, zone } = e.detail;
 });
 ```
+
+(The deck's own `trieur:release` still fires for every drag, with `{ item, zone, dist,
+cancelled }` — the throw's numbers belong to the plugin that computed them.)

@@ -126,8 +126,6 @@ export function createGui(
 export interface DeckGuiOptions {
   /** add the radial arc controls — only worth showing where the layout can be radial */
   radial?: boolean;
-  /** add the throw controls: the experimental flick mode, and its debug vector */
-  flick?: boolean;
 }
 
 /**
@@ -159,15 +157,6 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
           { key: 'sweep', label: 'radial sweep', type: 'range', value: 360, min: 60, max: 360, step: 15, unit: '°' },
           { key: 'start', label: 'radial start', type: 'range', value: -90, min: -180, max: 180, step: 15, unit: '°' },
           { key: 'ringGap', label: 'ring gap', type: 'range', value: 3, min: 0, max: 24, step: 1, unit: 'px' },
-        ] as Control[])
-      : []),
-    ...(opts.flick
-      ? ([
-          { key: 'flick', label: 'throw', type: 'toggle', value: Boolean(o.flick) },
-          { key: 'flickMs', label: 'throw reach', type: 'range', value: o.flickMs ?? 170, min: 0, max: 500, step: 10, unit: 'ms' },
-          { key: 'flickMin', label: 'throw floor', type: 'range', value: o.flickMin ?? 0.25, min: 0.05, max: 1.5, step: 0.05 },
-          { key: 'flickBias', label: 'model pull', type: 'range', value: o.flickBias ?? 0.5, min: 0, max: 1.5, step: 0.05 },
-          { key: 'flickDebug', label: 'show vector', type: 'toggle', value: o.flickDebug !== false },
         ] as Control[])
       : []),
     { key: 'segments', label: 'regions', type: 'toggle', value: o.segments !== false },
@@ -212,15 +201,6 @@ export function deckGui(deck: Deck, opts: DeckGuiOptions = {}): Gui {
             : (name as 'circle');
       deck.setOptions({
         layout,
-        ...(opts.flick
-          ? {
-              flick: Boolean(v.flick),
-              flickMs: Number(v.flickMs),
-              flickMin: Number(v.flickMin),
-              flickBias: Number(v.flickBias),
-              flickDebug: Boolean(v.flickDebug),
-            }
-          : {}),
         segments: Boolean(v.segments),
         zonePull: Number(v.zonePull),
         zonePadding: Number(v.zonePadding),

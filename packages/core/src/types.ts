@@ -3,6 +3,8 @@
 // Nothing from any domain: an item is an opaque object, a zone an opaque label. Everything
 // that knows what is being sorted lives in the host application.
 
+import type { DeckPlugin } from './plugin.js';
+
 export type Point = { x: number; y: number };
 export type Polygon = Array<[number, number]>;
 
@@ -10,6 +12,13 @@ export type Polygon = Array<[number, number]>;
 export interface Zone {
   id: string;
   label?: string;
+  /**
+   * Present, visible, and not available right now — greyed rather than removed.
+   *
+   * Removing a zone moves every other one, and a menu whose items move is a menu you have to
+   * read again. A disabled zone keeps its place and its key, refuses the card, and says so.
+   */
+  disabled?: boolean;
   /** keyboard key; assigned by position when absent */
   key?: string;
   color?: string;
@@ -223,48 +232,25 @@ export interface DeckOptions<T = any> {
    */
   keyboard?: 'auto' | 'focus' | false;
   /**
-   * **Experimental.** Throw instead of drop: on release the card keeps the speed it had, and
-   * the zone is the one where that throw *lands*, not the one under the finger.
-   *
-   * It is aimed at the two cases where a drop-where-you-are is a coin toss: zones far from the
-   * card, where the drag has to cross the whole stage to reach them, and a mosaic of small
-   * neighbouring cells, where a few pixels either side of a border file the card in the wrong
-   * folder. A flick states a direction, and a direction is a much easier thing to be accurate
-   * about than a coordinate.
-   */
-  /**
    * **Experimental.** How many piles to deal at once, side by side, sharing the same zones
    * (default 1).
    *
-   * It is for a big tablet held in two hands: one pile in the middle has both thumbs doing
-   * the same job in turn, two piles have each thumb owning one, and neither waits for the
-   * other. A pile keeps its card until that card leaves, so filing on the left never shuffles
-   * what the right hand was about to drop. The keyboard, the suggestion and Undo follow the
-   * pile you last touched — `deck.active`.
+   * It is for a big tablet held in two hands: one pile in the middle has both thumbs doing the
+   * same job in turn, two piles have each thumb owning one, and neither waits for the other. A
+   * pile keeps its card until that card leaves, so filing on the left never shuffles what the
+   * right hand was about to drop. The keyboard, the suggestion and Undo follow the pile you
+   * last touched — `deck.active`.
    */
   piles?: number;
-  flick?: boolean;
-  /** how far ahead a throw is projected, in ms of travel at the release speed (default 170) */
-  flickMs?: number;
   /**
-   * The same projection expressed as a scroll view's deceleration rate, per millisecond —
-   * `0.99` is iOS "fast", `0.998` its normal scrolling. Overrides `flickMs`, which is simply
-   * `decay / (1 − decay)`.
-   */
-  flickDecay?: number;
-  /** below this speed, in px/ms, a release is a drop and not a throw (default 0.25) */
-  flickMin?: number;
-  /**
-   * How much wider the model's suggestion catches a throw, in tiles (default 0.5).
+   * Extra behaviour, kept out of the bundle of every page that does not want it.
    *
-   * The iPhone keyboard's oldest trick: after "kno", the `w` key's hit area grows while the
-   * key itself does not move a pixel. Here the tiles stay where they are, and a confident
-   * suggestion quietly catches throws landing up to `flickBias × score` of a tile wide of it.
-   * `0` turns the magic off and leaves plain nearest-tile.
+   * `plugins: [flick()]` is how the throw is turned on; the deck itself knows nothing about it
+   * beyond two hooks — see `plugin.ts`. Everything else a plugin needs is the public API, and
+   * anything it cannot reach that way is a gap in the public API rather than a reason to open
+   * the deck up.
    */
-  flickBias?: number;
-  /** draw the throw vector and where it lands — for tuning `flickMs`, and for the demo */
-  flickDebug?: boolean;
+  plugins?: Array<DeckPlugin<T>>;
   text?: Partial<DeckText>;
   onSort?: (item: T, zone: PlacedZone) => unknown;
   /** files one card into several zones at once; see `multi` */
@@ -285,15 +271,8 @@ export interface DeckEventMap<T = unknown> {
   assign: { index: number; item: T };
   suggest: { item: T } & Prediction;
   /** a drag ended: what the release was worth, and what it aimed at. See `flick`. */
-  release: {
-    item: T | undefined;
-    zone: PlacedZone | null;
-    speed: number;
-    carried: number;
-    thrown: boolean;
-    /** how it resolved: too slow, the region under the landing point, the nearest ray, nothing */
-    why: 'slow' | 'region' | 'ray' | 'nothing';
-  };
+  /** a drag ended: how far it travelled, and what it resolved to */
+  release: { item: T | undefined; zone: PlacedZone | null; dist: number; cancelled: boolean };
   /** the multi-zone selection changed */
   pick: { item: T | undefined; zones: PlacedZone[]; multi: boolean };
   expand: { expanded: boolean };

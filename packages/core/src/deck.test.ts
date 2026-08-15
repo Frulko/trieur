@@ -343,33 +343,36 @@ test('removing a zone drops it from the stack instead of filing into nowhere', (
   expect(d.picking.map((z) => z.id)).toEqual(['dev']);
 });
 
-test('flick: a fast throw files short of the threshold, a slow nudge does not', async () => {
+test('a plugin decides where a release goes, and only when it wants to', async () => {
   const filed: string[] = [];
+  const seen: string[] = [];
   const d = new Deck(root, {
     items: [...ITEMS],
     zones: ZONES,
-    threshold: 300,
-    flick: true,
-    // the synthetic gesture below runs on wall-clock timers, so the floor is set from what it
-    // can guarantee (~1px/ms) rather than from the default meant for a human hand
-    flickMin: 0.45,
+    threshold: 300, // nothing would file on its own
     onSort: (_i, z) => void filed.push(z.id),
+    plugins: [
+      {
+        name: 'test',
+        setup: () => {
+          seen.push('setup');
+          return () => seen.push('teardown');
+        },
+        // fast enough to be deliberate: file into the second zone, whatever the distance
+        aim: (ctx, deck) => (Math.hypot(ctx.v.x, ctx.v.y) > 0.4 ? (deck.zones[1] ?? null) : undefined),
+      },
+    ],
   });
-  // a stage has no size in a test DOM, so the tiles are placed by hand: one to the right
-  d.zones[0]!.pos = { x: 300, y: 0 };
-  d.zones[1]!.pos = { x: 0, y: 300 };
-  d.zones[2]!.pos = { x: -300, y: 0 };
+  expect(seen).toEqual(['setup']);
 
-  // 90px, well short of the threshold, but at ~1.25px/ms — a throw, and it lands
   await drag([
     [30, 0],
     [60, 0],
     [90, 0],
   ]);
-  expect(filed).toEqual(['dev']);
-  expect(d.items.length).toBe(2);
+  expect(filed).toEqual(['ia']); // the plugin's answer, not the deck's
 
-  // the same distance, crawled: a drop, and it is short of the threshold
+  // …and a slow drag leaves the decision alone: short of the threshold, nothing is filed
   await drag(
     [
       [30, 0],
@@ -379,8 +382,10 @@ test('flick: a fast throw files short of the threshold, a slow nudge does not', 
     'pointerup',
     200,
   );
-  expect(filed).toEqual(['dev']);
-  expect(d.items.length).toBe(2);
+  expect(filed).toEqual(['ia']);
+
+  d.destroy();
+  expect(seen).toEqual(['setup', 'teardown']);
 });
 
 test('the card behind is promoted, not rebuilt', async () => {
@@ -481,4 +486,27 @@ test('tapZones: a tap on a tile files the card, and still picks in multi mode', 
   tile(0).click();
   expect(d.picking.map((z) => z.id)).toEqual(['dev']);
   expect(filed).toEqual(['ia']);
+});
+
+test('a disabled zone keeps its place and refuses the card', async () => {
+  const filed: string[] = [];
+  const d = new Deck(root, {
+    items: [...ITEMS],
+    zones: [{ id: 'dev' }, { id: 'ia', disabled: true }, { id: 'home' }],
+    tapZones: true,
+    onSort: (_i, z) => void filed.push(z.id),
+  });
+  const tiles = [...root.querySelectorAll('.tr-zone')] as HTMLElement[];
+  expect(tiles[1]!.classList.contains('tr-off')).toBe(true);
+  expect(tiles.length).toBe(3); // still there: removing it would move the other two
+
+  tiles[1]!.click(); // a tap does nothing
+  press(d, 's'); //    and so does its key
+  await tick();
+  expect(filed).toEqual([]);
+  expect(d.items.length).toBe(3);
+
+  tiles[0]!.click();
+  await tick();
+  expect(filed).toEqual(['dev']);
 });
